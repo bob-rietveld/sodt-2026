@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Fira+Mono&family=Fira+Sans:wght@400;600&display=swap');
+@import "tailwindcss";
 
 @theme {
   /* Techleap Color Palette */

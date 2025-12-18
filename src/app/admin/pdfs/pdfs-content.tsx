@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { PDF } from "@/types";
 
 type StatusFilter = "all" | "pending" | "processing" | "completed" | "failed";
 
 export default function PdfsContent() {
   const [filter, setFilter] = useState<StatusFilter>("all");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<Id<"pdfs"> | null>(null);
   const [editForm, setEditForm] = useState({ title: "", description: "" });
 
   const pdfs = useQuery(
@@ -39,13 +40,13 @@ export default function PdfsContent() {
     setEditingId(null);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: Id<"pdfs">) => {
     if (confirm("Are you sure you want to delete this document?")) {
       await removePdf({ id });
     }
   };
 
-  const handleReprocess = async (id: string) => {
+  const handleReprocess = async (id: Id<"pdfs">) => {
     try {
       const response = await fetch("/api/process-pdf", {
         method: "POST",

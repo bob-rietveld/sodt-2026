@@ -1,43 +1,23 @@
 /* eslint-disable */
 /**
- * Generated `api` utility - stub file
+ * Generated `api` utility.
  *
- * Run `npx convex dev` to generate the actual code
+ * THIS CODE IS AUTOMATICALLY GENERATED.
+ *
+ * To regenerate, run `npx convex dev`.
+ * @module
  */
 
-import { makeFunctionReference } from "convex/server";
+import { anyApi, componentsGeneric } from "convex/server";
 
-// Create stub function references that work with Convex React hooks
-const createQueryRef = (path) => makeFunctionReference("query:" + path);
-const createMutationRef = (path) => makeFunctionReference("mutation:" + path);
-
-// This is a placeholder. Run `npx convex dev` to generate the actual API.
-export const api = {
-  pdfs: {
-    list: createQueryRef("pdfs:list"),
-    get: createQueryRef("pdfs:get"),
-    getByDriveFileId: createQueryRef("pdfs:getByDriveFileId"),
-    getFileUrl: createQueryRef("pdfs:getFileUrl"),
-    search: createQueryRef("pdfs:search"),
-    create: createMutationRef("pdfs:create"),
-    update: createMutationRef("pdfs:update"),
-    updateStatus: createMutationRef("pdfs:updateStatus"),
-    approve: createMutationRef("pdfs:approve"),
-    reject: createMutationRef("pdfs:reject"),
-    remove: createMutationRef("pdfs:remove"),
-  },
-  processing: {
-    createJob: createMutationRef("processing:createJob"),
-    updateJob: createMutationRef("processing:updateJob"),
-    getActiveJobs: createQueryRef("processing:getActiveJobs"),
-    getFailedJobs: createQueryRef("processing:getFailedJobs"),
-  },
-  chat: {
-    createSession: createMutationRef("chat:createSession"),
-    addMessage: createMutationRef("chat:addMessage"),
-    getSession: createQueryRef("chat:getSession"),
-    listSessions: createQueryRef("chat:listSessions"),
-  },
-};
-
-export const internal = {};
+/**
+ * A utility for referencing Convex functions in your app's API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
+export const api = anyApi;
+export const internal = anyApi;
+export const components = componentsGeneric();

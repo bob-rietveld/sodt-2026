@@ -1,8 +1,9 @@
 // Shared types for the application
 // These match the Convex schema definitions
+import type { Id } from "../../convex/_generated/dataModel";
 
 export interface PDF {
-  _id: string;
+  _id: Id<"pdfs">;
   title: string;
   filename: string;
   storageId?: string;
@@ -21,8 +22,8 @@ export interface PDF {
 }
 
 export interface ProcessingJob {
-  _id: string;
-  pdfId: string;
+  _id: Id<"processingJobs">;
+  pdfId: Id<"pdfs">;
   stage: "extracting" | "embedding" | "storing" | "completed" | "failed";
   startedAt: number;
   completedAt?: number;

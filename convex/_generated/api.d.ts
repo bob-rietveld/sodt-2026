@@ -1,13 +1,53 @@
 /* eslint-disable */
 /**
- * Generated `api` utility - stub file
+ * Generated `api` utility.
  *
- * THIS IS A STUB FILE. Run `npx convex dev` to generate the actual types.
- * The types below are permissive to allow builds without Convex CLI.
+ * THIS CODE IS AUTOMATICALLY GENERATED.
+ *
+ * To regenerate, run `npx convex dev`.
+ * @module
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export declare const api: any;
+import type * as chat from "../chat.js";
+import type * as pdfs from "../pdfs.js";
+import type * as processing from "../processing.js";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export declare const internal: any;
+import type {
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
+} from "convex/server";
+
+declare const fullApi: ApiFromModules<{
+  chat: typeof chat;
+  pdfs: typeof pdfs;
+  processing: typeof processing;
+}>;
+
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
+export declare const api: FilterApi<
+  typeof fullApi,
+  FunctionReference<any, "public">
+>;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
+export declare const internal: FilterApi<
+  typeof fullApi,
+  FunctionReference<any, "internal">
+>;
+
+export declare const components: {};

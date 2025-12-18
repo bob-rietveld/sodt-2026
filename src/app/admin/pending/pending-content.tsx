@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { PDF } from "@/types";
 
 export default function PendingContent() {
@@ -12,15 +13,15 @@ export default function PendingContent() {
   const rejectPdf = useMutation(api.pdfs.reject);
   const removePdf = useMutation(api.pdfs.remove);
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = async (id: Id<"pdfs">) => {
     await approvePdf({ id, approvedBy: "admin" });
   };
 
-  const handleReject = async (id: string) => {
+  const handleReject = async (id: Id<"pdfs">) => {
     await rejectPdf({ id });
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: Id<"pdfs">) => {
     if (confirm("Are you sure you want to delete this document?")) {
       await removePdf({ id });
     }
