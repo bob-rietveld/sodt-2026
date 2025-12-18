@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -12,15 +12,106 @@ export default function PdfsContent() {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [editingId, setEditingId] = useState<Id<"pdfs"> | null>(null);
   const [editForm, setEditForm] = useState({ title: "", description: "" });
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const pdfs = useQuery(
     api.pdfs.list,
     filter === "all" ? {} : { status: filter as "pending" | "processing" | "completed" | "failed" }
   );
 
+  const generateUploadUrl = useMutation(api.pdfs.generateUploadUrl);
+  const createPdf = useMutation(api.pdfs.create);
   const updatePdf = useMutation(api.pdfs.update);
   const removePdf = useMutation(api.pdfs.remove);
   const approvePdf = useMutation(api.pdfs.approve);
+
+  const handleUpload = useCallback(async (file: File) => {
+    if (!file.name.endsWith(".pdf")) {
+      alert("Please select a PDF file");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress("Uploading file...");
+
+    try {
+      // Step 1: Get upload URL from Convex
+      const uploadUrl = await generateUploadUrl();
+
+      // Step 2: Upload file to Convex storage
+      const result = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+
+      if (!result.ok) {
+        throw new Error("Failed to upload file");
+      }
+
+      const { storageId } = await result.json();
+
+      // Step 3: Create PDF record in Convex
+      setUploadProgress("Creating PDF record...");
+      const title = file.name.replace(".pdf", "");
+      const pdfId = await createPdf({
+        title,
+        filename: file.name,
+        storageId,
+        source: "upload",
+      });
+
+      // Step 4: Kick off processing pipeline
+      setUploadProgress("Starting processing pipeline...");
+      const processResponse = await fetch("/api/process-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdfId, storageId }),
+      });
+
+      if (!processResponse.ok) {
+        console.error("Processing failed to start, but PDF was uploaded");
+      }
+
+      setUploadProgress("Upload complete! Processing started.");
+      setTimeout(() => setUploadProgress(null), 3000);
+    } catch (error) {
+      console.error("Upload error:", error);
+      setUploadProgress(`Error: ${error instanceof Error ? error.message : "Upload failed"}`);
+      setTimeout(() => setUploadProgress(null), 5000);
+    } finally {
+      setIsUploading(false);
+    }
+  }, [generateUploadUrl, createPdf]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleUpload(file);
+    }
+    e.target.value = "";
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleUpload(file);
+    }
+  }, [handleUpload]);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
 
   const handleEdit = (pdf: PDF) => {
     setEditingId(pdf._id);
@@ -82,6 +173,55 @@ export default function PdfsContent() {
                 {status.charAt(0).toUpperCase() + status.slice(1)}
               </button>
             )
+          )}
+        </div>
+      </div>
+
+      {/* Upload Section */}
+      <div
+        className={`mb-8 p-8 border-2 border-dashed rounded-xl transition-colors ${
+          isDragging
+            ? "border-primary bg-primary/5"
+            : "border-foreground/20 bg-white"
+        }`}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+      >
+        <div className="text-center">
+          <svg
+            className="w-12 h-12 mx-auto mb-4 text-foreground/30"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+            />
+          </svg>
+          {uploadProgress ? (
+            <p className="text-foreground/70">{uploadProgress}</p>
+          ) : (
+            <>
+              <p className="text-foreground/70 mb-2">
+                Drag and drop a PDF file here, or
+              </p>
+              <label className="inline-block">
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileSelect}
+                  disabled={isUploading}
+                  className="hidden"
+                />
+                <span className="px-6 py-2 bg-primary text-white rounded-lg font-medium cursor-pointer hover:bg-primary/90 transition-colors">
+                  {isUploading ? "Uploading..." : "Select PDF"}
+                </span>
+              </label>
+            </>
           )}
         </div>
       </div>
