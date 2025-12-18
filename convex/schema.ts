@@ -8,6 +8,7 @@ export default defineSchema({
     filename: v.string(),
     storageId: v.optional(v.id("_storage")),  // Convex storage ID
     driveFileId: v.optional(v.string()),       // Google Drive file ID
+    sourceUrl: v.optional(v.string()),         // Original URL for URL-sourced PDFs
 
     // Metadata
     author: v.optional(v.string()),
@@ -31,7 +32,7 @@ export default defineSchema({
     approvedAt: v.optional(v.number()),
 
     // Source tracking
-    source: v.union(v.literal("upload"), v.literal("drive")),
+    source: v.union(v.literal("upload"), v.literal("drive"), v.literal("url")),
   })
     .index("by_status", ["status"])
     .index("by_approved", ["approved"])

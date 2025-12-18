@@ -8,6 +8,7 @@ export interface PDF {
   filename: string;
   storageId?: string;
   driveFileId?: string;
+  sourceUrl?: string;
   author?: string;
   description?: string;
   pageCount?: number;
@@ -18,7 +19,7 @@ export interface PDF {
   approved: boolean;
   approvedBy?: string;
   approvedAt?: number;
-  source: "upload" | "drive";
+  source: "upload" | "drive" | "url";
 }
 
 export interface ProcessingJob {

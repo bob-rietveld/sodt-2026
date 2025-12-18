@@ -7,6 +7,7 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 import { PDF } from "@/types";
 
 type StatusFilter = "all" | "pending" | "processing" | "completed" | "failed";
+type UploadMode = "file" | "url";
 
 export default function PdfsContent() {
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -15,6 +16,8 @@ export default function PdfsContent() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadMode, setUploadMode] = useState<UploadMode>("file");
+  const [pdfUrl, setPdfUrl] = useState("");
 
   const pdfs = useQuery(
     api.pdfs.list,
@@ -85,6 +88,51 @@ export default function PdfsContent() {
       setIsUploading(false);
     }
   }, [generateUploadUrl, createPdf]);
+
+  const handleUrlSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!pdfUrl.trim()) {
+      alert("Please enter a URL");
+      return;
+    }
+
+    // Basic URL validation
+    try {
+      new URL(pdfUrl);
+    } catch {
+      alert("Please enter a valid URL");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress("Fetching PDF from URL...");
+
+    try {
+      // Call API to process PDF from URL
+      const response = await fetch("/api/process-pdf-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: pdfUrl }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to process PDF from URL");
+      }
+
+      setUploadProgress("PDF fetched! Processing started.");
+      setPdfUrl("");
+      setTimeout(() => setUploadProgress(null), 3000);
+    } catch (error) {
+      console.error("URL processing error:", error);
+      setUploadProgress(`Error: ${error instanceof Error ? error.message : "Processing failed"}`);
+      setTimeout(() => setUploadProgress(null), 5000);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -177,54 +225,112 @@ export default function PdfsContent() {
         </div>
       </div>
 
-      {/* Upload Section */}
-      <div
-        className={`mb-8 p-8 border-2 border-dashed rounded-xl transition-colors ${
-          isDragging
-            ? "border-primary bg-primary/5"
-            : "border-foreground/20 bg-white"
-        }`}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-      >
-        <div className="text-center">
-          <svg
-            className="w-12 h-12 mx-auto mb-4 text-foreground/30"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-            />
-          </svg>
-          {uploadProgress ? (
-            <p className="text-foreground/70">{uploadProgress}</p>
-          ) : (
-            <>
-              <p className="text-foreground/70 mb-2">
-                Drag and drop a PDF file here, or
-              </p>
-              <label className="inline-block">
-                <input
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleFileSelect}
-                  disabled={isUploading}
-                  className="hidden"
-                />
-                <span className="px-6 py-2 bg-primary text-white rounded-lg font-medium cursor-pointer hover:bg-primary/90 transition-colors">
-                  {isUploading ? "Uploading..." : "Select PDF"}
-                </span>
-              </label>
-            </>
-          )}
-        </div>
+      {/* Upload Mode Toggle */}
+      <div className="mb-4 flex gap-2">
+        <button
+          onClick={() => setUploadMode("file")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            uploadMode === "file"
+              ? "bg-secondary text-white"
+              : "bg-white text-foreground/70 hover:bg-foreground/5 border border-foreground/10"
+          }`}
+        >
+          Upload File
+        </button>
+        <button
+          onClick={() => setUploadMode("url")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            uploadMode === "url"
+              ? "bg-secondary text-white"
+              : "bg-white text-foreground/70 hover:bg-foreground/5 border border-foreground/10"
+          }`}
+        >
+          From URL
+        </button>
       </div>
+
+      {/* Upload Section */}
+      {uploadMode === "file" ? (
+        <div
+          className={`mb-8 p-8 border-2 border-dashed rounded-xl transition-colors ${
+            isDragging
+              ? "border-primary bg-primary/5"
+              : "border-foreground/20 bg-white"
+          }`}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+        >
+          <div className="text-center">
+            <svg
+              className="w-12 h-12 mx-auto mb-4 text-foreground/30"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+            {uploadProgress ? (
+              <p className="text-foreground/70">{uploadProgress}</p>
+            ) : (
+              <>
+                <p className="text-foreground/70 mb-2">
+                  Drag and drop a PDF file here, or
+                </p>
+                <label className="inline-block">
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileSelect}
+                    disabled={isUploading}
+                    className="hidden"
+                  />
+                  <span className="px-6 py-2 bg-primary text-white rounded-lg font-medium cursor-pointer hover:bg-primary/90 transition-colors">
+                    {isUploading ? "Uploading..." : "Select PDF"}
+                  </span>
+                </label>
+              </>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="mb-8 p-8 bg-white border border-foreground/10 rounded-xl">
+          <form onSubmit={handleUrlSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground/70 mb-2">
+                PDF URL
+              </label>
+              <input
+                type="url"
+                value={pdfUrl}
+                onChange={(e) => setPdfUrl(e.target.value)}
+                placeholder="https://example.com/document.pdf"
+                disabled={isUploading}
+                className="w-full px-4 py-3 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+              />
+              <p className="mt-2 text-sm text-foreground/50">
+                Enter the direct URL to a PDF file. The file will be fetched and processed.
+              </p>
+            </div>
+            {uploadProgress ? (
+              <p className="text-foreground/70">{uploadProgress}</p>
+            ) : (
+              <button
+                type="submit"
+                disabled={isUploading || !pdfUrl.trim()}
+                className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUploading ? "Processing..." : "Fetch & Process PDF"}
+              </button>
+            )}
+          </form>
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden">
