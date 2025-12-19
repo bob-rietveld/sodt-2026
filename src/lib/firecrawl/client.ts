@@ -1,0 +1,146 @@
+import FirecrawlApp from "@mendable/firecrawl-js";
+import Anthropic from "@anthropic-ai/sdk";
+
+export interface PDFMetadata {
+  title: string;
+  company: string;
+  dateOrYear: string;
+  topic: string;
+  summary: string;
+  continent: "us" | "eu" | "asia" | "global" | "other";
+  industry: "semicon" | "deeptech" | "biotech" | "fintech" | "cleantech" | "other";
+}
+
+export interface ExtractionResult {
+  success: boolean;
+  data?: PDFMetadata;
+  error?: string;
+}
+
+/**
+ * Extract metadata from a PDF using Firecrawl to scrape + Claude to extract
+ */
+export async function extractPDFMetadata(
+  publicUrl: string
+): Promise<ExtractionResult> {
+  const firecrawlApiKey = process.env.FIRECRAWL_API_KEY;
+  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+
+  if (!firecrawlApiKey) {
+    return {
+      success: false,
+      error: "FIRECRAWL_API_KEY must be set",
+    };
+  }
+
+  if (!anthropicApiKey) {
+    return {
+      success: false,
+      error: "ANTHROPIC_API_KEY must be set",
+    };
+  }
+
+  try {
+    // Step 1: Use Firecrawl to scrape the PDF content
+    const firecrawl = new FirecrawlApp({ apiKey: firecrawlApiKey });
+
+    console.log("Scraping PDF from URL:", publicUrl);
+
+    // Request markdown content only (thumbnail is generated separately using pdf.js)
+    // Increase timeout for large PDF files (default is 30s, set to 120s)
+    const scrapeResult = await firecrawl.scrapeUrl(publicUrl, {
+      formats: ["markdown"],
+      timeout: 120000, // 2 minutes timeout for large PDFs
+    });
+
+    if (!scrapeResult.success) {
+      return {
+        success: false,
+        error: `Firecrawl scrape failed: ${scrapeResult.error || "Unknown error"}`,
+      };
+    }
+
+    const pdfContent = scrapeResult.markdown;
+
+    if (!pdfContent || pdfContent.trim().length === 0) {
+      return {
+        success: false,
+        error: "No content extracted from PDF",
+      };
+    }
+
+    console.log("PDF content extracted, length:", pdfContent.length);
+
+    // Step 2: Use Claude to extract structured metadata from the content
+    const anthropic = new Anthropic({ apiKey: anthropicApiKey });
+
+    const extractionPrompt = `Analyze the following document content and extract metadata in JSON format.
+
+Document content:
+${pdfContent.substring(0, 15000)}
+
+Extract the following fields:
+- title: The title of the document or report
+- company: The company name that authored or is the subject of the document
+- dateOrYear: The date or year the document was published or refers to
+- topic: A brief topic description (1 sentence, max 100 characters)
+- summary: A comprehensive executive summary of the document (2-4 paragraphs, covering key findings, insights, and conclusions)
+- continent: The geographic region (must be one of: "us", "eu", "asia", "global", "other")
+- industry: The industry sector (must be one of: "semicon", "deeptech", "biotech", "fintech", "cleantech", "other")
+
+Respond ONLY with valid JSON, no other text:`;
+
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 2048,
+      messages: [
+        {
+          role: "user",
+          content: extractionPrompt,
+        },
+      ],
+    });
+
+    const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+
+    // Parse the JSON response
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return {
+        success: false,
+        error: "Failed to parse metadata from Claude response",
+      };
+    }
+
+    const extractedData = JSON.parse(jsonMatch[0]);
+
+    return {
+      success: true,
+      data: {
+        title: extractedData.title || "",
+        company: extractedData.company || "",
+        dateOrYear: extractedData.dateOrYear || "",
+        topic: extractedData.topic || "",
+        summary: extractedData.summary || "",
+        continent: validateContinent(extractedData.continent),
+        industry: validateIndustry(extractedData.industry),
+      },
+    };
+  } catch (error) {
+    console.error("PDF metadata extraction error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+function validateContinent(value: string): "us" | "eu" | "asia" | "global" | "other" {
+  const valid = ["us", "eu", "asia", "global", "other"];
+  return valid.includes(value?.toLowerCase()) ? (value.toLowerCase() as "us" | "eu" | "asia" | "global" | "other") : "other";
+}
+
+function validateIndustry(value: string): "semicon" | "deeptech" | "biotech" | "fintech" | "cleantech" | "other" {
+  const valid = ["semicon", "deeptech", "biotech", "fintech", "cleantech", "other"];
+  return valid.includes(value?.toLowerCase()) ? (value.toLowerCase() as "semicon" | "deeptech" | "biotech" | "fintech" | "cleantech" | "other") : "other";
+}

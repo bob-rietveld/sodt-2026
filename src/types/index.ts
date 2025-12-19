@@ -20,6 +20,14 @@ export interface PDF {
   approvedBy?: string;
   approvedAt?: number;
   source: "upload" | "drive" | "url";
+  // Extracted metadata from Firecrawl
+  company?: string;
+  dateOrYear?: string;
+  topic?: string;
+  summary?: string;
+  thumbnailUrl?: string;
+  continent?: "us" | "eu" | "asia" | "global" | "other";
+  industry?: "semicon" | "deeptech" | "biotech" | "fintech" | "cleantech" | "other";
 }
 
 export interface ProcessingJob {

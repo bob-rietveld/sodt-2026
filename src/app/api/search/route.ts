@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { embedQuery } from "@/lib/voyage/client";
-import { hybridSearch } from "@/lib/weaviate/client";
+import { agentSearch } from "@/lib/weaviate/client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,13 +9,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Query is required" }, { status: 400 });
     }
 
-    // Generate embedding for the query
-    const queryEmbedding = await embedQuery(query);
+    // Use Weaviate QueryAgent to search and generate answer
+    const result = await agentSearch(query);
 
-    // Search Weaviate with hybrid search
-    const results = await hybridSearch(query, queryEmbedding, 10);
-
-    return NextResponse.json({ results });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Search error:", error);
     return NextResponse.json(

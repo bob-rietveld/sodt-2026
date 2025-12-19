@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
+import { createHash } from "crypto";
 import { api } from "../../../../convex/_generated/api";
 import { extractPdfFromBuffer, combineChunks } from "@/lib/unstructured/client";
 import { embedDocuments } from "@/lib/voyage/client";
 import { insertChunks, PDFChunk } from "@/lib/weaviate/client";
+import { runWorkflow } from "@/lib/unstructured/workflow";
+
+// Calculate SHA-256 hash of buffer
+function calculateBufferHash(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
 
 function getConvexClient(): ConvexHttpClient {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -18,7 +25,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { url } = body;
+    const { url, workflowId } = body;
 
     if (!url) {
       return NextResponse.json(
@@ -48,27 +55,7 @@ export async function POST(request: NextRequest) {
     // Create title from filename
     const title = filename.replace(".pdf", "").replace(/[-_]/g, " ");
 
-    // Step 1: Create PDF record in Convex
-    const pdfId = await convex.mutation(api.pdfs.create, {
-      title,
-      filename,
-      sourceUrl: url,
-      source: "url",
-    });
-
-    // Step 2: Create processing job
-    const jobId = await convex.mutation(api.processing.createJob, {
-      pdfId,
-      stage: "extracting",
-    });
-
-    // Update status to processing
-    await convex.mutation(api.pdfs.updateStatus, {
-      id: pdfId,
-      status: "processing",
-    });
-
-    // Step 3: Fetch PDF from URL
+    // Step 1: Fetch PDF from URL first (to check for duplicates)
     console.log(`Fetching PDF from URL: ${url}`);
     const pdfResponse = await fetch(url, {
       headers: {
@@ -86,6 +73,57 @@ export async function POST(request: NextRequest) {
     }
 
     const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
+
+    // Step 2: Calculate file hash and check for duplicates
+    const fileHash = calculateBufferHash(pdfBuffer);
+    console.log(`Calculated file hash: ${fileHash.substring(0, 16)}...`);
+
+    const duplicateCheck = await convex.query(api.pdfs.checkDuplicate, { fileHash });
+    if (duplicateCheck.isDuplicate) {
+      return NextResponse.json(
+        {
+          error: `Duplicate file: This PDF has already been uploaded as "${duplicateCheck.existingPdf?.title}"`,
+          isDuplicate: true,
+          existingPdf: duplicateCheck.existingPdf,
+        },
+        { status: 409 }
+      );
+    }
+
+    // Step 3: Create PDF record in Convex (with hash)
+    const pdfId = await convex.mutation(api.pdfs.create, {
+      title,
+      filename,
+      fileHash,
+      sourceUrl: url,
+      source: "url",
+    });
+
+    // Step 4: Create processing job
+    const jobId = await convex.mutation(api.processing.createJob, {
+      pdfId,
+      stage: "extracting",
+    });
+
+    // Update status to processing
+    await convex.mutation(api.pdfs.updateStatus, {
+      id: pdfId,
+      status: "processing",
+    });
+
+    // Step 3.5: Run Unstructured workflow if configured
+    if (workflowId) {
+      console.log(`Running Unstructured workflow: ${workflowId}`);
+      const blob = new Blob([pdfBuffer], { type: "application/pdf" });
+      const workflowResult = await runWorkflow(workflowId, blob, filename, "application/pdf");
+
+      if (workflowResult.success) {
+        console.log(`Workflow started: ${workflowResult.workflowRunId}`);
+      } else {
+        console.error(`Workflow failed: ${workflowResult.error}`);
+        // Continue anyway - workflow failure shouldn't block processing
+      }
+    }
 
     // Step 4: Extract text using Unstructured
     console.log(`Extracting text from PDF: ${filename}`);

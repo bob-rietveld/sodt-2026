@@ -54,6 +54,31 @@ export const getByDriveFileId = query({
   },
 });
 
+// Check if a PDF with the same file hash already exists
+export const checkDuplicate = query({
+  args: { fileHash: v.string() },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("pdfs")
+      .withIndex("by_file_hash", (q) => q.eq("fileHash", args.fileHash))
+      .first();
+
+    if (existing) {
+      return {
+        isDuplicate: true,
+        existingPdf: {
+          id: existing._id,
+          title: existing.title,
+          filename: existing.filename,
+          uploadedAt: existing.uploadedAt,
+        },
+      };
+    }
+
+    return { isDuplicate: false };
+  },
+});
+
 // Search PDFs by title
 export const search = query({
   args: { query: v.string() },
@@ -79,6 +104,7 @@ export const create = mutation({
   args: {
     title: v.string(),
     filename: v.string(),
+    fileHash: v.optional(v.string()),
     storageId: v.optional(v.id("_storage")),
     driveFileId: v.optional(v.string()),
     sourceUrl: v.optional(v.string()),
@@ -87,9 +113,22 @@ export const create = mutation({
     description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Check for duplicate if hash is provided
+    if (args.fileHash) {
+      const existing = await ctx.db
+        .query("pdfs")
+        .withIndex("by_file_hash", (q) => q.eq("fileHash", args.fileHash))
+        .first();
+
+      if (existing) {
+        throw new Error(`Duplicate file: This PDF has already been uploaded as "${existing.title}"`);
+      }
+    }
+
     const pdfId = await ctx.db.insert("pdfs", {
       title: args.title,
       filename: args.filename,
+      fileHash: args.fileHash,
       storageId: args.storageId,
       driveFileId: args.driveFileId,
       sourceUrl: args.sourceUrl,
@@ -194,6 +233,42 @@ export const remove = mutation({
 
     // Delete the PDF record
     await ctx.db.delete(args.id);
+  },
+});
+
+// Update extracted metadata from Firecrawl
+export const updateExtractedMetadata = mutation({
+  args: {
+    id: v.id("pdfs"),
+    title: v.optional(v.string()),
+    company: v.optional(v.string()),
+    dateOrYear: v.optional(v.string()),
+    topic: v.optional(v.string()),
+    summary: v.optional(v.string()),
+    thumbnailUrl: v.optional(v.string()),
+    continent: v.optional(v.union(
+      v.literal("us"),
+      v.literal("eu"),
+      v.literal("asia"),
+      v.literal("global"),
+      v.literal("other")
+    )),
+    industry: v.optional(v.union(
+      v.literal("semicon"),
+      v.literal("deeptech"),
+      v.literal("biotech"),
+      v.literal("fintech"),
+      v.literal("cleantech"),
+      v.literal("other")
+    )),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...updates } = args;
+    const filteredUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, v]) => v !== undefined)
+    );
+
+    await ctx.db.patch(id, filteredUpdates);
   },
 });
 

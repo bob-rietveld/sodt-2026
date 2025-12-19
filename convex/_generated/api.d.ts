@@ -11,6 +11,7 @@
 import type * as chat from "../chat.js";
 import type * as pdfs from "../pdfs.js";
 import type * as processing from "../processing.js";
+import type * as settings from "../settings.js";
 
 import type {
   ApiFromModules,
@@ -22,6 +23,7 @@ declare const fullApi: ApiFromModules<{
   chat: typeof chat;
   pdfs: typeof pdfs;
   processing: typeof processing;
+  settings: typeof settings;
 }>;
 
 /**

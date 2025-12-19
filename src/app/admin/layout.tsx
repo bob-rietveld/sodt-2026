@@ -43,6 +43,12 @@ export default function AdminLayout({
               >
                 Status
               </Link>
+              <Link
+                href="/admin/settings"
+                className="text-white/80 hover:text-white transition-colors"
+              >
+                Settings
+              </Link>
             </nav>
             <UserButton afterSignOutUrl="/" />
           </div>
