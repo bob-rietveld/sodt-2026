@@ -9,6 +9,15 @@ import { PDF } from "@/types";
 type StatusFilter = "all" | "pending" | "processing" | "completed" | "failed";
 type UploadMode = "file" | "url";
 
+interface UploadItem {
+  id: string;
+  file: File;
+  status: "pending" | "uploading" | "processing" | "completed" | "failed";
+  progress: string;
+  error?: string;
+  pdfId?: Id<"pdfs">;
+}
+
 // Calculate SHA-256 hash of file content
 async function calculateFileHash(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
@@ -28,6 +37,8 @@ export default function PdfsContent() {
   const [uploadMode, setUploadMode] = useState<UploadMode>("file");
   const [pdfUrl, setPdfUrl] = useState("");
   const [isRunningWorkflow, setIsRunningWorkflow] = useState(false);
+  const [batchUploads, setBatchUploads] = useState<UploadItem[]>([]);
+  const [isBatchUploading, setIsBatchUploading] = useState(false);
 
   const pdfs = useQuery(
     api.pdfs.list,
@@ -36,6 +47,10 @@ export default function PdfsContent() {
 
   // Get workflow ID from settings
   const workflowId = useQuery(api.settings.get, { key: "unstructured_workflow_id" });
+
+  // Get metadata extraction setting
+  const metadataExtractionSetting = useQuery(api.settings.get, { key: "metadata_extraction_enabled" });
+  const metadataExtractionEnabled = metadataExtractionSetting !== "false"; // Default to true
 
   // Get Google Drive settings
   const driveFolderId = useQuery(api.settings.get, { key: "google_drive_folder_id" });
@@ -235,6 +250,213 @@ export default function PdfsContent() {
     }
   }, [generateUploadUrl, createPdf, workflowId, driveRefreshToken, updateExtractedMetadata]);
 
+  // Handle batch upload of multiple files
+  const handleBatchUpload = useCallback(async (files: File[]) => {
+    const pdfFiles = files.filter((f) => f.name.endsWith(".pdf"));
+    if (pdfFiles.length === 0) {
+      setUploadError("No PDF files selected");
+      return;
+    }
+
+    // Initialize upload items
+    const items: UploadItem[] = pdfFiles.map((file) => ({
+      id: Math.random().toString(36).substring(2),
+      file,
+      status: "pending" as const,
+      progress: "Waiting...",
+    }));
+
+    setBatchUploads(items);
+    setIsBatchUploading(true);
+    setUploadError(null);
+
+    const uploadedItems: { pdfId: Id<"pdfs">; storageId: Id<"_storage"> }[] = [];
+
+    // Upload files sequentially to avoid overwhelming the system
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+
+      try {
+        // Update status to uploading
+        setBatchUploads((prev) =>
+          prev.map((u) =>
+            u.id === item.id ? { ...u, status: "uploading", progress: "Checking for duplicates..." } : u
+          )
+        );
+
+        // Check for duplicates
+        const fileHash = await calculateFileHash(item.file);
+        const duplicateCheckResponse = await fetch("/api/check-duplicate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileHash }),
+        });
+
+        if (duplicateCheckResponse.ok) {
+          const duplicateResult = await duplicateCheckResponse.json();
+          if (duplicateResult.isDuplicate) {
+            setBatchUploads((prev) =>
+              prev.map((u) =>
+                u.id === item.id
+                  ? { ...u, status: "failed", progress: "Duplicate", error: `Already uploaded as "${duplicateResult.existingPdf?.title}"` }
+                  : u
+              )
+            );
+            continue;
+          }
+        }
+
+        // Upload file
+        setBatchUploads((prev) =>
+          prev.map((u) =>
+            u.id === item.id ? { ...u, progress: "Uploading file..." } : u
+          )
+        );
+
+        const uploadUrl = await generateUploadUrl();
+        const uploadResult = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": item.file.type },
+          body: item.file,
+        });
+
+        if (!uploadResult.ok) {
+          throw new Error("Failed to upload file");
+        }
+
+        const { storageId } = await uploadResult.json();
+
+        // Create PDF record
+        setBatchUploads((prev) =>
+          prev.map((u) =>
+            u.id === item.id ? { ...u, progress: "Creating record..." } : u
+          )
+        );
+
+        const title = item.file.name.replace(".pdf", "");
+        const pdfId = await createPdf({
+          title,
+          filename: item.file.name,
+          fileHash,
+          storageId,
+          source: "upload",
+        });
+
+        // Extract metadata if enabled
+        if (metadataExtractionEnabled) {
+          setBatchUploads((prev) =>
+            prev.map((u) =>
+              u.id === item.id ? { ...u, progress: "Extracting metadata..." } : u
+            )
+          );
+
+          try {
+            // Get file URL for extraction
+            const fileUrlResponse = await fetch("/api/get-file-url", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ storageId }),
+            });
+
+            if (fileUrlResponse.ok) {
+              const { url: convexFileUrl } = await fileUrlResponse.json();
+
+              // Generate thumbnail
+              let thumbnailDataUrl: string | undefined;
+              try {
+                const thumbnailResponse = await fetch("/api/generate-thumbnail", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ pdfUrl: convexFileUrl }),
+                });
+                const thumbnailResult = await thumbnailResponse.json();
+                if (thumbnailResponse.ok && thumbnailResult.success) {
+                  thumbnailDataUrl = thumbnailResult.thumbnailDataUrl;
+                }
+              } catch (thumbError) {
+                console.error("Thumbnail generation error:", thumbError);
+              }
+
+              // Extract metadata using Firecrawl
+              const extractResponse = await fetch("/api/extract-metadata", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url: convexFileUrl }),
+              });
+
+              const extractResult = await extractResponse.json();
+              if (extractResponse.ok && extractResult.success && extractResult.data) {
+                await updateExtractedMetadata({
+                  id: pdfId,
+                  title: extractResult.data.title || title,
+                  company: extractResult.data.company,
+                  dateOrYear: extractResult.data.dateOrYear,
+                  topic: extractResult.data.topic,
+                  summary: extractResult.data.summary,
+                  thumbnailUrl: thumbnailDataUrl,
+                  continent: extractResult.data.continent,
+                  industry: extractResult.data.industry,
+                });
+              } else if (thumbnailDataUrl) {
+                // Save thumbnail even if metadata extraction failed
+                await updateExtractedMetadata({
+                  id: pdfId,
+                  thumbnailUrl: thumbnailDataUrl,
+                });
+              }
+            }
+          } catch (extractError) {
+            console.error("Metadata extraction error:", extractError);
+            // Continue anyway - extraction failure shouldn't block upload
+          }
+        }
+
+        // Mark as processing
+        setBatchUploads((prev) =>
+          prev.map((u) =>
+            u.id === item.id ? { ...u, status: "processing", progress: "Queued for processing", pdfId } : u
+          )
+        );
+
+        uploadedItems.push({ pdfId, storageId });
+      } catch (error) {
+        setBatchUploads((prev) =>
+          prev.map((u) =>
+            u.id === item.id
+              ? { ...u, status: "failed", progress: "Error", error: error instanceof Error ? error.message : "Upload failed" }
+              : u
+          )
+        );
+      }
+    }
+
+    // Trigger processing for all successfully uploaded PDFs
+    // Process via API calls from the client (fire and forget)
+    if (uploadedItems.length > 0) {
+      for (const item of uploadedItems) {
+        // Fire and forget - processing happens in background
+        fetch("/api/process-pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pdfId: item.pdfId, storageId: item.storageId }),
+        }).catch((err) => console.error("Processing request failed:", err));
+      }
+      // Mark all queued items as completed (UI-wise, actual processing happens in background)
+      setBatchUploads((prev) =>
+        prev.map((u) =>
+          u.status === "processing" ? { ...u, status: "completed", progress: "Processing started" } : u
+        )
+      );
+    }
+
+    setIsBatchUploading(false);
+
+    // Clear the batch uploads after a delay
+    setTimeout(() => {
+      setBatchUploads([]);
+    }, 5000);
+  }, [generateUploadUrl, createPdf, metadataExtractionEnabled, updateExtractedMetadata]);
+
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -296,9 +518,13 @@ export default function PdfsContent() {
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleUpload(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      if (files.length === 1) {
+        handleUpload(files[0]);
+      } else {
+        handleBatchUpload(Array.from(files));
+      }
     }
     e.target.value = "";
   };
@@ -306,11 +532,13 @@ export default function PdfsContent() {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleUpload(file);
+    const files = e.dataTransfer.files;
+    if (files.length === 1) {
+      handleUpload(files[0]);
+    } else if (files.length > 1) {
+      handleBatchUpload(Array.from(files));
     }
-  }, [handleUpload]);
+  }, [handleUpload, handleBatchUpload]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -513,52 +741,99 @@ export default function PdfsContent() {
 
       {/* Upload Section */}
       {uploadMode === "file" ? (
-        <div
-          className={`mb-8 p-8 border-2 border-dashed rounded-xl transition-colors ${
-            isDragging
-              ? "border-primary bg-primary/5"
-              : "border-foreground/20 bg-white"
-          }`}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-        >
-          <div className="text-center">
-            <svg
-              className="w-12 h-12 mx-auto mb-4 text-foreground/30"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-              />
-            </svg>
-            {uploadProgress ? (
-              <p className="text-foreground/70">{uploadProgress}</p>
-            ) : (
-              <>
-                <p className="text-foreground/70 mb-2">
-                  Drag and drop a PDF file here, or
-                </p>
-                <label className="inline-block">
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    onChange={handleFileSelect}
-                    disabled={isUploading}
-                    className="hidden"
-                  />
-                  <span className="px-6 py-2 bg-primary text-white rounded-lg font-medium cursor-pointer hover:bg-primary/90 transition-colors">
-                    {isUploading ? "Uploading..." : "Select PDF"}
-                  </span>
-                </label>
-              </>
-            )}
+        <div className="mb-8">
+          <div
+            className={`p-8 border-2 border-dashed rounded-xl transition-colors ${
+              isDragging
+                ? "border-primary bg-primary/5"
+                : "border-foreground/20 bg-white"
+            }`}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+          >
+            <div className="text-center">
+              <svg
+                className="w-12 h-12 mx-auto mb-4 text-foreground/30"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
+              </svg>
+              {uploadProgress ? (
+                <p className="text-foreground/70">{uploadProgress}</p>
+              ) : isBatchUploading ? (
+                <p className="text-foreground/70">Uploading {batchUploads.length} files...</p>
+              ) : (
+                <>
+                  <p className="text-foreground/70 mb-2">
+                    Drag and drop PDF files here, or
+                  </p>
+                  <label className="inline-block">
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      multiple
+                      onChange={handleFileSelect}
+                      disabled={isUploading || isBatchUploading}
+                      className="hidden"
+                    />
+                    <span className="px-6 py-2 bg-primary text-white rounded-lg font-medium cursor-pointer hover:bg-primary/90 transition-colors">
+                      {isUploading ? "Uploading..." : "Select PDFs"}
+                    </span>
+                  </label>
+                  <p className="text-foreground/50 text-sm mt-2">
+                    You can select multiple files at once
+                  </p>
+                </>
+              )}
+            </div>
           </div>
+
+          {/* Batch Upload Progress */}
+          {batchUploads.length > 0 && (
+            <div className="mt-4 bg-white rounded-xl border border-foreground/10 overflow-hidden">
+              <div className="px-4 py-3 bg-foreground/5 border-b border-foreground/10">
+                <h3 className="font-medium text-sm">Upload Progress ({batchUploads.filter((u) => u.status === "completed").length}/{batchUploads.length})</h3>
+              </div>
+              <div className="divide-y divide-foreground/5 max-h-60 overflow-y-auto">
+                {batchUploads.map((item) => (
+                  <div key={item.id} className="px-4 py-3 flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{item.file.name}</p>
+                      <p className="text-xs text-foreground/50">{item.progress}</p>
+                      {item.error && (
+                        <p className="text-xs text-danger mt-1">{item.error}</p>
+                      )}
+                    </div>
+                    <div className="flex-shrink-0">
+                      {item.status === "pending" && (
+                        <span className="px-2 py-1 rounded text-xs bg-foreground/10 text-foreground/60">Pending</span>
+                      )}
+                      {item.status === "uploading" && (
+                        <span className="px-2 py-1 rounded text-xs bg-info/10 text-info">Uploading</span>
+                      )}
+                      {item.status === "processing" && (
+                        <span className="px-2 py-1 rounded text-xs bg-warning/10 text-warning">Processing</span>
+                      )}
+                      {item.status === "completed" && (
+                        <span className="px-2 py-1 rounded text-xs bg-success/10 text-success">Done</span>
+                      )}
+                      {item.status === "failed" && (
+                        <span className="px-2 py-1 rounded text-xs bg-danger/10 text-danger">Failed</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="mb-8 p-8 bg-white border border-foreground/10 rounded-xl">

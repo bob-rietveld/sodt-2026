@@ -15,6 +15,10 @@ export default function SettingsContent() {
   const settings = useQuery(api.settings.getAll);
   const setSetting = useMutation(api.settings.set);
 
+  // Processing pipeline settings
+  const [processingEnabled, setProcessingEnabled] = useState(true);
+  const [metadataExtractionEnabled, setMetadataExtractionEnabled] = useState(true);
+
   // Unstructured settings
   const [workflowId, setWorkflowId] = useState("");
 
@@ -42,6 +46,8 @@ export default function SettingsContent() {
   // Load saved settings
   useEffect(() => {
     if (settings) {
+      setProcessingEnabled(settings.processing_enabled !== "false"); // Default to true
+      setMetadataExtractionEnabled(settings.metadata_extraction_enabled !== "false"); // Default to true
       setWorkflowId(settings.unstructured_workflow_id || "");
       setEmbeddingProvider((settings.embedding_provider as "unstructured" | "voyage") || "voyage");
       setGoogleClientId(settings.google_client_id || "");
@@ -109,6 +115,60 @@ export default function SettingsContent() {
       setFolders([]);
     } finally {
       setIsLoadingFolders(false);
+    }
+  };
+
+  const handleToggleProcessing = async (enabled: boolean) => {
+    setProcessingEnabled(enabled);
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      await setSetting({
+        key: "processing_enabled",
+        value: enabled ? "true" : "false",
+      });
+      setSaveMessage({
+        type: "success",
+        text: enabled
+          ? "Processing pipeline enabled. Uploads will be processed and indexed."
+          : "Processing pipeline disabled. Uploads will be stored but not indexed for search.",
+      });
+    } catch (error) {
+      setSaveMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to save",
+      });
+      setProcessingEnabled(!enabled); // Revert on error
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleMetadataExtraction = async (enabled: boolean) => {
+    setMetadataExtractionEnabled(enabled);
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      await setSetting({
+        key: "metadata_extraction_enabled",
+        value: enabled ? "true" : "false",
+      });
+      setSaveMessage({
+        type: "success",
+        text: enabled
+          ? "Metadata extraction enabled. Firecrawl will extract title, company, summary, etc."
+          : "Metadata extraction disabled. PDFs will be uploaded without automatic metadata.",
+      });
+    } catch (error) {
+      setSaveMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to save",
+      });
+      setMetadataExtractionEnabled(!enabled); // Revert on error
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -297,6 +357,133 @@ export default function SettingsContent() {
           {saveMessage.text}
         </div>
       )}
+
+      {/* Processing Pipeline Settings */}
+      <div className="bg-white rounded-xl border border-foreground/10 p-6 max-w-2xl">
+        <h2 className="text-xl font-semibold mb-4">Processing Pipeline</h2>
+        <p className="text-foreground/70 mb-4">
+          Control whether uploaded PDFs are processed and indexed for search. When disabled,
+          PDFs will still be stored but won&apos;t be searchable via semantic search or chat.
+        </p>
+
+        <div className="flex items-center justify-between p-4 rounded-lg border border-foreground/10">
+          <div className="flex items-center gap-3">
+            <span
+              className={`w-3 h-3 rounded-full ${
+                processingEnabled ? "bg-success" : "bg-foreground/30"
+              }`}
+            />
+            <div>
+              <div className="font-medium">
+                {processingEnabled ? "Processing Enabled" : "Processing Disabled"}
+              </div>
+              <div className="text-sm text-foreground/60">
+                {processingEnabled
+                  ? "Uploads will be extracted, embedded, and indexed in Weaviate"
+                  : "Uploads will be stored only (no extraction, embedding, or indexing)"}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => handleToggleProcessing(!processingEnabled)}
+            disabled={isSaving}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 ${
+              processingEnabled ? "bg-success" : "bg-foreground/30"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                processingEnabled ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        {!processingEnabled && (
+          <div className="mt-4 p-3 bg-warning/10 border border-warning/20 rounded-lg">
+            <div className="flex items-start gap-2">
+              <svg
+                className="w-5 h-5 text-warning flex-shrink-0 mt-0.5"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div className="text-sm text-warning">
+                <strong>Note:</strong> With processing disabled, new uploads will not appear in search results
+                or be available for chat. You can enable processing later and manually reprocess PDFs.
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Metadata Extraction Settings */}
+      <div className="bg-white rounded-xl border border-foreground/10 p-6 max-w-2xl">
+        <h2 className="text-xl font-semibold mb-4">Metadata Extraction</h2>
+        <p className="text-foreground/70 mb-4">
+          Control whether Firecrawl extracts metadata (title, company, summary, industry, region) from uploaded PDFs.
+          When disabled, PDFs will use filename-based titles only.
+        </p>
+
+        <div className="flex items-center justify-between p-4 rounded-lg border border-foreground/10">
+          <div className="flex items-center gap-3">
+            <span
+              className={`w-3 h-3 rounded-full ${
+                metadataExtractionEnabled ? "bg-success" : "bg-foreground/30"
+              }`}
+            />
+            <div>
+              <div className="font-medium">
+                {metadataExtractionEnabled ? "Extraction Enabled" : "Extraction Disabled"}
+              </div>
+              <div className="text-sm text-foreground/60">
+                {metadataExtractionEnabled
+                  ? "Firecrawl will extract title, company, summary, industry, and region"
+                  : "PDFs will be stored with filename-based titles only"}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => handleToggleMetadataExtraction(!metadataExtractionEnabled)}
+            disabled={isSaving}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 ${
+              metadataExtractionEnabled ? "bg-success" : "bg-foreground/30"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                metadataExtractionEnabled ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        {metadataExtractionEnabled && (
+          <div className="mt-4 p-3 bg-info/10 border border-info/20 rounded-lg">
+            <div className="flex items-start gap-2">
+              <svg
+                className="w-5 h-5 text-info flex-shrink-0 mt-0.5"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div className="text-sm text-info">
+                <strong>Note:</strong> Metadata extraction uses Firecrawl API credits. Each PDF counts as one extraction request.
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Google Drive Settings */}
       <div className="bg-white rounded-xl border border-foreground/10 p-6 max-w-2xl">

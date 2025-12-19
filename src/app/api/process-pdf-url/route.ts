@@ -99,6 +99,28 @@ export async function POST(request: NextRequest) {
       source: "url",
     });
 
+    // Check if processing is enabled
+    const processingEnabled = await convex.query(api.settings.get, {
+      key: "processing_enabled",
+    });
+
+    // If processing is disabled, mark as completed and return early
+    if (processingEnabled === "false") {
+      console.log("Processing disabled via settings, marking PDF as completed without indexing");
+
+      await convex.mutation(api.pdfs.updateStatus, {
+        id: pdfId,
+        status: "completed",
+      });
+
+      return NextResponse.json({
+        success: true,
+        pdfId,
+        skipped: true,
+        message: "Processing is disabled. PDF stored but not indexed.",
+      });
+    }
+
     // Step 4: Create processing job
     const jobId = await convex.mutation(api.processing.createJob, {
       pdfId,

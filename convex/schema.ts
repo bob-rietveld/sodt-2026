@@ -61,6 +61,7 @@ export default defineSchema({
     .index("by_approved", ["approved"])
     .index("by_drive_file", ["driveFileId"])
     .index("by_file_hash", ["fileHash"])
+    .index("by_public_browse", ["approved", "status"])
     .searchIndex("search_title", {
       searchField: "title",
       filterFields: ["status", "approved"],

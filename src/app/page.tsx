@@ -8,6 +8,9 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-primary">Techleap</h1>
           <nav className="flex items-center gap-6">
+            <Link href="/reports" className="text-foreground hover:text-primary transition-colors">
+              Reports
+            </Link>
             <Link href="/search" className="text-foreground hover:text-primary transition-colors">
               Search
             </Link>

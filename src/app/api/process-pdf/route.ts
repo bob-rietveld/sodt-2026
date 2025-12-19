@@ -17,7 +17,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { pdfId, storageId, fileUrl, filename, title, action } = body;
 
-    // Handle reprocessing
+    const convex = getConvexClient();
+
+    // Handle reprocessing (always allowed regardless of setting)
     if (action === "reprocess") {
       if (!pdfId) {
         return NextResponse.json(
@@ -30,6 +32,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(result);
     }
 
+    // Check if processing is enabled
+    const processingEnabled = await convex.query(api.settings.get, {
+      key: "processing_enabled",
+    });
+
+    // If processing is disabled (setting is "false"), skip processing
+    if (processingEnabled === "false") {
+      console.log("Processing disabled via settings, marking PDF as completed without indexing");
+
+      if (pdfId) {
+        // Mark the PDF as completed without processing
+        await convex.mutation(api.pdfs.updateStatus, {
+          id: pdfId as Id<"pdfs">,
+          status: "completed",
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        message: "Processing is disabled. PDF stored but not indexed.",
+      });
+    }
+
     // Validate pdfId
     if (!pdfId) {
       return NextResponse.json(
@@ -37,8 +63,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const convex = getConvexClient();
 
     // Get PDF record from Convex
     const pdf = await convex.query(api.pdfs.get, { id: pdfId as Id<"pdfs"> });

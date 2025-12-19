@@ -43,6 +43,30 @@ export const get = query({
   },
 });
 
+// Get a single PDF with its file URL for viewing
+export const getWithFileUrl = query({
+  args: { id: v.id("pdfs") },
+  handler: async (ctx, args) => {
+    const pdf = await ctx.db.get(args.id);
+    if (!pdf) return null;
+
+    let fileUrl: string | null = null;
+
+    // Get file URL based on source type
+    if (pdf.storageId) {
+      fileUrl = await ctx.storage.getUrl(pdf.storageId);
+    } else if (pdf.sourceUrl) {
+      fileUrl = pdf.sourceUrl;
+    }
+    // Note: Google Drive files would need OAuth, handled separately
+
+    return {
+      ...pdf,
+      fileUrl,
+    };
+  },
+});
+
 // Get PDF by Drive file ID
 export const getByDriveFileId = query({
   args: { driveFileId: v.string() },
@@ -284,5 +308,98 @@ export const getFileUrl = query({
   args: { storageId: v.id("_storage") },
   handler: async (ctx, args) => {
     return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
+// Browse public reports with filters
+export const browseReports = query({
+  args: {
+    continent: v.optional(
+      v.union(
+        v.literal("us"),
+        v.literal("eu"),
+        v.literal("asia"),
+        v.literal("global"),
+        v.literal("other")
+      )
+    ),
+    industry: v.optional(
+      v.union(
+        v.literal("semicon"),
+        v.literal("deeptech"),
+        v.literal("biotech"),
+        v.literal("fintech"),
+        v.literal("cleantech"),
+        v.literal("other")
+      )
+    ),
+    company: v.optional(v.string()),
+    year: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Get all approved, completed reports using compound index
+    let results = await ctx.db
+      .query("pdfs")
+      .withIndex("by_public_browse", (q) =>
+        q.eq("approved", true).eq("status", "completed")
+      )
+      .collect();
+
+    // Apply additional filters in memory
+    if (args.continent) {
+      results = results.filter((r) => r.continent === args.continent);
+    }
+    if (args.industry) {
+      results = results.filter((r) => r.industry === args.industry);
+    }
+    if (args.company) {
+      results = results.filter((r) =>
+        r.company?.toLowerCase().includes(args.company!.toLowerCase())
+      );
+    }
+    if (args.year) {
+      results = results.filter((r) => r.dateOrYear === args.year);
+    }
+
+    // Sort by most recent first
+    results.sort((a, b) => b.uploadedAt - a.uploadedAt);
+
+    return results;
+  },
+});
+
+// Get available filter options for dropdowns
+export const getFilterOptions = query({
+  handler: async (ctx) => {
+    const publicReports = await ctx.db
+      .query("pdfs")
+      .withIndex("by_public_browse", (q) =>
+        q.eq("approved", true).eq("status", "completed")
+      )
+      .collect();
+
+    // Extract unique values for each filter
+    const continents = [
+      ...new Set(publicReports.map((r) => r.continent).filter(Boolean)),
+    ] as string[];
+
+    const industries = [
+      ...new Set(publicReports.map((r) => r.industry).filter(Boolean)),
+    ] as string[];
+
+    const companies = [
+      ...new Set(publicReports.map((r) => r.company).filter(Boolean)),
+    ] as string[];
+
+    const years = [
+      ...new Set(publicReports.map((r) => r.dateOrYear).filter(Boolean)),
+    ] as string[];
+
+    return {
+      continents: continents.sort(),
+      industries: industries.sort(),
+      companies: companies.sort(),
+      years: years.sort().reverse(), // Most recent first
+    };
   },
 });
