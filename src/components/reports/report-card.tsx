@@ -28,21 +28,21 @@ export function ReportCard({ report }: ReportCardProps) {
   return (
     <Link
       href={`/reports/${report._id}`}
-      className="block bg-white p-6 rounded-xl border border-foreground/10 hover:border-primary/20 hover:shadow-md transition-all group"
+      className="block bg-white p-4 sm:p-6 rounded-xl border border-foreground/10 hover:border-primary/20 hover:shadow-md transition-all group active:scale-[0.99]"
     >
-      <div className="flex gap-4">
+      <div className="flex gap-3 sm:gap-4">
         {/* Thumbnail */}
         <div className="flex-shrink-0">
           {report.thumbnailUrl ? (
             <img
               src={report.thumbnailUrl}
               alt={report.title}
-              className="w-20 h-24 object-cover rounded border border-foreground/10"
+              className="w-16 h-20 sm:w-20 sm:h-24 object-cover rounded border border-foreground/10"
             />
           ) : (
-            <div className="w-20 h-24 bg-foreground/5 rounded border border-foreground/10 flex items-center justify-center">
+            <div className="w-16 h-20 sm:w-20 sm:h-24 bg-foreground/5 rounded border border-foreground/10 flex items-center justify-center">
               <svg
-                className="w-8 h-8 text-foreground/30"
+                className="w-6 h-6 sm:w-8 sm:h-8 text-foreground/30"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -60,34 +60,34 @@ export function ReportCard({ report }: ReportCardProps) {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors truncate">
+          <h3 className="font-semibold text-base sm:text-lg mb-1 group-hover:text-primary transition-colors line-clamp-2 sm:truncate">
             {report.title}
           </h3>
 
           {report.company && (
-            <p className="text-sm text-foreground/60 mb-2">{report.company}</p>
+            <p className="text-xs sm:text-sm text-foreground/60 mb-1 sm:mb-2">{report.company}</p>
           )}
 
           {report.summary && (
-            <p className="text-sm text-foreground/70 line-clamp-2 mb-3">
+            <p className="text-xs sm:text-sm text-foreground/70 line-clamp-2 mb-2 sm:mb-3 hidden sm:block">
               {report.summary}
             </p>
           )}
 
           {/* Metadata tags */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {report.continent && (
-              <span className="px-2 py-1 rounded text-xs font-medium bg-info/10 text-info">
+              <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-medium bg-info/10 text-info">
                 {continentLabels[report.continent] ?? report.continent}
               </span>
             )}
             {report.industry && (
-              <span className="px-2 py-1 rounded text-xs font-medium bg-secondary/10 text-secondary">
+              <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-medium bg-secondary/10 text-secondary">
                 {industryLabels[report.industry] ?? report.industry}
               </span>
             )}
             {report.dateOrYear && (
-              <span className="px-2 py-1 rounded text-xs font-medium bg-foreground/10 text-foreground/70">
+              <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-medium bg-foreground/10 text-foreground/70">
                 {report.dateOrYear}
               </span>
             )}
