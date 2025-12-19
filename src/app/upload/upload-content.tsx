@@ -7,6 +7,14 @@ import Link from "next/link";
 
 type UploadStatus = "idle" | "uploading" | "processing" | "completed" | "error";
 
+// Calculate SHA-256 hash of file content
+async function calculateFileHash(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export default function UploadContent() {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
@@ -69,6 +77,28 @@ export default function UploadContent() {
     setError("");
 
     try {
+      // Calculate file hash and check for duplicates
+      const fileHash = await calculateFileHash(file);
+
+      const duplicateCheckResponse = await fetch("/api/check-duplicate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileHash }),
+      });
+
+      if (duplicateCheckResponse.ok) {
+        const duplicateResult = await duplicateCheckResponse.json();
+        if (duplicateResult.isDuplicate) {
+          const existingTitle = duplicateResult.existingPdf?.title || "Unknown";
+          const uploadDate = duplicateResult.existingPdf?.uploadedAt
+            ? new Date(duplicateResult.existingPdf.uploadedAt).toLocaleDateString()
+            : "unknown date";
+          setError(`This file has already been uploaded as "${existingTitle}" on ${uploadDate}`);
+          setStatus("error");
+          return;
+        }
+      }
+
       // Get upload URL from Convex
       const uploadUrl = await generateUploadUrl();
 
@@ -83,10 +113,11 @@ export default function UploadContent() {
 
       const { storageId } = await response.json();
 
-      // Create PDF record
+      // Create PDF record with hash for duplicate detection
       const pdfId = await createPdf({
         title,
         filename: file.name,
+        fileHash,
         storageId,
         source: "upload",
         description: description || undefined,

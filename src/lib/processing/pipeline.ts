@@ -1,10 +1,16 @@
 import { ConvexHttpClient } from "convex/browser";
+import { createHash } from "crypto";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { extractPdfFromUrl, extractPdfFromBuffer, combineChunks } from "../unstructured/client";
 import { embedDocuments } from "../voyage/client";
 import { insertChunks, deleteByConvexId, PDFChunk } from "../weaviate/client";
 import { downloadFile, getFile } from "../google/drive";
+
+// Calculate SHA-256 hash of buffer
+function calculateBufferHash(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
 
 let convexClient: ConvexHttpClient | null = null;
 
@@ -140,19 +146,37 @@ export async function processPdfFromDrive(
       throw new Error(`File not found in Drive: ${driveFileId}`);
     }
 
-    // Check if already processed
-    const existing = await convex.query(api.pdfs.getByDriveFileId, {
+    // Check if already processed by Drive file ID
+    const existingByDriveId = await convex.query(api.pdfs.getByDriveFileId, {
       driveFileId,
     });
-    if (existing) {
-      console.log(`File already processed: ${driveFileId}`);
+    if (existingByDriveId) {
+      console.log(`File already processed (by Drive ID): ${driveFileId}`);
       return { success: true, chunksProcessed: 0 };
     }
 
-    // Create PDF record in Convex
+    // Download the file first to check for content-based duplicates
+    console.log(`Downloading from Drive: ${fileInfo.name}`);
+    const fileBuffer = await downloadFile(driveFileId);
+
+    // Calculate file hash and check for duplicates by content
+    const fileHash = calculateBufferHash(fileBuffer);
+    console.log(`Calculated file hash: ${fileHash.substring(0, 16)}...`);
+
+    const duplicateCheck = await convex.query(api.pdfs.checkDuplicate, { fileHash });
+    if (duplicateCheck.isDuplicate) {
+      console.log(`Duplicate content found: ${fileInfo.name} matches "${duplicateCheck.existingPdf?.title}"`);
+      return {
+        success: false,
+        error: `Duplicate file: This PDF has already been uploaded as "${duplicateCheck.existingPdf?.title}"`,
+      };
+    }
+
+    // Create PDF record in Convex with hash
     const pdfId = await convex.mutation(api.pdfs.create, {
       title: fileInfo.name.replace(".pdf", ""),
       filename: fileInfo.name,
+      fileHash,
       driveFileId,
       source: "drive",
     });
@@ -168,9 +192,7 @@ export async function processPdfFromDrive(
       status: "processing",
     });
 
-    // Download and extract
-    console.log(`Downloading from Drive: ${fileInfo.name}`);
-    const fileBuffer = await downloadFile(driveFileId);
+    // Extract text from already downloaded buffer
     const extraction = await extractPdfFromBuffer(fileBuffer, fileInfo.name);
     const combinedChunks = combineChunks(extraction.chunks);
 

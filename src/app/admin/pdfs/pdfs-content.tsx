@@ -23,6 +23,7 @@ export default function PdfsContent() {
   const [editForm, setEditForm] = useState({ title: "", description: "" });
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadMode, setUploadMode] = useState<UploadMode>("file");
   const [pdfUrl, setPdfUrl] = useState("");
@@ -49,11 +50,12 @@ export default function PdfsContent() {
 
   const handleUpload = useCallback(async (file: File) => {
     if (!file.name.endsWith(".pdf")) {
-      alert("Please select a PDF file");
+      setUploadError("Please select a PDF file");
       return;
     }
 
     setIsUploading(true);
+    setUploadError(null);
     setUploadProgress("Checking for duplicates...");
 
     try {
@@ -74,7 +76,7 @@ export default function PdfsContent() {
           const uploadDate = duplicateResult.existingPdf?.uploadedAt
             ? new Date(duplicateResult.existingPdf.uploadedAt).toLocaleDateString()
             : "unknown date";
-          alert(`This file has already been uploaded!\n\nExisting document: "${existingTitle}"\nUploaded on: ${uploadDate}`);
+          setUploadError(`This file has already been uploaded as "${existingTitle}" on ${uploadDate}`);
           setIsUploading(false);
           setUploadProgress(null);
           return;
@@ -237,7 +239,7 @@ export default function PdfsContent() {
     e.preventDefault();
 
     if (!pdfUrl.trim()) {
-      alert("Please enter a URL");
+      setUploadError("Please enter a URL");
       return;
     }
 
@@ -245,11 +247,12 @@ export default function PdfsContent() {
     try {
       new URL(pdfUrl);
     } catch {
-      alert("Please enter a valid URL");
+      setUploadError("Please enter a valid URL");
       return;
     }
 
     setIsUploading(true);
+    setUploadError(null);
     setUploadProgress("Fetching PDF from URL...");
 
     try {
@@ -266,6 +269,17 @@ export default function PdfsContent() {
       const result = await response.json();
 
       if (!response.ok) {
+        // Handle duplicate file error specially
+        if (response.status === 409 && result.isDuplicate) {
+          const existingTitle = result.existingPdf?.title || "Unknown";
+          const uploadDate = result.existingPdf?.uploadedAt
+            ? new Date(result.existingPdf.uploadedAt).toLocaleDateString()
+            : "unknown date";
+          setUploadError(`This file has already been uploaded as "${existingTitle}" on ${uploadDate}`);
+          setIsUploading(false);
+          setUploadProgress(null);
+          return;
+        }
         throw new Error(result.error || "Failed to process PDF from URL");
       }
 
@@ -476,6 +490,26 @@ export default function PdfsContent() {
           </button>
         )}
       </div>
+
+      {/* Error Banner */}
+      {uploadError && (
+        <div className="mb-4 p-4 bg-danger/10 border border-danger/20 rounded-lg flex items-start justify-between">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-danger mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-danger">{uploadError}</p>
+          </div>
+          <button
+            onClick={() => setUploadError(null)}
+            className="text-danger/70 hover:text-danger transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* Upload Section */}
       {uploadMode === "file" ? (
