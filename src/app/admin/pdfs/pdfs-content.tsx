@@ -18,6 +18,35 @@ interface UploadItem {
   pdfId?: Id<"pdfs">;
 }
 
+interface EditPropertiesForm {
+  title: string;
+  company: string;
+  dateOrYear: string;
+  topic: string;
+  summary: string;
+  continent: "us" | "eu" | "asia" | "global" | "other" | "";
+  industry: "semicon" | "deeptech" | "biotech" | "fintech" | "cleantech" | "other" | "";
+}
+
+const CONTINENT_OPTIONS = [
+  { value: "", label: "Select Region" },
+  { value: "us", label: "United States" },
+  { value: "eu", label: "Europe" },
+  { value: "asia", label: "Asia" },
+  { value: "global", label: "Global" },
+  { value: "other", label: "Other" },
+] as const;
+
+const INDUSTRY_OPTIONS = [
+  { value: "", label: "Select Industry" },
+  { value: "semicon", label: "Semiconductor" },
+  { value: "deeptech", label: "Deep Tech" },
+  { value: "biotech", label: "Biotech" },
+  { value: "fintech", label: "Fintech" },
+  { value: "cleantech", label: "Cleantech" },
+  { value: "other", label: "Other" },
+] as const;
+
 // Calculate SHA-256 hash of file content
 async function calculateFileHash(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
@@ -28,8 +57,6 @@ async function calculateFileHash(file: File): Promise<string> {
 
 export default function PdfsContent() {
   const [filter, setFilter] = useState<StatusFilter>("all");
-  const [editingId, setEditingId] = useState<Id<"pdfs"> | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", description: "" });
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -39,6 +66,19 @@ export default function PdfsContent() {
   const [isRunningWorkflow, setIsRunningWorkflow] = useState(false);
   const [batchUploads, setBatchUploads] = useState<UploadItem[]>([]);
   const [isBatchUploading, setIsBatchUploading] = useState(false);
+
+  // Edit properties modal state
+  const [editPropertiesId, setEditPropertiesId] = useState<Id<"pdfs"> | null>(null);
+  const [editPropertiesForm, setEditPropertiesForm] = useState<EditPropertiesForm>({
+    title: "",
+    company: "",
+    dateOrYear: "",
+    topic: "",
+    summary: "",
+    continent: "",
+    industry: "",
+  });
+  const [isSavingProperties, setIsSavingProperties] = useState(false);
 
   const pdfs = useQuery(
     api.pdfs.list,
@@ -58,7 +98,6 @@ export default function PdfsContent() {
 
   const generateUploadUrl = useMutation(api.pdfs.generateUploadUrl);
   const createPdf = useMutation(api.pdfs.create);
-  const updatePdf = useMutation(api.pdfs.update);
   const removePdf = useMutation(api.pdfs.remove);
   const approvePdf = useMutation(api.pdfs.approve);
   const updateExtractedMetadata = useMutation(api.pdfs.updateExtractedMetadata);
@@ -550,28 +589,63 @@ export default function PdfsContent() {
     setIsDragging(false);
   };
 
-  const handleEdit = (pdf: PDF) => {
-    setEditingId(pdf._id);
-    setEditForm({
-      title: pdf.title,
-      description: pdf.description || "",
-    });
-  };
-
-  const handleSave = async () => {
-    if (!editingId) return;
-    await updatePdf({
-      id: editingId,
-      title: editForm.title,
-      description: editForm.description || undefined,
-    });
-    setEditingId(null);
-  };
-
   const handleDelete = async (id: Id<"pdfs">) => {
     if (confirm("Are you sure you want to delete this document?")) {
       await removePdf({ id });
     }
+  };
+
+  // Open edit properties modal
+  const handleEditProperties = (pdf: PDF) => {
+    setEditPropertiesId(pdf._id);
+    setEditPropertiesForm({
+      title: pdf.title || "",
+      company: pdf.company || "",
+      dateOrYear: pdf.dateOrYear || "",
+      topic: pdf.topic || "",
+      summary: pdf.summary || "",
+      continent: pdf.continent || "",
+      industry: pdf.industry || "",
+    });
+  };
+
+  // Save properties from modal
+  const handleSaveProperties = async () => {
+    if (!editPropertiesId) return;
+
+    setIsSavingProperties(true);
+    try {
+      await updateExtractedMetadata({
+        id: editPropertiesId,
+        title: editPropertiesForm.title || undefined,
+        company: editPropertiesForm.company || undefined,
+        dateOrYear: editPropertiesForm.dateOrYear || undefined,
+        topic: editPropertiesForm.topic || undefined,
+        summary: editPropertiesForm.summary || undefined,
+        continent: editPropertiesForm.continent || undefined,
+        industry: editPropertiesForm.industry || undefined,
+      });
+      setEditPropertiesId(null);
+    } catch (error) {
+      console.error("Failed to save properties:", error);
+      alert("Failed to save properties. Please try again.");
+    } finally {
+      setIsSavingProperties(false);
+    }
+  };
+
+  // Close edit properties modal
+  const handleCloseEditProperties = () => {
+    setEditPropertiesId(null);
+    setEditPropertiesForm({
+      title: "",
+      company: "",
+      dateOrYear: "",
+      topic: "",
+      summary: "",
+      continent: "",
+      industry: "",
+    });
   };
 
   const handleReprocess = async (id: Id<"pdfs">) => {
@@ -919,28 +993,17 @@ export default function PdfsContent() {
                   )}
                 </td>
                 <td className="px-6 py-4">
-                  {editingId === pdf._id ? (
-                    <input
-                      type="text"
-                      value={editForm.title}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, title: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border rounded"
-                    />
-                  ) : (
-                    <div>
-                      <div className="font-medium">{pdf.title}</div>
-                      <div className="text-sm text-foreground/50">
-                        {pdf.filename}
-                      </div>
-                      {pdf.summary && (
-                        <div className="mt-1 text-xs text-foreground/60 line-clamp-2" title={pdf.summary}>
-                          {pdf.summary}
-                        </div>
-                      )}
+                  <div>
+                    <div className="font-medium">{pdf.title}</div>
+                    <div className="text-sm text-foreground/50">
+                      {pdf.filename}
                     </div>
-                  )}
+                    {pdf.summary && (
+                      <div className="mt-1 text-xs text-foreground/60 line-clamp-2" title={pdf.summary}>
+                        {pdf.summary}
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4 text-sm text-foreground/70">
                   {pdf.company || "-"}
@@ -983,55 +1046,36 @@ export default function PdfsContent() {
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    {editingId === pdf._id ? (
-                      <>
-                        <button
-                          onClick={handleSave}
-                          className="text-sm text-success hover:underline"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="text-sm text-foreground/50 hover:underline"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => handleEdit(pdf)}
-                          className="text-sm text-info hover:underline"
-                        >
-                          Edit
-                        </button>
-                        {!pdf.approved && (
-                          <button
-                            onClick={() =>
-                              approvePdf({ id: pdf._id, approvedBy: "admin" })
-                            }
-                            className="text-sm text-success hover:underline"
-                          >
-                            Approve
-                          </button>
-                        )}
-                        {pdf.status === "failed" && (
-                          <button
-                            onClick={() => handleReprocess(pdf._id)}
-                            className="text-sm text-warning hover:underline"
-                          >
-                            Retry
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDelete(pdf._id)}
-                          className="text-sm text-danger hover:underline"
-                        >
-                          Delete
-                        </button>
-                      </>
+                    <button
+                      onClick={() => handleEditProperties(pdf)}
+                      className="text-sm text-info hover:underline"
+                    >
+                      Edit
+                    </button>
+                    {!pdf.approved && (
+                      <button
+                        onClick={() =>
+                          approvePdf({ id: pdf._id, approvedBy: "admin" })
+                        }
+                        className="text-sm text-success hover:underline"
+                      >
+                        Approve
+                      </button>
                     )}
+                    {pdf.status === "failed" && (
+                      <button
+                        onClick={() => handleReprocess(pdf._id)}
+                        className="text-sm text-warning hover:underline"
+                      >
+                        Retry
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(pdf._id)}
+                      className="text-sm text-danger hover:underline"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -1049,6 +1093,155 @@ export default function PdfsContent() {
           </tbody>
         </table>
       </div>
+
+      {/* Edit Properties Modal */}
+      {editPropertiesId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-foreground/10">
+              <h2 className="text-xl font-semibold">Edit Properties</h2>
+              <button
+                onClick={handleCloseEditProperties}
+                className="text-foreground/50 hover:text-foreground transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 py-4 space-y-4">
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-foreground/70 mb-1">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={editPropertiesForm.title}
+                  onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                  placeholder="Document title"
+                />
+              </div>
+
+              {/* Company */}
+              <div>
+                <label className="block text-sm font-medium text-foreground/70 mb-1">
+                  Company
+                </label>
+                <input
+                  type="text"
+                  value={editPropertiesForm.company}
+                  onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, company: e.target.value })}
+                  className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                  placeholder="Company name"
+                />
+              </div>
+
+              {/* Two columns: Year and Region */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Year */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground/70 mb-1">
+                    Year
+                  </label>
+                  <input
+                    type="text"
+                    value={editPropertiesForm.dateOrYear}
+                    onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, dateOrYear: e.target.value })}
+                    className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                    placeholder="e.g., 2024"
+                  />
+                </div>
+
+                {/* Region/Continent */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground/70 mb-1">
+                    Region
+                  </label>
+                  <select
+                    value={editPropertiesForm.continent}
+                    onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, continent: e.target.value as EditPropertiesForm["continent"] })}
+                    className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary bg-white"
+                  >
+                    {CONTINENT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Industry */}
+              <div>
+                <label className="block text-sm font-medium text-foreground/70 mb-1">
+                  Industry
+                </label>
+                <select
+                  value={editPropertiesForm.industry}
+                  onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, industry: e.target.value as EditPropertiesForm["industry"] })}
+                  className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary bg-white"
+                >
+                  {INDUSTRY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Topic */}
+              <div>
+                <label className="block text-sm font-medium text-foreground/70 mb-1">
+                  Topic
+                </label>
+                <input
+                  type="text"
+                  value={editPropertiesForm.topic}
+                  onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, topic: e.target.value })}
+                  className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                  placeholder="Document topic"
+                />
+              </div>
+
+              {/* Summary */}
+              <div>
+                <label className="block text-sm font-medium text-foreground/70 mb-1">
+                  Summary
+                </label>
+                <textarea
+                  value={editPropertiesForm.summary}
+                  onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, summary: e.target.value })}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
+                  placeholder="Brief summary of the document"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-foreground/10 bg-foreground/5">
+              <button
+                onClick={handleCloseEditProperties}
+                className="px-4 py-2 text-foreground/70 hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveProperties}
+                disabled={isSavingProperties}
+                className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSavingProperties ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
