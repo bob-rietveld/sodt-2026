@@ -67,7 +67,8 @@ export default function PdfsContent() {
   const [batchUploads, setBatchUploads] = useState<UploadItem[]>([]);
   const [isBatchUploading, setIsBatchUploading] = useState(false);
 
-  // Edit properties modal state
+  // Edit properties panel state
+  const [editingPdf, setEditingPdf] = useState<PDF | null>(null);
   const [editPropertiesId, setEditPropertiesId] = useState<Id<"pdfs"> | null>(null);
   const [editPropertiesForm, setEditPropertiesForm] = useState<EditPropertiesForm>({
     title: "",
@@ -595,8 +596,9 @@ export default function PdfsContent() {
     }
   };
 
-  // Open edit properties modal
+  // Open edit properties panel
   const handleEditProperties = (pdf: PDF) => {
+    setEditingPdf(pdf);
     setEditPropertiesId(pdf._id);
     setEditPropertiesForm({
       title: pdf.title || "",
@@ -609,7 +611,7 @@ export default function PdfsContent() {
     });
   };
 
-  // Save properties from modal
+  // Save properties from panel
   const handleSaveProperties = async () => {
     if (!editPropertiesId) return;
 
@@ -625,6 +627,7 @@ export default function PdfsContent() {
         continent: editPropertiesForm.continent || undefined,
         industry: editPropertiesForm.industry || undefined,
       });
+      setEditingPdf(null);
       setEditPropertiesId(null);
     } catch (error) {
       console.error("Failed to save properties:", error);
@@ -634,8 +637,9 @@ export default function PdfsContent() {
     }
   };
 
-  // Close edit properties modal
+  // Close edit properties panel
   const handleCloseEditProperties = () => {
+    setEditingPdf(null);
     setEditPropertiesId(null);
     setEditPropertiesForm({
       title: "",
@@ -943,6 +947,178 @@ export default function PdfsContent() {
         </div>
       )}
 
+      {/* Edit Properties Panel */}
+      {editingPdf && (
+        <div className="mb-8 bg-white rounded-xl border border-foreground/10 overflow-hidden">
+          {/* Panel Header */}
+          <div className="flex items-center justify-between px-6 py-4 bg-foreground/5 border-b border-foreground/10">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleCloseEditProperties}
+                className="text-foreground/50 hover:text-foreground transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </button>
+              <h2 className="text-lg font-semibold">Edit Document Properties</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleCloseEditProperties}
+                className="px-4 py-2 text-foreground/70 hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveProperties}
+                disabled={isSavingProperties}
+                className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSavingProperties ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+
+          {/* Panel Body */}
+          <div className="p-6">
+            <div className="flex gap-8">
+              {/* Left: Thumbnail */}
+              <div className="flex-shrink-0">
+                {editingPdf.thumbnailUrl ? (
+                  <img
+                    src={editingPdf.thumbnailUrl}
+                    alt={editingPdf.title}
+                    className="w-40 h-52 object-cover rounded-lg border border-foreground/10 shadow-sm"
+                  />
+                ) : (
+                  <div className="w-40 h-52 bg-foreground/5 rounded-lg border border-foreground/10 flex items-center justify-center">
+                    <svg className="w-12 h-12 text-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                )}
+                <p className="mt-2 text-xs text-foreground/50 text-center truncate max-w-40">
+                  {editingPdf.filename}
+                </p>
+              </div>
+
+              {/* Right: Form Fields */}
+              <div className="flex-1 space-y-4">
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground/70 mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={editPropertiesForm.title}
+                    onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, title: e.target.value })}
+                    className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                    placeholder="Document title"
+                  />
+                </div>
+
+                {/* Company */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground/70 mb-1">
+                    Company
+                  </label>
+                  <input
+                    type="text"
+                    value={editPropertiesForm.company}
+                    onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, company: e.target.value })}
+                    className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                    placeholder="Company name"
+                  />
+                </div>
+
+                {/* Three columns: Year, Region, Industry */}
+                <div className="grid grid-cols-3 gap-4">
+                  {/* Year */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground/70 mb-1">
+                      Year
+                    </label>
+                    <input
+                      type="text"
+                      value={editPropertiesForm.dateOrYear}
+                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, dateOrYear: e.target.value })}
+                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                      placeholder="e.g., 2024"
+                    />
+                  </div>
+
+                  {/* Region/Continent */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground/70 mb-1">
+                      Region
+                    </label>
+                    <select
+                      value={editPropertiesForm.continent}
+                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, continent: e.target.value as EditPropertiesForm["continent"] })}
+                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary bg-white"
+                    >
+                      {CONTINENT_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Industry */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground/70 mb-1">
+                      Industry
+                    </label>
+                    <select
+                      value={editPropertiesForm.industry}
+                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, industry: e.target.value as EditPropertiesForm["industry"] })}
+                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary bg-white"
+                    >
+                      {INDUSTRY_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Topic */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground/70 mb-1">
+                    Topic
+                  </label>
+                  <input
+                    type="text"
+                    value={editPropertiesForm.topic}
+                    onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, topic: e.target.value })}
+                    className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                    placeholder="Document topic"
+                  />
+                </div>
+
+                {/* Summary */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground/70 mb-1">
+                    Summary
+                  </label>
+                  <textarea
+                    value={editPropertiesForm.summary}
+                    onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, summary: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
+                    placeholder="Brief summary of the document"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden overflow-x-auto">
         <table className="w-full">
@@ -1094,154 +1270,6 @@ export default function PdfsContent() {
         </table>
       </div>
 
-      {/* Edit Properties Modal */}
-      {editPropertiesId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-foreground/10">
-              <h2 className="text-xl font-semibold">Edit Properties</h2>
-              <button
-                onClick={handleCloseEditProperties}
-                className="text-foreground/50 hover:text-foreground transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="px-6 py-4 space-y-4">
-              {/* Title */}
-              <div>
-                <label className="block text-sm font-medium text-foreground/70 mb-1">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={editPropertiesForm.title}
-                  onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                  placeholder="Document title"
-                />
-              </div>
-
-              {/* Company */}
-              <div>
-                <label className="block text-sm font-medium text-foreground/70 mb-1">
-                  Company
-                </label>
-                <input
-                  type="text"
-                  value={editPropertiesForm.company}
-                  onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, company: e.target.value })}
-                  className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                  placeholder="Company name"
-                />
-              </div>
-
-              {/* Two columns: Year and Region */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Year */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground/70 mb-1">
-                    Year
-                  </label>
-                  <input
-                    type="text"
-                    value={editPropertiesForm.dateOrYear}
-                    onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, dateOrYear: e.target.value })}
-                    className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                    placeholder="e.g., 2024"
-                  />
-                </div>
-
-                {/* Region/Continent */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground/70 mb-1">
-                    Region
-                  </label>
-                  <select
-                    value={editPropertiesForm.continent}
-                    onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, continent: e.target.value as EditPropertiesForm["continent"] })}
-                    className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary bg-white"
-                  >
-                    {CONTINENT_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Industry */}
-              <div>
-                <label className="block text-sm font-medium text-foreground/70 mb-1">
-                  Industry
-                </label>
-                <select
-                  value={editPropertiesForm.industry}
-                  onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, industry: e.target.value as EditPropertiesForm["industry"] })}
-                  className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary bg-white"
-                >
-                  {INDUSTRY_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Topic */}
-              <div>
-                <label className="block text-sm font-medium text-foreground/70 mb-1">
-                  Topic
-                </label>
-                <input
-                  type="text"
-                  value={editPropertiesForm.topic}
-                  onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, topic: e.target.value })}
-                  className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                  placeholder="Document topic"
-                />
-              </div>
-
-              {/* Summary */}
-              <div>
-                <label className="block text-sm font-medium text-foreground/70 mb-1">
-                  Summary
-                </label>
-                <textarea
-                  value={editPropertiesForm.summary}
-                  onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, summary: e.target.value })}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
-                  placeholder="Brief summary of the document"
-                />
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-foreground/10 bg-foreground/5">
-              <button
-                onClick={handleCloseEditProperties}
-                className="px-4 py-2 text-foreground/70 hover:text-foreground transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveProperties}
-                disabled={isSavingProperties}
-                className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSavingProperties ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
