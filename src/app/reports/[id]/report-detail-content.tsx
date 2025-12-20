@@ -48,6 +48,14 @@ export default function ReportDetailContent() {
     id: reportId as Id<"pdfs">,
   });
 
+  // Reset PDF viewer state when navigating between reports
+  useEffect(() => {
+    setShowPdfViewer(false);
+    setPdfLoading(true);
+    setPdfError(false);
+    setRetryCount(0);
+  }, [reportId]);
+
   const handlePdfLoad = useCallback(() => {
     setPdfLoading(false);
     setPdfError(false);
@@ -365,7 +373,7 @@ export default function ReportDetailContent() {
                   </div>
                 )}
                 <iframe
-                  key={`pdf-${retryCount}`}
+                  key={`pdf-${reportId}-${retryCount}`}
                   src={report.fileUrl}
                   className="w-full h-[50vh] sm:h-[60vh] lg:h-[800px]"
                   title={`PDF: ${report.title}`}
