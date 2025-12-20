@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { PDF } from "@/types";
@@ -102,6 +102,9 @@ export default function PdfsContent() {
   const removePdf = useMutation(api.pdfs.remove);
   const approvePdf = useMutation(api.pdfs.approve);
   const updateExtractedMetadata = useMutation(api.pdfs.updateExtractedMetadata);
+
+  // Workpool action for batch processing
+  const enqueueBatch = useAction(api.pdfWorkpool.enqueueBatch);
 
   const handleUpload = useCallback(async (file: File) => {
     if (!file.name.endsWith(".pdf")) {
@@ -470,23 +473,35 @@ export default function PdfsContent() {
       }
     }
 
-    // Trigger processing for all successfully uploaded PDFs
-    // Process via API calls from the client (fire and forget)
+    // Trigger processing for all successfully uploaded PDFs via Convex Workpool
     if (uploadedItems.length > 0) {
-      for (const item of uploadedItems) {
-        // Fire and forget - processing happens in background
-        fetch("/api/process-pdf", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pdfId: item.pdfId, storageId: item.storageId }),
-        }).catch((err) => console.error("Processing request failed:", err));
+      try {
+        // Enqueue all items to the workpool for parallel processing
+        const workIds = await enqueueBatch({ items: uploadedItems });
+        console.log(`Enqueued ${workIds.length} PDFs for processing via workpool`);
+
+        // Mark all queued items as completed (UI-wise, actual processing happens in background)
+        setBatchUploads((prev) =>
+          prev.map((u) =>
+            u.status === "processing" ? { ...u, status: "completed", progress: "Queued in workpool" } : u
+          )
+        );
+      } catch (error) {
+        console.error("Failed to enqueue batch processing:", error);
+        // Fall back to direct API calls if workpool fails
+        for (const item of uploadedItems) {
+          fetch("/api/process-pdf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pdfId: item.pdfId, storageId: item.storageId }),
+          }).catch((err) => console.error("Processing request failed:", err));
+        }
+        setBatchUploads((prev) =>
+          prev.map((u) =>
+            u.status === "processing" ? { ...u, status: "completed", progress: "Processing started (fallback)" } : u
+          )
+        );
       }
-      // Mark all queued items as completed (UI-wise, actual processing happens in background)
-      setBatchUploads((prev) =>
-        prev.map((u) =>
-          u.status === "processing" ? { ...u, status: "completed", progress: "Processing started" } : u
-        )
-      );
     }
 
     setIsBatchUploading(false);
@@ -495,7 +510,7 @@ export default function PdfsContent() {
     setTimeout(() => {
       setBatchUploads([]);
     }, 5000);
-  }, [generateUploadUrl, createPdf, metadataExtractionEnabled, updateExtractedMetadata]);
+  }, [generateUploadUrl, createPdf, metadataExtractionEnabled, updateExtractedMetadata, enqueueBatch]);
 
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
