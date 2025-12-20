@@ -112,56 +112,6 @@ function ReportsContentInner() {
           </button>
         </div>
 
-        {/* Search Bar */}
-        <form onSubmit={handleSearch} className="mb-6">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <svg
-                className="w-5 h-5 text-foreground/40"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </div>
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search by title, company, author, or summary..."
-              className="w-full pl-12 pr-24 py-3 border border-foreground/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white text-base"
-            />
-            <div className="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
-              {(searchInput || filters.search) && (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="px-3 py-1.5 text-sm text-foreground/60 hover:text-foreground transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-              <button
-                type="submit"
-                className="px-4 py-1.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                Search
-              </button>
-            </div>
-          </div>
-          {filters.search && (
-            <p className="mt-2 text-sm text-foreground/60">
-              Showing results for &quot;{filters.search}&quot;
-            </p>
-          )}
-        </form>
-
         {/* Mobile Filter Panel */}
         {isFilterOpen && (
           <div className="lg:hidden mb-6">
@@ -180,9 +130,9 @@ function ReportsContentInner() {
           </div>
         )}
 
-        <div className="flex gap-8">
+        <div className="flex gap-6 lg:gap-8">
           {/* Desktop Filter Sidebar */}
-          <aside className="hidden lg:block w-64 flex-shrink-0">
+          <aside className="hidden lg:block w-72 flex-shrink-0">
             {filterOptions ? (
               <div className="sticky top-24">
                 <FilterPanel options={filterOptions} />
@@ -199,8 +149,58 @@ function ReportsContentInner() {
             )}
           </aside>
 
-          {/* Reports Grid */}
+          {/* Reports Content Area */}
           <div className="flex-1 min-w-0">
+            {/* Search Bar - Now inside the content area for better alignment */}
+            <form onSubmit={handleSearch} className="mb-6">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <svg
+                    className="w-5 h-5 text-foreground/40"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search by title, company, author, or summary..."
+                  className="w-full pl-12 pr-24 py-3 border border-foreground/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white text-base"
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
+                  {(searchInput || filters.search) && (
+                    <button
+                      type="button"
+                      onClick={clearSearch}
+                      className="px-3 py-1.5 text-sm text-foreground/60 hover:text-foreground transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    Search
+                  </button>
+                </div>
+              </div>
+              {filters.search && (
+                <p className="mt-2 text-sm text-foreground/60">
+                  Showing results for &quot;{filters.search}&quot;
+                </p>
+              )}
+            </form>
+
             {/* Results Count and View Toggle */}
             <div className="flex items-center justify-between mb-4">
               {reports && (
