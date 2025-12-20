@@ -65,6 +65,18 @@ export default defineSchema({
     .searchIndex("search_title", {
       searchField: "title",
       filterFields: ["status", "approved"],
+    })
+    .searchIndex("search_summary", {
+      searchField: "summary",
+      filterFields: ["status", "approved"],
+    })
+    .searchIndex("search_author", {
+      searchField: "author",
+      filterFields: ["status", "approved"],
+    })
+    .searchIndex("search_company", {
+      searchField: "company",
+      filterFields: ["status", "approved"],
     }),
 
   processingJobs: defineTable({

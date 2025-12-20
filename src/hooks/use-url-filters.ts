@@ -4,6 +4,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
 export interface ReportFilters {
+  search?: string;
   continent?: string;
   industry?: string;
   company?: string;
@@ -18,6 +19,7 @@ export function useUrlFilters() {
   // Parse current filters from URL
   const filters: ReportFilters = useMemo(
     () => ({
+      search: searchParams.get("search") ?? undefined,
       continent: searchParams.get("continent") ?? undefined,
       industry: searchParams.get("industry") ?? undefined,
       company: searchParams.get("company") ?? undefined,
