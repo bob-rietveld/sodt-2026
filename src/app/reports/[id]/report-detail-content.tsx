@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -40,10 +40,54 @@ export default function ReportDetailContent() {
   const params = useParams();
   const reportId = params.id as string;
   const [showPdfViewer, setShowPdfViewer] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(true);
+  const [pdfError, setPdfError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   const report = useQuery(api.pdfs.getWithFileUrl, {
     id: reportId as Id<"pdfs">,
   });
+
+  const handlePdfLoad = useCallback(() => {
+    setPdfLoading(false);
+    setPdfError(false);
+  }, []);
+
+  const handlePdfError = useCallback(() => {
+    setPdfLoading(false);
+    setPdfError(true);
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    setPdfLoading(true);
+    setPdfError(false);
+    setRetryCount((c) => c + 1);
+  }, []);
+
+  const togglePdfViewer = useCallback(() => {
+    setShowPdfViewer((show) => {
+      if (!show) {
+        // Reset loading state when opening viewer
+        setPdfLoading(true);
+        setPdfError(false);
+      }
+      return !show;
+    });
+  }, []);
+
+  // Timeout fallback for PDF loading - iframes don't reliably fire onError
+  useEffect(() => {
+    if (!showPdfViewer || !pdfLoading) return;
+
+    const timeoutId = setTimeout(() => {
+      if (pdfLoading) {
+        setPdfError(true);
+        setPdfLoading(false);
+      }
+    }, 15000); // 15 second timeout
+
+    return () => clearTimeout(timeoutId);
+  }, [showPdfViewer, pdfLoading, retryCount]);
 
   // Loading state
   if (report === undefined) {
@@ -209,7 +253,7 @@ export default function ReportDetailContent() {
                 {/* View PDF Button */}
                 {report.fileUrl && (
                   <button
-                    onClick={() => setShowPdfViewer(!showPdfViewer)}
+                    onClick={togglePdfViewer}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors text-sm sm:text-base"
                   >
                     <svg
@@ -270,11 +314,63 @@ export default function ReportDetailContent() {
                   </svg>
                 </a>
               </div>
-              <div className="bg-foreground/5">
+              <div className="bg-foreground/5 relative">
+                {/* Loading indicator */}
+                {pdfLoading && !pdfError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-foreground/5 z-10">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <span className="text-sm text-foreground/60">Loading PDF...</span>
+                    </div>
+                  </div>
+                )}
+                {/* Error state with retry */}
+                {pdfError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-foreground/5 z-10">
+                    <div className="flex flex-col items-center gap-3 p-4 text-center">
+                      <svg
+                        className="w-10 h-10 text-foreground/40"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                      </svg>
+                      <span className="text-sm text-foreground/60">Failed to load PDF</span>
+                      <button
+                        onClick={handleRetry}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
+                        </svg>
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <iframe
+                  key={`pdf-${retryCount}`}
                   src={report.fileUrl}
                   className="w-full h-[50vh] sm:h-[60vh] lg:h-[800px]"
                   title={`PDF: ${report.title}`}
+                  onLoad={handlePdfLoad}
+                  onError={handlePdfError}
                 />
               </div>
             </div>
