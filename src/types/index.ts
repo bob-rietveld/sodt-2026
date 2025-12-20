@@ -28,6 +28,14 @@ export interface PDF {
   thumbnailUrl?: string;
   continent?: "us" | "eu" | "asia" | "global" | "other";
   industry?: "semicon" | "deeptech" | "biotech" | "fintech" | "cleantech" | "other";
+  // Extended metadata (v2.0)
+  documentType?: "pitch_deck" | "market_research" | "financial_report" | "white_paper" | "case_study" | "annual_report" | "investor_update" | "other";
+  authors?: string[];
+  keyFindings?: string[];
+  keywords?: string[];
+  technologyAreas?: string[];
+  extractedAt?: number;
+  extractionVersion?: string;
 }
 
 export interface ProcessingJob {

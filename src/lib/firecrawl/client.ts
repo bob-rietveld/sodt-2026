@@ -9,6 +9,12 @@ export interface PDFMetadata {
   summary: string;
   continent: "us" | "eu" | "asia" | "global" | "other";
   industry: "semicon" | "deeptech" | "biotech" | "fintech" | "cleantech" | "other";
+  // Extended metadata (v2.0)
+  documentType: "pitch_deck" | "market_research" | "financial_report" | "white_paper" | "case_study" | "annual_report" | "investor_update" | "other";
+  authors: string[];
+  keyFindings: string[];
+  keywords: string[];
+  technologyAreas: string[];
 }
 
 export interface ExtractionResult {
@@ -87,6 +93,11 @@ Extract the following fields:
 - summary: A comprehensive executive summary of the document (2-4 paragraphs, covering key findings, insights, and conclusions)
 - continent: The geographic region (must be one of: "us", "eu", "asia", "global", "other")
 - industry: The industry sector (must be one of: "semicon", "deeptech", "biotech", "fintech", "cleantech", "other")
+- documentType: Type of document (must be one of: "pitch_deck", "market_research", "financial_report", "white_paper", "case_study", "annual_report", "investor_update", "other")
+- authors: Array of author names found in the document (empty array if not found, max 10)
+- keyFindings: Array of 3-5 key takeaways or insights from the document
+- keywords: Array of up to 10 searchable keywords/tags relevant to the content
+- technologyAreas: Array of specific technology focus areas mentioned (e.g., "AI", "Machine Learning", "IoT", "Blockchain", "Quantum Computing", "Robotics", "Cloud Computing")
 
 Respond ONLY with valid JSON, no other text:`;
 
@@ -124,6 +135,11 @@ Respond ONLY with valid JSON, no other text:`;
         summary: extractedData.summary || "",
         continent: validateContinent(extractedData.continent),
         industry: validateIndustry(extractedData.industry),
+        documentType: validateDocumentType(extractedData.documentType),
+        authors: validateStringArray(extractedData.authors, 10),
+        keyFindings: validateStringArray(extractedData.keyFindings, 5),
+        keywords: validateStringArray(extractedData.keywords, 10),
+        technologyAreas: validateStringArray(extractedData.technologyAreas, 10),
       },
     };
   } catch (error) {
@@ -143,4 +159,18 @@ function validateContinent(value: string): "us" | "eu" | "asia" | "global" | "ot
 function validateIndustry(value: string): "semicon" | "deeptech" | "biotech" | "fintech" | "cleantech" | "other" {
   const valid = ["semicon", "deeptech", "biotech", "fintech", "cleantech", "other"];
   return valid.includes(value?.toLowerCase()) ? (value.toLowerCase() as "semicon" | "deeptech" | "biotech" | "fintech" | "cleantech" | "other") : "other";
+}
+
+function validateDocumentType(value: string): "pitch_deck" | "market_research" | "financial_report" | "white_paper" | "case_study" | "annual_report" | "investor_update" | "other" {
+  const valid = ["pitch_deck", "market_research", "financial_report", "white_paper", "case_study", "annual_report", "investor_update", "other"];
+  const normalized = value?.toLowerCase().replace(/\s+/g, "_");
+  return valid.includes(normalized) ? (normalized as "pitch_deck" | "market_research" | "financial_report" | "white_paper" | "case_study" | "annual_report" | "investor_update" | "other") : "other";
+}
+
+function validateStringArray(value: unknown, maxItems: number): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .slice(0, maxItems)
+    .map(item => item.trim());
 }

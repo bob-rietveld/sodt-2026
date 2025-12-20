@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { useSearchParams } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
 
 interface DriveFolder {
   id: string;
@@ -42,6 +43,26 @@ export default function SettingsContent() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  // Reprocessing state
+  const [reprocessFilter, setReprocessFilter] = useState<
+    "all" | "missing_metadata" | "old_extraction" | "failed"
+  >("missing_metadata");
+  const [isReprocessing, setIsReprocessing] = useState(false);
+  const [reprocessProgress, setReprocessProgress] = useState<{
+    total: number;
+    enqueued: number;
+    status: string;
+  } | null>(null);
+
+  // Reprocessing queries and actions
+  const reprocessingStats = useQuery(api.pdfs.getReprocessingStats);
+  const pdfsForReprocessing = useQuery(api.pdfs.getPdfsForReprocessing, {
+    filter: reprocessFilter,
+  });
+  const enqueueBatchReprocessing = useAction(
+    api.pdfWorkpool.enqueueBatchMetadataReprocessing
+  );
 
   // Load saved settings
   useEffect(() => {
@@ -326,6 +347,65 @@ export default function SettingsContent() {
         type: "error",
         text: error instanceof Error ? error.message : "Failed to disconnect",
       });
+    }
+  };
+
+  const handleBulkReprocess = async () => {
+    if (!pdfsForReprocessing || pdfsForReprocessing.length === 0) {
+      return;
+    }
+
+    const confirmMessage = `This will reprocess ${pdfsForReprocessing.length} PDF(s) to extract new metadata. This may take some time and will use API credits. Continue?`;
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setIsReprocessing(true);
+    setReprocessProgress({
+      total: pdfsForReprocessing.length,
+      enqueued: 0,
+      status: "Starting...",
+    });
+
+    try {
+      const pdfIds = pdfsForReprocessing.map(
+        (pdf) => pdf._id as Id<"pdfs">
+      );
+
+      // Process in batches of 10 to avoid overwhelming the system
+      const batchSize = 10;
+      let enqueuedCount = 0;
+
+      for (let i = 0; i < pdfIds.length; i += batchSize) {
+        const batch = pdfIds.slice(i, i + batchSize);
+        const result = await enqueueBatchReprocessing({ pdfIds: batch });
+        enqueuedCount += result.enqueuedCount;
+
+        setReprocessProgress({
+          total: pdfIds.length,
+          enqueued: enqueuedCount,
+          status: `Enqueued ${enqueuedCount} of ${pdfIds.length}...`,
+        });
+      }
+
+      setReprocessProgress({
+        total: pdfIds.length,
+        enqueued: enqueuedCount,
+        status: `Complete! ${enqueuedCount} PDFs queued for reprocessing.`,
+      });
+
+      setSaveMessage({
+        type: "success",
+        text: `Successfully queued ${enqueuedCount} PDFs for metadata reprocessing.`,
+      });
+    } catch (error) {
+      setSaveMessage({
+        type: "error",
+        text:
+          error instanceof Error ? error.message : "Failed to start reprocessing",
+      });
+    } finally {
+      setIsReprocessing(false);
     }
   };
 
@@ -797,6 +877,120 @@ export default function SettingsContent() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Bulk Metadata Reprocessing */}
+      <div className="bg-white rounded-xl border border-foreground/10 p-6 max-w-2xl">
+        <h2 className="text-xl font-semibold mb-4">Bulk Metadata Reprocessing</h2>
+        <p className="text-foreground/70 mb-4">
+          Reprocess PDFs to extract new metadata fields (document type, authors, key findings, keywords, technology areas).
+          This uses Firecrawl and Anthropic API credits.
+        </p>
+
+        {/* Stats */}
+        {reprocessingStats && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+            <div className="p-4 bg-foreground/5 rounded-lg">
+              <div className="text-2xl font-bold">{reprocessingStats.total}</div>
+              <div className="text-sm text-foreground/60">Total PDFs</div>
+            </div>
+            <div className="p-4 bg-green-50 rounded-lg">
+              <div className="text-2xl font-bold text-green-600">
+                {reprocessingStats.withNewFields}
+              </div>
+              <div className="text-sm text-foreground/60">With New Fields</div>
+            </div>
+            <div className="p-4 bg-amber-50 rounded-lg">
+              <div className="text-2xl font-bold text-amber-600">
+                {reprocessingStats.missingMetadata}
+              </div>
+              <div className="text-sm text-foreground/60">Missing Metadata</div>
+            </div>
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">
+                {reprocessingStats.oldExtraction}
+              </div>
+              <div className="text-sm text-foreground/60">Old Extraction</div>
+            </div>
+            <div className="p-4 bg-red-50 rounded-lg">
+              <div className="text-2xl font-bold text-red-600">
+                {reprocessingStats.failed}
+              </div>
+              <div className="text-sm text-foreground/60">Failed</div>
+            </div>
+          </div>
+        )}
+
+        {/* Filter Selection */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-foreground/70 mb-2">
+            Select PDFs to Reprocess
+          </label>
+          <select
+            value={reprocessFilter}
+            onChange={(e) =>
+              setReprocessFilter(
+                e.target.value as typeof reprocessFilter
+              )
+            }
+            className="w-full px-4 py-3 rounded-lg border border-foreground/20 bg-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
+            <option value="missing_metadata">Missing Metadata or New Fields</option>
+            <option value="old_extraction">Old Extraction Version</option>
+            <option value="failed">Failed Processing</option>
+            <option value="all">All PDFs</option>
+          </select>
+        </div>
+
+        {/* Count of PDFs to reprocess */}
+        {pdfsForReprocessing && (
+          <p className="text-sm text-foreground/60 mb-4">
+            {pdfsForReprocessing.length} PDF(s) match this filter
+          </p>
+        )}
+
+        {/* Progress */}
+        {reprocessProgress && (
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">{reprocessProgress.status}</span>
+              <span className="text-sm text-foreground/60">
+                {reprocessProgress.enqueued}/{reprocessProgress.total}
+              </span>
+            </div>
+            <div className="w-full bg-foreground/10 rounded-full h-2">
+              <div
+                className="bg-primary h-2 rounded-full transition-all"
+                style={{
+                  width: `${
+                    reprocessProgress.total > 0
+                      ? (reprocessProgress.enqueued / reprocessProgress.total) * 100
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Action Button */}
+        <button
+          onClick={handleBulkReprocess}
+          disabled={
+            isReprocessing ||
+            !pdfsForReprocessing ||
+            pdfsForReprocessing.length === 0
+          }
+          className="px-6 py-3 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isReprocessing
+            ? "Reprocessing..."
+            : `Reprocess ${pdfsForReprocessing?.length || 0} PDFs`}
+        </button>
+
+        <p className="mt-4 text-sm text-foreground/50">
+          Note: Processing happens in the background via a workpool. Check the Status page for progress.
+        </p>
       </div>
 
       {/* Environment Variables */}

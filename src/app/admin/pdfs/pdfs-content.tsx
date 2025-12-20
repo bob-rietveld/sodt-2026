@@ -26,6 +26,11 @@ interface EditPropertiesForm {
   summary: string;
   continent: "us" | "eu" | "asia" | "global" | "other" | "";
   industry: "semicon" | "deeptech" | "biotech" | "fintech" | "cleantech" | "other" | "";
+  documentType: "pitch_deck" | "market_research" | "financial_report" | "white_paper" | "case_study" | "annual_report" | "investor_update" | "other" | "";
+  authors: string;
+  keyFindings: string;
+  keywords: string;
+  technologyAreas: string;
 }
 
 const CONTINENT_OPTIONS = [
@@ -44,6 +49,18 @@ const INDUSTRY_OPTIONS = [
   { value: "biotech", label: "Biotech" },
   { value: "fintech", label: "Fintech" },
   { value: "cleantech", label: "Cleantech" },
+  { value: "other", label: "Other" },
+] as const;
+
+const DOCUMENT_TYPE_OPTIONS = [
+  { value: "", label: "Select Type" },
+  { value: "pitch_deck", label: "Pitch Deck" },
+  { value: "market_research", label: "Market Research" },
+  { value: "financial_report", label: "Financial Report" },
+  { value: "white_paper", label: "White Paper" },
+  { value: "case_study", label: "Case Study" },
+  { value: "annual_report", label: "Annual Report" },
+  { value: "investor_update", label: "Investor Update" },
   { value: "other", label: "Other" },
 ] as const;
 
@@ -78,6 +95,11 @@ export default function PdfsContent() {
     summary: "",
     continent: "",
     industry: "",
+    documentType: "",
+    authors: "",
+    keyFindings: "",
+    keywords: "",
+    technologyAreas: "",
   });
   const [isSavingProperties, setIsSavingProperties] = useState(false);
 
@@ -623,6 +645,11 @@ export default function PdfsContent() {
       summary: pdf.summary || "",
       continent: pdf.continent || "",
       industry: pdf.industry || "",
+      documentType: pdf.documentType || "",
+      authors: pdf.authors?.join(", ") || "",
+      keyFindings: pdf.keyFindings?.join("\n") || "",
+      keywords: pdf.keywords?.join(", ") || "",
+      technologyAreas: pdf.technologyAreas?.join(", ") || "",
     });
   };
 
@@ -632,6 +659,13 @@ export default function PdfsContent() {
 
     setIsSavingProperties(true);
     try {
+      // Parse arrays from comma/newline-separated strings
+      const parseArray = (str: string, separator: string = ",") =>
+        str
+          .split(separator)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0);
+
       await updateExtractedMetadata({
         id: editPropertiesId,
         title: editPropertiesForm.title || undefined,
@@ -641,6 +675,19 @@ export default function PdfsContent() {
         summary: editPropertiesForm.summary || undefined,
         continent: editPropertiesForm.continent || undefined,
         industry: editPropertiesForm.industry || undefined,
+        documentType: editPropertiesForm.documentType || undefined,
+        authors: editPropertiesForm.authors
+          ? parseArray(editPropertiesForm.authors)
+          : undefined,
+        keyFindings: editPropertiesForm.keyFindings
+          ? parseArray(editPropertiesForm.keyFindings, "\n")
+          : undefined,
+        keywords: editPropertiesForm.keywords
+          ? parseArray(editPropertiesForm.keywords)
+          : undefined,
+        technologyAreas: editPropertiesForm.technologyAreas
+          ? parseArray(editPropertiesForm.technologyAreas)
+          : undefined,
       });
       setEditingPdf(null);
       setEditPropertiesId(null);
@@ -664,6 +711,11 @@ export default function PdfsContent() {
       summary: "",
       continent: "",
       industry: "",
+      documentType: "",
+      authors: "",
+      keyFindings: "",
+      keywords: "",
+      technologyAreas: "",
     });
   };
 
@@ -1127,6 +1179,86 @@ export default function PdfsContent() {
                     className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
                     placeholder="Brief summary of the document"
                   />
+                </div>
+
+                {/* Extended Metadata Section */}
+                <div className="pt-4 border-t border-foreground/10">
+                  <h3 className="text-sm font-semibold text-foreground/70 mb-4">Extended Metadata</h3>
+
+                  {/* Document Type */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-foreground/70 mb-1">
+                      Document Type
+                    </label>
+                    <select
+                      value={editPropertiesForm.documentType}
+                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, documentType: e.target.value as EditPropertiesForm["documentType"] })}
+                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary bg-white"
+                    >
+                      {DOCUMENT_TYPE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Authors */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-foreground/70 mb-1">
+                      Authors
+                    </label>
+                    <input
+                      type="text"
+                      value={editPropertiesForm.authors}
+                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, authors: e.target.value })}
+                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                      placeholder="Comma-separated author names"
+                    />
+                  </div>
+
+                  {/* Keywords */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-foreground/70 mb-1">
+                      Keywords
+                    </label>
+                    <input
+                      type="text"
+                      value={editPropertiesForm.keywords}
+                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, keywords: e.target.value })}
+                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                      placeholder="Comma-separated keywords"
+                    />
+                  </div>
+
+                  {/* Technology Areas */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-foreground/70 mb-1">
+                      Technology Areas
+                    </label>
+                    <input
+                      type="text"
+                      value={editPropertiesForm.technologyAreas}
+                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, technologyAreas: e.target.value })}
+                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                      placeholder="e.g., AI, Machine Learning, IoT"
+                    />
+                  </div>
+
+                  {/* Key Findings */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground/70 mb-1">
+                      Key Findings
+                    </label>
+                    <textarea
+                      value={editPropertiesForm.keyFindings}
+                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, keyFindings: e.target.value })}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
+                      placeholder="One key finding per line"
+                    />
+                    <p className="mt-1 text-xs text-foreground/50">Enter each key finding on a new line</p>
+                  </div>
                 </div>
               </div>
             </div>

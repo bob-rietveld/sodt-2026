@@ -39,6 +39,24 @@ export default defineSchema({
       v.literal("other")
     )),
 
+    // Extended metadata (v2.0)
+    documentType: v.optional(v.union(
+      v.literal("pitch_deck"),
+      v.literal("market_research"),
+      v.literal("financial_report"),
+      v.literal("white_paper"),
+      v.literal("case_study"),
+      v.literal("annual_report"),
+      v.literal("investor_update"),
+      v.literal("other")
+    )),
+    authors: v.optional(v.array(v.string())),
+    keyFindings: v.optional(v.array(v.string())),
+    keywords: v.optional(v.array(v.string())),
+    technologyAreas: v.optional(v.array(v.string())),
+    extractedAt: v.optional(v.number()),
+    extractionVersion: v.optional(v.string()),
+
     // Processing status
     status: v.union(
       v.literal("pending"),
@@ -62,6 +80,7 @@ export default defineSchema({
     .index("by_drive_file", ["driveFileId"])
     .index("by_file_hash", ["fileHash"])
     .index("by_public_browse", ["approved", "status"])
+    .index("by_document_type", ["documentType"])
     .searchIndex("search_title", {
       searchField: "title",
       filterFields: ["status", "approved"],
@@ -102,4 +121,22 @@ export default defineSchema({
     value: v.string(),
     updatedAt: v.number(),
   }).index("by_key", ["key"]),
+
+  // Track metadata reprocessing jobs from workpool
+  metadataReprocessingJobs: defineTable({
+    pdfId: v.id("pdfs"),
+    pdfTitle: v.string(),
+    workId: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("running"),
+      v.literal("completed"),
+      v.literal("failed")
+    ),
+    enqueuedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+  })
+    .index("by_status", ["status"])
+    .index("by_work_id", ["workId"]),
 });

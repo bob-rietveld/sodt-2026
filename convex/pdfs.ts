@@ -285,12 +285,33 @@ export const updateExtractedMetadata = mutation({
       v.literal("cleantech"),
       v.literal("other")
     )),
+    // Extended metadata (v2.0)
+    documentType: v.optional(v.union(
+      v.literal("pitch_deck"),
+      v.literal("market_research"),
+      v.literal("financial_report"),
+      v.literal("white_paper"),
+      v.literal("case_study"),
+      v.literal("annual_report"),
+      v.literal("investor_update"),
+      v.literal("other")
+    )),
+    authors: v.optional(v.array(v.string())),
+    keyFindings: v.optional(v.array(v.string())),
+    keywords: v.optional(v.array(v.string())),
+    technologyAreas: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;
     const filteredUpdates = Object.fromEntries(
       Object.entries(updates).filter(([_, v]) => v !== undefined)
     );
+
+    // Auto-set extraction metadata
+    if (Object.keys(filteredUpdates).length > 0) {
+      (filteredUpdates as Record<string, unknown>).extractedAt = Date.now();
+      (filteredUpdates as Record<string, unknown>).extractionVersion = "v2.0";
+    }
 
     await ctx.db.patch(id, filteredUpdates);
   },
@@ -401,5 +422,62 @@ export const getFilterOptions = query({
       companies: companies.sort(),
       years: years.sort().reverse(), // Most recent first
     };
+  },
+});
+
+// Get statistics for reprocessing dashboard
+export const getReprocessingStats = query({
+  handler: async (ctx) => {
+    const pdfs = await ctx.db.query("pdfs").collect();
+
+    return {
+      total: pdfs.length,
+      withMetadata: pdfs.filter((p) => p.summary).length,
+      withNewFields: pdfs.filter((p) => p.documentType).length,
+      failed: pdfs.filter((p) => p.status === "failed").length,
+      missingMetadata: pdfs.filter((p) => !p.summary || !p.documentType).length,
+      oldExtraction: pdfs.filter((p) => p.extractionVersion !== "v2.0").length,
+    };
+  },
+});
+
+// Get PDFs that need reprocessing based on filter
+export const getPdfsForReprocessing = query({
+  args: {
+    filter: v.optional(
+      v.union(
+        v.literal("all"),
+        v.literal("missing_metadata"),
+        v.literal("old_extraction"),
+        v.literal("failed")
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    let pdfs = await ctx.db.query("pdfs").collect();
+
+    const filter = args.filter || "all";
+
+    if (filter === "missing_metadata") {
+      // PDFs without summary or new fields
+      pdfs = pdfs.filter((pdf) => !pdf.summary || !pdf.documentType);
+    } else if (filter === "old_extraction") {
+      // PDFs extracted with old version or never extracted
+      pdfs = pdfs.filter(
+        (pdf) => !pdf.extractionVersion || pdf.extractionVersion !== "v2.0"
+      );
+    } else if (filter === "failed") {
+      pdfs = pdfs.filter((pdf) => pdf.status === "failed");
+    }
+
+    return pdfs.map((pdf) => ({
+      _id: pdf._id,
+      title: pdf.title,
+      filename: pdf.filename,
+      status: pdf.status,
+      extractionVersion: pdf.extractionVersion,
+      hasMetadata: !!pdf.summary,
+      hasNewFields: !!pdf.documentType,
+    }));
   },
 });

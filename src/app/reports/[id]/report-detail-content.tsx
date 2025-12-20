@@ -25,6 +25,17 @@ const industryLabels: Record<string, string> = {
   other: "Other",
 };
 
+const documentTypeLabels: Record<string, string> = {
+  pitch_deck: "Pitch Deck",
+  market_research: "Market Research",
+  financial_report: "Financial Report",
+  white_paper: "White Paper",
+  case_study: "Case Study",
+  annual_report: "Annual Report",
+  investor_update: "Investor Update",
+  other: "Other",
+};
+
 export default function ReportDetailContent() {
   const params = useParams();
   const reportId = params.id as string;
@@ -167,6 +178,11 @@ export default function ReportDetailContent() {
 
                 {/* Metadata tags */}
                 <div className="flex flex-wrap justify-center sm:justify-start gap-2 mb-3 sm:mb-4">
+                  {report.documentType && (
+                    <span className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-primary/10 text-primary">
+                      {documentTypeLabels[report.documentType] ?? report.documentType}
+                    </span>
+                  )}
                   {report.continent && (
                     <span className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-info/10 text-info">
                       {continentLabels[report.continent] ?? report.continent}
@@ -288,12 +304,77 @@ export default function ReportDetailContent() {
             </div>
           )}
 
+          {/* Key Findings section */}
+          {report.keyFindings && report.keyFindings.length > 0 && (
+            <div className="p-4 sm:p-6 lg:p-8 border-b border-foreground/10">
+              <h2 className="text-xs sm:text-sm font-medium text-foreground/50 uppercase tracking-wide mb-2 sm:mb-3">
+                Key Findings
+              </h2>
+              <ul className="space-y-2">
+                {report.keyFindings.map((finding, index) => (
+                  <li key={index} className="flex items-start gap-2 text-sm sm:text-base text-foreground/80">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span>{finding}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Technology Areas */}
+          {report.technologyAreas && report.technologyAreas.length > 0 && (
+            <div className="p-4 sm:p-6 lg:p-8 border-b border-foreground/10">
+              <h2 className="text-xs sm:text-sm font-medium text-foreground/50 uppercase tracking-wide mb-2 sm:mb-3">
+                Technology Areas
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {report.technologyAreas.map((tech, index) => (
+                  <span
+                    key={index}
+                    className="px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-purple-100 text-purple-700"
+                  >
+                    {tech}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Keywords */}
+          {report.keywords && report.keywords.length > 0 && (
+            <div className="p-4 sm:p-6 lg:p-8 border-b border-foreground/10">
+              <h2 className="text-xs sm:text-sm font-medium text-foreground/50 uppercase tracking-wide mb-2 sm:mb-3">
+                Keywords
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {report.keywords.map((keyword, index) => (
+                  <span
+                    key={index}
+                    className="px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-foreground/5 text-foreground/70 border border-foreground/10"
+                  >
+                    {keyword}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Additional metadata */}
           <div className="p-4 sm:p-6 lg:p-8 bg-foreground/[0.02]">
             <h2 className="text-xs sm:text-sm font-medium text-foreground/50 uppercase tracking-wide mb-3 sm:mb-4">
               Details
             </h2>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              {report.authors && report.authors.length > 0 && (
+                <div className="sm:col-span-2">
+                  <dt className="text-xs sm:text-sm text-foreground/50">Authors</dt>
+                  <dd className="text-foreground text-sm sm:text-base">
+                    {report.authors.join(", ")}
+                  </dd>
+                </div>
+              )}
               {report.author && (
                 <div>
                   <dt className="text-xs sm:text-sm text-foreground/50">Author</dt>
