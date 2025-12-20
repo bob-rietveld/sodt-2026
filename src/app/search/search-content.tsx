@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import Link from "next/link";
+import { Header } from "@/components/ui/header";
 import { PDF } from "@/types";
 
 interface SearchSource {
@@ -59,43 +59,25 @@ export default function SearchContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-foreground/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <Link href="/" className="text-2xl font-semibold text-primary">
-            Techleap
-          </Link>
-          <nav className="flex items-center gap-6">
-            <Link href="/search" className="text-primary font-medium">
-              Search
-            </Link>
-            <Link href="/chat" className="text-foreground hover:text-primary transition-colors">
-              Chat
-            </Link>
-            <Link href="/upload" className="text-foreground hover:text-primary transition-colors">
-              Upload
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <Header showAdmin={false} />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 className="text-3xl font-semibold mb-8">Search Documents</h1>
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
+        <h1 className="text-2xl sm:text-3xl font-semibold mb-6 sm:mb-8">Search Documents</h1>
 
         {/* Search Input */}
-        <div className="flex gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-6 sm:mb-8">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             placeholder="Ask a question about your documents..."
-            className="flex-1 px-4 py-3 rounded-lg border border-foreground/20 bg-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg border border-foreground/20 bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm sm:text-base"
           />
           <button
             onClick={handleSearch}
             disabled={isSearching}
-            className="px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm sm:text-base"
           >
             {isSearching ? "Searching..." : "Search"}
           </button>
@@ -103,19 +85,19 @@ export default function SearchContent() {
 
         {/* Error */}
         {error && (
-          <div className="mb-8 p-4 bg-danger/10 text-danger rounded-lg">
+          <div className="mb-6 sm:mb-8 p-3 sm:p-4 bg-danger/10 text-danger rounded-lg text-sm sm:text-base">
             {error}
           </div>
         )}
 
         {/* AI Answer */}
         {response?.answer && (
-          <div className="mb-8">
-            <h2 className="text-lg font-medium text-foreground/70 mb-4">
+          <div className="mb-6 sm:mb-8">
+            <h2 className="text-base sm:text-lg font-medium text-foreground/70 mb-3 sm:mb-4">
               AI Answer
             </h2>
-            <div className="bg-white p-6 rounded-xl border border-primary/20 shadow-sm">
-              <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+            <div className="bg-white p-4 sm:p-6 rounded-xl border border-primary/20 shadow-sm">
+              <p className="text-foreground whitespace-pre-wrap leading-relaxed text-sm sm:text-base">
                 {response.answer}
               </p>
             </div>
@@ -124,27 +106,27 @@ export default function SearchContent() {
 
         {/* Sources */}
         {response?.sources && response.sources.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-medium text-foreground/70 mb-4">
+          <div className="mb-6 sm:mb-8">
+            <h2 className="text-base sm:text-lg font-medium text-foreground/70 mb-3 sm:mb-4">
               Sources ({response.sources.length})
             </h2>
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {response.sources.map((source, index) => (
                 <div
                   key={index}
-                  className="bg-white p-6 rounded-xl border border-foreground/10 hover:border-primary/20 transition-colors"
+                  className="bg-white p-4 sm:p-6 rounded-xl border border-foreground/10 hover:border-primary/20 transition-colors"
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-semibold text-lg">{source.title || source.filename}</h3>
-                    <span className="text-sm text-foreground/50 bg-foreground/5 px-2 py-1 rounded">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
+                    <h3 className="font-semibold text-base sm:text-lg">{source.title || source.filename}</h3>
+                    <span className="text-xs sm:text-sm text-foreground/50 bg-foreground/5 px-2 py-1 rounded self-start flex-shrink-0">
                       Page {source.pageNumber}
                     </span>
                   </div>
-                  <p className="text-foreground/70 mb-3 line-clamp-4">
+                  <p className="text-foreground/70 mb-3 line-clamp-4 text-sm sm:text-base">
                     {source.content}
                   </p>
-                  <div className="flex items-center gap-4 text-sm text-foreground/50">
-                    <span>{source.filename}</span>
+                  <div className="flex items-center gap-4 text-xs sm:text-sm text-foreground/50">
+                    <span className="truncate">{source.filename}</span>
                   </div>
                 </div>
               ))}
@@ -154,23 +136,23 @@ export default function SearchContent() {
 
         {/* Fallback: Show Convex documents if no search performed */}
         {!response && !isSearching && (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {convexResults && convexResults.length > 0 ? (
               <>
-                <h2 className="text-lg font-medium text-foreground/70">
+                <h2 className="text-base sm:text-lg font-medium text-foreground/70">
                   Available Documents
                 </h2>
                 {convexResults.map((pdf: PDF) => (
                   <div
                     key={pdf._id}
-                    className="bg-white p-6 rounded-xl border border-foreground/10 hover:border-primary/20 transition-colors"
+                    className="bg-white p-4 sm:p-6 rounded-xl border border-foreground/10 hover:border-primary/20 transition-colors"
                   >
-                    <h3 className="font-semibold text-lg mb-2">{pdf.title}</h3>
+                    <h3 className="font-semibold text-base sm:text-lg mb-2">{pdf.title}</h3>
                     {pdf.description && (
-                      <p className="text-foreground/70 mb-3">{pdf.description}</p>
+                      <p className="text-foreground/70 mb-3 text-sm sm:text-base">{pdf.description}</p>
                     )}
-                    <div className="flex items-center gap-4 text-sm text-foreground/50">
-                      <span>{pdf.filename}</span>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-foreground/50">
+                      <span className="truncate max-w-[200px]">{pdf.filename}</span>
                       {pdf.pageCount && <span>{pdf.pageCount} pages</span>}
                       <span
                         className={`px-2 py-0.5 rounded text-xs ${
@@ -188,7 +170,7 @@ export default function SearchContent() {
                 ))}
               </>
             ) : (
-              <div className="text-center py-12 text-foreground/50">
+              <div className="text-center py-8 sm:py-12 text-foreground/50 text-sm sm:text-base">
                 Ask a question to search your documents with AI.
               </div>
             )}
@@ -197,7 +179,7 @@ export default function SearchContent() {
 
         {/* No results */}
         {response && !response.answer && response.sources?.length === 0 && (
-          <div className="text-center py-12 text-foreground/50">
+          <div className="text-center py-8 sm:py-12 text-foreground/50 text-sm sm:text-base">
             No results found. Try a different search term.
           </div>
         )}

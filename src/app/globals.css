@@ -17,12 +17,23 @@
   --font-mono: "Fira Mono", monospace;
 }
 
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   font-family: var(--font-sans);
   font-weight: 400;
   line-height: 1.6;
   background-color: var(--color-background);
   color: var(--color-foreground);
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -31,4 +42,22 @@ h1, h2, h3, h4, h5, h6 {
 
 code, pre {
   font-family: var(--font-mono);
+}
+
+/* Touch-friendly button and link styles */
+button, a {
+  touch-action: manipulation;
+}
+
+/* Improve form inputs on mobile */
+input, textarea, select {
+  font-size: 16px; /* Prevents zoom on iOS */
+}
+
+/* Safe area insets for modern mobile devices */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
 }

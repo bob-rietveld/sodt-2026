@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Link from "next/link";
+import { Header } from "@/components/ui/header";
 
 interface Message {
   role: "user" | "assistant";
@@ -112,35 +112,17 @@ export default function ChatPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="border-b border-foreground/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <Link href="/" className="text-2xl font-semibold text-primary">
-            Techleap
-          </Link>
-          <nav className="flex items-center gap-6">
-            <Link href="/search" className="text-foreground hover:text-primary transition-colors">
-              Search
-            </Link>
-            <Link href="/chat" className="text-primary font-medium">
-              Chat
-            </Link>
-            <Link href="/upload" className="text-foreground hover:text-primary transition-colors">
-              Upload
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <Header showAdmin={false} />
 
       {/* Chat Area */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
-        <h1 className="text-3xl font-semibold mb-6">Chat with Documents</h1>
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 flex flex-col">
+        <h1 className="text-2xl sm:text-3xl font-semibold mb-4 sm:mb-6">Chat with Documents</h1>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto space-y-6 mb-6">
+        <div className="flex-1 overflow-y-auto space-y-4 sm:space-y-6 mb-4 sm:mb-6">
           {messages.length === 0 ? (
-            <div className="text-center py-12 text-foreground/50">
-              <p className="text-lg mb-2">Ask a question about your documents</p>
+            <div className="text-center py-8 sm:py-12 text-foreground/50">
+              <p className="text-base sm:text-lg mb-2">Ask a question about your documents</p>
               <p className="text-sm">
                 I&apos;ll search through the document library and provide answers with sources.
               </p>
@@ -152,17 +134,17 @@ export default function ChatPage() {
                 className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[80%] p-4 rounded-2xl ${
+                  className={`max-w-[90%] sm:max-w-[80%] p-3 sm:p-4 rounded-2xl ${
                     message.role === "user"
                       ? "bg-primary text-white"
                       : "bg-white border border-foreground/10"
                   }`}
                 >
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  <p className="whitespace-pre-wrap text-sm sm:text-base">{message.content}</p>
 
                   {/* Sources */}
                   {message.sources && message.sources.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-foreground/10">
+                    <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-foreground/10">
                       <p className="text-xs font-medium text-foreground/50 mb-2">
                         Sources:
                       </p>
@@ -170,13 +152,13 @@ export default function ChatPage() {
                         {message.sources.map((source, i) => (
                           <div
                             key={i}
-                            className="text-xs text-foreground/60 flex items-center gap-2"
+                            className="text-xs text-foreground/60 flex items-start sm:items-center gap-2 flex-wrap sm:flex-nowrap"
                           >
-                            <span className="bg-foreground/5 px-1.5 py-0.5 rounded">
+                            <span className="bg-foreground/5 px-1.5 py-0.5 rounded flex-shrink-0">
                               {i + 1}
                             </span>
-                            <span>{source.title}</span>
-                            <span className="text-foreground/40">
+                            <span className="break-words">{source.title}</span>
+                            <span className="text-foreground/40 flex-shrink-0">
                               p.{source.pageNumber}
                             </span>
                           </div>
@@ -192,19 +174,19 @@ export default function ChatPage() {
         </div>
 
         {/* Input */}
-        <form onSubmit={handleSubmit} className="flex gap-4">
+        <form onSubmit={handleSubmit} className="flex gap-2 sm:gap-4">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question about your documents..."
+            placeholder="Ask a question..."
             disabled={isLoading}
-            className="flex-1 px-4 py-3 rounded-lg border border-foreground/20 bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+            className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg border border-foreground/20 bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 text-sm sm:text-base"
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm sm:text-base flex-shrink-0"
           >
             {isLoading ? "..." : "Send"}
           </button>
