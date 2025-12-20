@@ -123,6 +123,94 @@ export const search = query({
   },
 });
 
+// Full-text search across title, summary, author, and company
+export const fullTextSearch = query({
+  args: {
+    query: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const searchQuery = args.query.trim();
+    const limit = args.limit ?? 50;
+
+    // If no query, return all approved completed reports
+    if (!searchQuery) {
+      return await ctx.db
+        .query("pdfs")
+        .withIndex("by_public_browse", (q) =>
+          q.eq("approved", true).eq("status", "completed")
+        )
+        .take(limit);
+    }
+
+    // Search across all four fields in parallel
+    const [titleResults, summaryResults, authorResults, companyResults] = await Promise.all([
+      ctx.db
+        .query("pdfs")
+        .withSearchIndex("search_title", (q) =>
+          q.search("title", searchQuery).eq("approved", true)
+        )
+        .take(limit),
+      ctx.db
+        .query("pdfs")
+        .withSearchIndex("search_summary", (q) =>
+          q.search("summary", searchQuery).eq("approved", true)
+        )
+        .take(limit),
+      ctx.db
+        .query("pdfs")
+        .withSearchIndex("search_author", (q) =>
+          q.search("author", searchQuery).eq("approved", true)
+        )
+        .take(limit),
+      ctx.db
+        .query("pdfs")
+        .withSearchIndex("search_company", (q) =>
+          q.search("company", searchQuery).eq("approved", true)
+        )
+        .take(limit),
+    ]);
+
+    // Combine and deduplicate results, prioritizing by search relevance
+    const seenIds = new Set<string>();
+    const combinedResults: typeof titleResults = [];
+
+    // Title matches first (most relevant)
+    for (const doc of titleResults) {
+      if (doc.status === "completed" && !seenIds.has(doc._id)) {
+        seenIds.add(doc._id);
+        combinedResults.push(doc);
+      }
+    }
+
+    // Company matches second
+    for (const doc of companyResults) {
+      if (doc.status === "completed" && !seenIds.has(doc._id)) {
+        seenIds.add(doc._id);
+        combinedResults.push(doc);
+      }
+    }
+
+    // Author matches third
+    for (const doc of authorResults) {
+      if (doc.status === "completed" && !seenIds.has(doc._id)) {
+        seenIds.add(doc._id);
+        combinedResults.push(doc);
+      }
+    }
+
+    // Summary matches last
+    for (const doc of summaryResults) {
+      if (doc.status === "completed" && !seenIds.has(doc._id)) {
+        seenIds.add(doc._id);
+        combinedResults.push(doc);
+      }
+    }
+
+    return combinedResults.slice(0, limit);
+  },
+});
+
 // Create a new PDF record
 export const create = mutation({
   args: {
