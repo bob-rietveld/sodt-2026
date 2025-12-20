@@ -128,7 +128,15 @@ export async function POST(request: NextRequest) {
 
           // Extract metadata using local extraction (no Firecrawl)
           const extractResult = await extractPDFMetadataFromUrl(url);
+          console.log("process-pdf-url: Extract result:", JSON.stringify(extractResult.data, null, 2));
           if (extractResult.success && extractResult.data) {
+            console.log("process-pdf-url: Saving metadata with fields:", {
+              documentType: extractResult.data.documentType,
+              authors: extractResult.data.authors,
+              keyFindings: extractResult.data.keyFindings?.length,
+              keywords: extractResult.data.keywords?.length,
+              technologyAreas: extractResult.data.technologyAreas,
+            });
             await convex.mutation(api.pdfs.updateExtractedMetadata, {
               id: pdfId,
               title: extractResult.data.title || title,

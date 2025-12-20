@@ -204,6 +204,35 @@ export async function POST(request: NextRequest) {
 
         // Extract metadata using local PDF extraction (no Firecrawl)
         const extractResult = await extractPDFMetadataLocal(pdfBuffer);
+        console.log("process-pdf: Extract result data:", JSON.stringify({
+          documentType: extractResult.data?.documentType,
+          documentTypeType: typeof extractResult.data?.documentType,
+          authors: extractResult.data?.authors,
+          authorsIsArray: Array.isArray(extractResult.data?.authors),
+          keyFindings: extractResult.data?.keyFindings?.length,
+          keywords: extractResult.data?.keywords?.length,
+          technologyAreas: extractResult.data?.technologyAreas,
+        }));
+
+        // Build the metadata update object explicitly
+        const metadataUpdate = {
+          id: pdfId as Id<"pdfs">,
+          title: extractResult.data?.title || pdf.title,
+          company: extractResult.data?.company,
+          dateOrYear: extractResult.data?.dateOrYear,
+          topic: extractResult.data?.topic,
+          summary: extractResult.data?.summary,
+          thumbnailUrl: thumbnailDataUrl || undefined,
+          continent: extractResult.data?.continent,
+          industry: extractResult.data?.industry,
+          documentType: extractResult.data?.documentType,
+          authors: extractResult.data?.authors,
+          keyFindings: extractResult.data?.keyFindings,
+          keywords: extractResult.data?.keywords,
+          technologyAreas: extractResult.data?.technologyAreas,
+        };
+        console.log("process-pdf: Calling updateExtractedMetadata with:", JSON.stringify(metadataUpdate, null, 2));
+
         if (extractResult.success && extractResult.data) {
           // Store extracted text in Convex storage
           if (extractResult.extractedText) {

@@ -142,7 +142,19 @@ export async function POST(request: NextRequest) {
     const metadataResult = await extractMetadataFromText(extractedText);
 
     if (metadataResult.success && metadataResult.data) {
-      await convex.mutation(api.pdfs.updateExtractedMetadata, {
+      // Log the extracted data in detail
+      console.log("reprocess-metadata: Extracted data:", JSON.stringify({
+        documentType: metadataResult.data.documentType,
+        documentTypeType: typeof metadataResult.data.documentType,
+        authors: metadataResult.data.authors,
+        authorsIsArray: Array.isArray(metadataResult.data.authors),
+        authorsLength: metadataResult.data.authors?.length,
+        keyFindingsLength: metadataResult.data.keyFindings?.length,
+        keywordsLength: metadataResult.data.keywords?.length,
+        technologyAreas: metadataResult.data.technologyAreas,
+      }));
+
+      const metadataUpdate = {
         id: pdfId as Id<"pdfs">,
         title: metadataResult.data.title || pdf.title,
         company: metadataResult.data.company,
@@ -157,7 +169,16 @@ export async function POST(request: NextRequest) {
         keyFindings: metadataResult.data.keyFindings,
         keywords: metadataResult.data.keywords,
         technologyAreas: metadataResult.data.technologyAreas,
-      });
+      };
+      console.log("reprocess-metadata: Calling updateExtractedMetadata with:", JSON.stringify(metadataUpdate, null, 2));
+
+      try {
+        await convex.mutation(api.pdfs.updateExtractedMetadata, metadataUpdate);
+        console.log("reprocess-metadata: Mutation completed successfully");
+      } catch (mutationError) {
+        console.error("reprocess-metadata: Mutation error:", mutationError);
+        throw mutationError;
+      }
 
       return NextResponse.json({
         success: true,
