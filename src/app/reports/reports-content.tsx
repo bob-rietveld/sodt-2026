@@ -6,6 +6,8 @@ import { api } from "../../../convex/_generated/api";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { FilterPanel } from "@/components/reports/filter-panel";
 import { ReportCard } from "@/components/reports/report-card";
+import { ReportTable } from "@/components/reports/report-table";
+import { ViewToggle, ViewMode } from "@/components/reports/view-toggle";
 import { Header } from "@/components/ui/header";
 import { PDF } from "@/types";
 
@@ -13,6 +15,7 @@ function ReportsContentInner() {
   const { filters, setFilter, hasActiveFilters } = useUrlFilters();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [searchInput, setSearchInput] = useState(filters.search ?? "");
+  const [viewMode, setViewMode] = useState<ViewMode>("card");
 
   // Fetch filter options
   const filterOptions = useQuery(api.pdfs.getFilterOptions);
@@ -198,12 +201,16 @@ function ReportsContentInner() {
 
           {/* Reports Grid */}
           <div className="flex-1 min-w-0">
-            {/* Results Count */}
-            {reports && (
-              <p className="text-foreground/60 mb-4">
-                {reports.length} report{reports.length !== 1 ? "s" : ""} found
-              </p>
-            )}
+            {/* Results Count and View Toggle */}
+            <div className="flex items-center justify-between mb-4">
+              {reports && (
+                <p className="text-foreground/60">
+                  {reports.length} report{reports.length !== 1 ? "s" : ""} found
+                </p>
+              )}
+              {!reports && <div />}
+              <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+            </div>
 
             {/* Loading State */}
             {!reports && (
@@ -227,19 +234,23 @@ function ReportsContentInner() {
               </div>
             )}
 
-            {/* Reports Grid */}
+            {/* Reports List */}
             {reports && (
-              <div className="grid gap-4">
-                {reports.map((report: PDF) => (
-                  <ReportCard key={report._id} report={report} />
-                ))}
+              viewMode === "card" ? (
+                <div className="grid gap-4">
+                  {reports.map((report: PDF) => (
+                    <ReportCard key={report._id} report={report} />
+                  ))}
 
-                {reports.length === 0 && (
-                  <div className="text-center py-12 text-foreground/50">
-                    No reports found matching your filters.
-                  </div>
-                )}
-              </div>
+                  {reports.length === 0 && (
+                    <div className="text-center py-12 text-foreground/50">
+                      No reports found matching your filters.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <ReportTable reports={reports} />
+              )
             )}
           </div>
         </div>
