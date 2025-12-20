@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractPDFMetadata } from "@/lib/firecrawl/client";
+import { extractPDFMetadataFromUrl } from "@/lib/pdf/extractor";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,14 +16,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Check environment variables
-    if (!process.env.FIRECRAWL_API_KEY) {
-      console.error("extract-metadata: FIRECRAWL_API_KEY is not set");
-      return NextResponse.json(
-        { error: "FIRECRAWL_API_KEY is not configured" },
-        { status: 500 }
-      );
-    }
-
     if (!process.env.ANTHROPIC_API_KEY) {
       console.error("extract-metadata: ANTHROPIC_API_KEY is not set");
       return NextResponse.json(
@@ -32,8 +24,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("extract-metadata: Starting extraction...");
-    const result = await extractPDFMetadata(url);
+    console.log("extract-metadata: Starting local PDF extraction...");
+    const result = await extractPDFMetadataFromUrl(url);
 
     if (!result.success) {
       console.error("extract-metadata: Extraction failed:", result.error);
@@ -47,6 +39,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: result.data,
+      extractedTextLength: result.extractedText?.length,
+      pageCount: result.pageCount,
     });
   } catch (error) {
     console.error("extract-metadata: Unexpected error:", error);

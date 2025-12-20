@@ -420,6 +420,31 @@ export const getFileUrl = query({
   },
 });
 
+// Update the extracted text storage ID
+export const updateExtractedTextStorageId = mutation({
+  args: {
+    id: v.id("pdfs"),
+    extractedTextStorageId: v.id("_storage"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      extractedTextStorageId: args.extractedTextStorageId,
+    });
+  },
+});
+
+// Get extracted text URL from storage
+export const getExtractedTextUrl = query({
+  args: { id: v.id("pdfs") },
+  handler: async (ctx, args) => {
+    const pdf = await ctx.db.get(args.id);
+    if (!pdf || !pdf.extractedTextStorageId) {
+      return null;
+    }
+    return await ctx.storage.getUrl(pdf.extractedTextStorageId);
+  },
+});
+
 // Browse public reports with filters
 export const browseReports = query({
   args: {
