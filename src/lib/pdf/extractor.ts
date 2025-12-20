@@ -30,23 +30,21 @@ export interface MetadataExtractionResult {
 
 /**
  * Extract text content from a PDF buffer using unpdf (serverless-compatible)
+ * Note: We avoid using getDocumentProxy as it uses pdfjs-dist workers
+ * which fail in serverless environments with "Cannot transfer object" errors
  */
 export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<TextExtractionResult> {
   try {
     // Dynamic import unpdf to avoid build-time issues
-    const { extractText, getDocumentProxy } = await import("unpdf");
+    const { extractText } = await import("unpdf");
 
     // Convert Buffer to Uint8Array for unpdf
     const uint8Array = new Uint8Array(pdfBuffer);
 
-    // Get document to count pages
-    const pdf = await getDocumentProxy(uint8Array);
-    const pageCount = pdf.numPages;
+    // Extract text from all pages - extractText also returns totalPages
+    const result = await extractText(uint8Array, { mergePages: true });
 
-    // Extract text from all pages
-    const { text } = await extractText(uint8Array, { mergePages: true });
-
-    if (!text || text.trim().length === 0) {
+    if (!result.text || result.text.trim().length === 0) {
       return {
         success: false,
         error: "No text content extracted from PDF",
@@ -55,8 +53,8 @@ export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<TextExtract
 
     return {
       success: true,
-      text: text,
-      pageCount: pageCount,
+      text: result.text,
+      pageCount: result.totalPages,
     };
   } catch (error) {
     console.error("PDF text extraction error:", error);
