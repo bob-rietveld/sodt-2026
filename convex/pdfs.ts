@@ -444,6 +444,8 @@ export const browseReports = query({
     ),
     company: v.optional(v.string()),
     year: v.optional(v.string()),
+    technologyAreas: v.optional(v.array(v.string())),
+    keywords: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     // Get all approved, completed reports using compound index
@@ -468,6 +470,18 @@ export const browseReports = query({
     }
     if (args.year) {
       results = results.filter((r) => r.dateOrYear === args.year);
+    }
+    // Filter by technology areas (report must have at least one of the selected areas)
+    if (args.technologyAreas && args.technologyAreas.length > 0) {
+      results = results.filter((r) =>
+        r.technologyAreas?.some((area) => args.technologyAreas!.includes(area))
+      );
+    }
+    // Filter by keywords (report must have at least one of the selected keywords)
+    if (args.keywords && args.keywords.length > 0) {
+      results = results.filter((r) =>
+        r.keywords?.some((keyword) => args.keywords!.includes(keyword))
+      );
     }
 
     // Sort by most recent first
@@ -504,11 +518,39 @@ export const getFilterOptions = query({
       ...new Set(publicReports.map((r) => r.dateOrYear).filter(Boolean)),
     ] as string[];
 
+    // Extract technology areas with counts
+    const technologyAreaCounts = new Map<string, number>();
+    for (const report of publicReports) {
+      if (report.technologyAreas) {
+        for (const area of report.technologyAreas) {
+          technologyAreaCounts.set(area, (technologyAreaCounts.get(area) || 0) + 1);
+        }
+      }
+    }
+    const technologyAreas = Array.from(technologyAreaCounts.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
+
+    // Extract keywords with counts
+    const keywordCounts = new Map<string, number>();
+    for (const report of publicReports) {
+      if (report.keywords) {
+        for (const keyword of report.keywords) {
+          keywordCounts.set(keyword, (keywordCounts.get(keyword) || 0) + 1);
+        }
+      }
+    }
+    const keywords = Array.from(keywordCounts.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
+
     return {
       continents: continents.sort(),
       industries: industries.sort(),
       companies: companies.sort(),
       years: years.sort().reverse(), // Most recent first
+      technologyAreas,
+      keywords,
     };
   },
 });

@@ -47,6 +47,8 @@ function ReportsContentInner() {
             | undefined,
           company: filters.company,
           year: filters.year,
+          technologyAreas: filters.technologyAreas,
+          keywords: filters.keywords,
         }
       : "skip"
   );
@@ -70,6 +72,18 @@ function ReportsContentInner() {
       }
       if (filters.year) {
         filtered = filtered.filter((r) => r.dateOrYear === filters.year);
+      }
+      // Filter by technology areas (report must have at least one of the selected areas)
+      if (filters.technologyAreas && filters.technologyAreas.length > 0) {
+        filtered = filtered.filter((r) =>
+          r.technologyAreas?.some((area) => filters.technologyAreas!.includes(area))
+        );
+      }
+      // Filter by keywords (report must have at least one of the selected keywords)
+      if (filters.keywords && filters.keywords.length > 0) {
+        filtered = filtered.filter((r) =>
+          r.keywords?.some((keyword) => filters.keywords!.includes(keyword))
+        );
       }
 
       return filtered;
