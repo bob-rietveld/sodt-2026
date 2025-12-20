@@ -3,7 +3,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { processPdfFromUpload, reprocessPdf } from "@/lib/processing/pipeline";
-import { extractPDFMetadata } from "@/lib/firecrawl/client";
+import { extractPDFMetadataLocal } from "@/lib/pdf/extractor";
 import { generatePdfThumbnailBuffer } from "@/lib/pdf/thumbnail";
 
 function getConvexClient(): ConvexHttpClient {
@@ -67,23 +67,50 @@ export async function POST(request: NextRequest) {
           if (resolvedFileUrl) {
             console.log("Extracting metadata for PDF (processing disabled):", pdfId);
             try {
+              // Fetch PDF buffer for both thumbnail and local text extraction
+              const pdfResponse = await fetch(resolvedFileUrl);
+              if (!pdfResponse.ok) {
+                throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`);
+              }
+              const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
+              console.log("PDF fetched, size:", pdfBuffer.length, "bytes");
+
               // Generate thumbnail
               let thumbnailDataUrl: string | undefined;
               try {
-                const pdfResponse = await fetch(resolvedFileUrl);
-                if (pdfResponse.ok) {
-                  const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-                  const thumbnailBuffer = await generatePdfThumbnailBuffer(pdfBuffer, 1.5);
-                  const base64 = thumbnailBuffer.toString("base64");
-                  thumbnailDataUrl = `data:image/png;base64,${base64}`;
-                }
+                const thumbnailBuffer = await generatePdfThumbnailBuffer(pdfBuffer, 1.5);
+                const base64 = thumbnailBuffer.toString("base64");
+                thumbnailDataUrl = `data:image/png;base64,${base64}`;
               } catch (thumbError) {
                 console.error("Thumbnail generation error:", thumbError);
               }
 
-              // Extract metadata using Firecrawl
-              const extractResult = await extractPDFMetadata(resolvedFileUrl);
+              // Extract metadata using local PDF extraction (no Firecrawl)
+              const extractResult = await extractPDFMetadataLocal(pdfBuffer);
               if (extractResult.success && extractResult.data) {
+                // Store extracted text in Convex storage
+                if (extractResult.extractedText) {
+                  try {
+                    const textUploadUrl = await convex.mutation(api.pdfs.generateUploadUrl, {});
+                    const textBlob = new Blob([extractResult.extractedText], { type: "text/plain" });
+                    const uploadResponse = await fetch(textUploadUrl, {
+                      method: "POST",
+                      headers: { "Content-Type": "text/plain" },
+                      body: textBlob,
+                    });
+                    if (uploadResponse.ok) {
+                      const { storageId } = await uploadResponse.json();
+                      await convex.mutation(api.pdfs.updateExtractedTextStorageId, {
+                        id: pdfId as Id<"pdfs">,
+                        extractedTextStorageId: storageId,
+                      });
+                      console.log("Extracted text stored in Convex storage");
+                    }
+                  } catch (storageError) {
+                    console.error("Failed to store extracted text:", storageError);
+                  }
+                }
+
                 await convex.mutation(api.pdfs.updateExtractedMetadata, {
                   id: pdfId as Id<"pdfs">,
                   title: extractResult.data.title || pdf.title,
@@ -168,24 +195,51 @@ export async function POST(request: NextRequest) {
     if (metadataExtractionEnabled !== "false" && !pdf.summary) {
       console.log("Extracting metadata for PDF:", pdfId);
       try {
+        // Fetch PDF buffer for both thumbnail and local text extraction
+        const pdfResponse = await fetch(resolvedFileUrl);
+        if (!pdfResponse.ok) {
+          throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`);
+        }
+        const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
+        console.log("PDF fetched, size:", pdfBuffer.length, "bytes");
+
         // Generate thumbnail
         let thumbnailDataUrl: string | undefined;
         try {
-          const pdfResponse = await fetch(resolvedFileUrl);
-          if (pdfResponse.ok) {
-            const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-            const thumbnailBuffer = await generatePdfThumbnailBuffer(pdfBuffer, 1.5);
-            const base64 = thumbnailBuffer.toString("base64");
-            thumbnailDataUrl = `data:image/png;base64,${base64}`;
-            console.log("Thumbnail generated successfully");
-          }
+          const thumbnailBuffer = await generatePdfThumbnailBuffer(pdfBuffer, 1.5);
+          const base64 = thumbnailBuffer.toString("base64");
+          thumbnailDataUrl = `data:image/png;base64,${base64}`;
+          console.log("Thumbnail generated successfully");
         } catch (thumbError) {
           console.error("Thumbnail generation error:", thumbError);
         }
 
-        // Extract metadata using Firecrawl
-        const extractResult = await extractPDFMetadata(resolvedFileUrl);
+        // Extract metadata using local PDF extraction (no Firecrawl)
+        const extractResult = await extractPDFMetadataLocal(pdfBuffer);
         if (extractResult.success && extractResult.data) {
+          // Store extracted text in Convex storage
+          if (extractResult.extractedText) {
+            try {
+              const textUploadUrl = await convex.mutation(api.pdfs.generateUploadUrl, {});
+              const textBlob = new Blob([extractResult.extractedText], { type: "text/plain" });
+              const uploadResponse = await fetch(textUploadUrl, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
+                body: textBlob,
+              });
+              if (uploadResponse.ok) {
+                const { storageId: textStorageId } = await uploadResponse.json();
+                await convex.mutation(api.pdfs.updateExtractedTextStorageId, {
+                  id: pdfId as Id<"pdfs">,
+                  extractedTextStorageId: textStorageId,
+                });
+                console.log("Extracted text stored in Convex storage");
+              }
+            } catch (storageError) {
+              console.error("Failed to store extracted text:", storageError);
+            }
+          }
+
           await convex.mutation(api.pdfs.updateExtractedMetadata, {
             id: pdfId as Id<"pdfs">,
             title: extractResult.data.title || pdf.title,

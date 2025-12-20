@@ -8,6 +8,7 @@ export default defineSchema({
     filename: v.string(),
     fileHash: v.optional(v.string()),          // SHA-256 hash of file content for duplicate detection
     storageId: v.optional(v.id("_storage")),  // Convex storage ID
+    extractedTextStorageId: v.optional(v.id("_storage")),  // Storage ID for extracted text file
     driveFileId: v.optional(v.string()),       // Google Drive file ID
     sourceUrl: v.optional(v.string()),         // Original URL for URL-sourced PDFs
 
