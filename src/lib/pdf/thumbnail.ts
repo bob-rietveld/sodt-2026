@@ -21,15 +21,17 @@ export async function generatePdfThumbnail(
     const base64 = pdfBuffer.toString("base64");
     const dataUrl = `data:application/pdf;base64,${base64}`;
 
-    // Get the PDF document
+    // Get the PDF document - returns an async iterable in pdf-to-img v5
     const document = await pdf(dataUrl, { scale });
 
-    // Get just the first page
-    const firstPage = await document.getPage(1);
+    // Get just the first page using the async iterator (v5 API)
+    for await (const page of document) {
+      // First page is a Buffer containing PNG image
+      const pngBase64 = page.toString("base64");
+      return `data:image/png;base64,${pngBase64}`;
+    }
 
-    // Convert to base64 PNG data URL
-    const pngBase64 = firstPage.toString("base64");
-    return `data:image/png;base64,${pngBase64}`;
+    throw new Error("PDF has no pages");
   } catch (error) {
     console.error("Error generating PDF thumbnail:", error);
     throw error;
@@ -50,13 +52,15 @@ export async function generatePdfThumbnailBuffer(
     const base64 = pdfBuffer.toString("base64");
     const dataUrl = `data:application/pdf;base64,${base64}`;
 
-    // Get the PDF document
+    // Get the PDF document - returns an async iterable in pdf-to-img v5
     const document = await pdf(dataUrl, { scale });
 
-    // Get just the first page as buffer
-    const firstPage = await document.getPage(1);
+    // Get just the first page as buffer using the async iterator (v5 API)
+    for await (const page of document) {
+      return page;
+    }
 
-    return firstPage;
+    throw new Error("PDF has no pages");
   } catch (error) {
     console.error("Error generating PDF thumbnail buffer:", error);
     throw error;
