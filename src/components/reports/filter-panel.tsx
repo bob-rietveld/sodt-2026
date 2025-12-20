@@ -1,6 +1,7 @@
 "use client";
 
 import { useUrlFilters } from "@/hooks/use-url-filters";
+import { MultiSelectDropdown, FilterOption } from "@/components/ui/multi-select-dropdown";
 
 interface FilterPanelProps {
   options: {
@@ -8,6 +9,8 @@ interface FilterPanelProps {
     industries: string[];
     companies: string[];
     years: string[];
+    technologyAreas: FilterOption[];
+    keywords: FilterOption[];
   };
 }
 
@@ -47,6 +50,28 @@ export function FilterPanel({ options }: FilterPanelProps) {
       </div>
 
       <div className="p-5 space-y-5">
+        {/* Technology Areas Filter */}
+        {options.technologyAreas.length > 0 && (
+          <MultiSelectDropdown
+            label="Technology Areas"
+            placeholder="Search technologies..."
+            options={options.technologyAreas}
+            selected={filters.technologyAreas ?? []}
+            onChange={(selected) => setFilter("technologyAreas", selected)}
+          />
+        )}
+
+        {/* Keywords Filter */}
+        {options.keywords.length > 0 && (
+          <MultiSelectDropdown
+            label="Keywords"
+            placeholder="Search keywords..."
+            options={options.keywords}
+            selected={filters.keywords ?? []}
+            onChange={(selected) => setFilter("keywords", selected)}
+          />
+        )}
+
         {/* Region Filter */}
         <div>
           <label className="block text-sm font-medium text-foreground/70 mb-2">

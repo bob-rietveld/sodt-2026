@@ -9,6 +9,8 @@ export interface ReportFilters {
   industry?: string;
   company?: string;
   year?: string;
+  technologyAreas?: string[];
+  keywords?: string[];
 }
 
 export function useUrlFilters() {
@@ -17,23 +19,41 @@ export function useUrlFilters() {
   const pathname = usePathname();
 
   // Parse current filters from URL
-  const filters: ReportFilters = useMemo(
-    () => ({
+  const filters: ReportFilters = useMemo(() => {
+    const technologyAreasParam = searchParams.get("technologyAreas");
+    const keywordsParam = searchParams.get("keywords");
+
+    return {
       search: searchParams.get("search") ?? undefined,
       continent: searchParams.get("continent") ?? undefined,
       industry: searchParams.get("industry") ?? undefined,
       company: searchParams.get("company") ?? undefined,
       year: searchParams.get("year") ?? undefined,
-    }),
-    [searchParams]
-  );
+      technologyAreas: technologyAreasParam
+        ? technologyAreasParam.split(",").filter(Boolean)
+        : undefined,
+      keywords: keywordsParam
+        ? keywordsParam.split(",").filter(Boolean)
+        : undefined,
+    };
+  }, [searchParams]);
 
-  // Update a single filter
+  // Update a single filter (supports both string and array values)
   const setFilter = useCallback(
-    (key: keyof ReportFilters, value: string | undefined) => {
+    (key: keyof ReportFilters, value: string | string[] | undefined) => {
       const params = new URLSearchParams(searchParams.toString());
-      if (value) {
-        params.set(key, value);
+      if (value !== undefined) {
+        if (Array.isArray(value)) {
+          if (value.length > 0) {
+            params.set(key, value.join(","));
+          } else {
+            params.delete(key);
+          }
+        } else if (value) {
+          params.set(key, value);
+        } else {
+          params.delete(key);
+        }
       } else {
         params.delete(key);
       }
@@ -48,7 +68,14 @@ export function useUrlFilters() {
   }, [router, pathname]);
 
   // Check if any filters are active
-  const hasActiveFilters = Object.values(filters).some(Boolean);
+  const hasActiveFilters = useMemo(() => {
+    return Object.entries(filters).some(([, value]) => {
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+      return Boolean(value);
+    });
+  }, [filters]);
 
   return { filters, setFilter, clearFilters, hasActiveFilters };
 }
