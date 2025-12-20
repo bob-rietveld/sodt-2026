@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import Anthropic from "@anthropic-ai/sdk";
 
 export interface PDFMetadata {
@@ -30,16 +29,24 @@ export interface MetadataExtractionResult {
 }
 
 /**
- * Extract text content from a PDF buffer using pdf-parse
- * This is a local extraction that works for any file size
+ * Extract text content from a PDF buffer using unpdf (serverless-compatible)
  */
 export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<TextExtractionResult> {
-  let parser: PDFParse | null = null;
   try {
-    parser = new PDFParse({ data: pdfBuffer });
-    const textResult = await parser.getText();
+    // Dynamic import unpdf to avoid build-time issues
+    const { extractText, getDocumentProxy } = await import("unpdf");
 
-    if (!textResult.text || textResult.text.trim().length === 0) {
+    // Convert Buffer to Uint8Array for unpdf
+    const uint8Array = new Uint8Array(pdfBuffer);
+
+    // Get document to count pages
+    const pdf = await getDocumentProxy(uint8Array);
+    const pageCount = pdf.numPages;
+
+    // Extract text from all pages
+    const { text } = await extractText(uint8Array, { mergePages: true });
+
+    if (!text || text.trim().length === 0) {
       return {
         success: false,
         error: "No text content extracted from PDF",
@@ -48,8 +55,8 @@ export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<TextExtract
 
     return {
       success: true,
-      text: textResult.text,
-      pageCount: textResult.total,
+      text: text,
+      pageCount: pageCount,
     };
   } catch (error) {
     console.error("PDF text extraction error:", error);
@@ -57,10 +64,6 @@ export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<TextExtract
       success: false,
       error: error instanceof Error ? error.message : "Unknown error during PDF text extraction",
     };
-  } finally {
-    if (parser) {
-      await parser.destroy();
-    }
   }
 }
 
@@ -198,7 +201,7 @@ Respond ONLY with valid JSON, no other text:`;
  */
 export async function extractPDFMetadataLocal(pdfBuffer: Buffer): Promise<MetadataExtractionResult & { extractedText?: string; pageCount?: number }> {
   // Step 1: Extract text from PDF
-  console.log("Extracting text from PDF locally...");
+  console.log("Extracting text from PDF locally using unpdf...");
   const textResult = await extractTextFromPdf(pdfBuffer);
 
   if (!textResult.success || !textResult.text) {

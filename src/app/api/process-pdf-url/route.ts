@@ -6,8 +6,8 @@ import { extractPdfFromBuffer, combineChunks } from "@/lib/unstructured/client";
 import { embedDocuments } from "@/lib/voyage/client";
 import { insertChunks, PDFChunk } from "@/lib/weaviate/client";
 import { runWorkflow } from "@/lib/unstructured/workflow";
-import { extractPDFMetadata } from "@/lib/firecrawl/client";
-import { generatePdfThumbnailBuffer } from "@/lib/pdf/thumbnail";
+import { extractPDFMetadataFromUrl } from "@/lib/pdf/extractor";
+import { tryGenerateThumbnail } from "@/lib/pdf/thumbnail";
 
 // Calculate SHA-256 hash of buffer
 function calculateBufferHash(buffer: Buffer): string {
@@ -123,18 +123,11 @@ export async function POST(request: NextRequest) {
       if (metadataExtractionEnabled !== "false") {
         console.log("Extracting metadata for PDF (processing disabled):", pdfId);
         try {
-          // Generate thumbnail
-          let thumbnailDataUrl: string | undefined;
-          try {
-            const thumbnailBuffer = await generatePdfThumbnailBuffer(pdfBuffer, 1.5);
-            const base64 = thumbnailBuffer.toString("base64");
-            thumbnailDataUrl = `data:image/png;base64,${base64}`;
-          } catch (thumbError) {
-            console.error("Thumbnail generation error:", thumbError);
-          }
+          // Generate thumbnail (graceful - returns null if unavailable)
+          const thumbnailDataUrl = await tryGenerateThumbnail(pdfBuffer, 1.5);
 
-          // Extract metadata using Firecrawl
-          const extractResult = await extractPDFMetadata(url);
+          // Extract metadata using local extraction (no Firecrawl)
+          const extractResult = await extractPDFMetadataFromUrl(url);
           if (extractResult.success && extractResult.data) {
             await convex.mutation(api.pdfs.updateExtractedMetadata, {
               id: pdfId,
@@ -143,9 +136,14 @@ export async function POST(request: NextRequest) {
               dateOrYear: extractResult.data.dateOrYear,
               topic: extractResult.data.topic,
               summary: extractResult.data.summary,
-              thumbnailUrl: thumbnailDataUrl,
+              thumbnailUrl: thumbnailDataUrl || undefined,
               continent: extractResult.data.continent,
               industry: extractResult.data.industry,
+              documentType: extractResult.data.documentType,
+              authors: extractResult.data.authors,
+              keyFindings: extractResult.data.keyFindings,
+              keywords: extractResult.data.keywords,
+              technologyAreas: extractResult.data.technologyAreas,
             });
           } else if (thumbnailDataUrl) {
             await convex.mutation(api.pdfs.updateExtractedMetadata, {
@@ -249,19 +247,14 @@ export async function POST(request: NextRequest) {
     if (metadataExtractionEnabled !== "false") {
       console.log("Extracting metadata for PDF:", pdfId);
       try {
-        // Generate thumbnail from already downloaded buffer
-        let thumbnailDataUrl: string | undefined;
-        try {
-          const thumbnailBuffer = await generatePdfThumbnailBuffer(pdfBuffer, 1.5);
-          const base64 = thumbnailBuffer.toString("base64");
-          thumbnailDataUrl = `data:image/png;base64,${base64}`;
+        // Generate thumbnail (graceful - returns null if unavailable)
+        const thumbnailDataUrl = await tryGenerateThumbnail(pdfBuffer, 1.5);
+        if (thumbnailDataUrl) {
           console.log("Thumbnail generated successfully");
-        } catch (thumbError) {
-          console.error("Thumbnail generation error:", thumbError);
         }
 
-        // Extract metadata using Firecrawl
-        const extractResult = await extractPDFMetadata(url);
+        // Extract metadata using local extraction (no Firecrawl)
+        const extractResult = await extractPDFMetadataFromUrl(url);
         if (extractResult.success && extractResult.data) {
           await convex.mutation(api.pdfs.updateExtractedMetadata, {
             id: pdfId,
@@ -270,9 +263,14 @@ export async function POST(request: NextRequest) {
             dateOrYear: extractResult.data.dateOrYear,
             topic: extractResult.data.topic,
             summary: extractResult.data.summary,
-            thumbnailUrl: thumbnailDataUrl,
+            thumbnailUrl: thumbnailDataUrl || undefined,
             continent: extractResult.data.continent,
             industry: extractResult.data.industry,
+            documentType: extractResult.data.documentType,
+            authors: extractResult.data.authors,
+            keyFindings: extractResult.data.keyFindings,
+            keywords: extractResult.data.keywords,
+            technologyAreas: extractResult.data.technologyAreas,
           });
           console.log("Metadata extracted and saved:", extractResult.data);
         } else if (thumbnailDataUrl) {

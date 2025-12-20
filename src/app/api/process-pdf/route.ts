@@ -4,7 +4,7 @@ import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { processPdfFromUpload, reprocessPdf } from "@/lib/processing/pipeline";
 import { extractPDFMetadataLocal } from "@/lib/pdf/extractor";
-import { generatePdfThumbnailBuffer } from "@/lib/pdf/thumbnail";
+import { tryGenerateThumbnail } from "@/lib/pdf/thumbnail";
 
 function getConvexClient(): ConvexHttpClient {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -75,15 +75,8 @@ export async function POST(request: NextRequest) {
               const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
               console.log("PDF fetched, size:", pdfBuffer.length, "bytes");
 
-              // Generate thumbnail
-              let thumbnailDataUrl: string | undefined;
-              try {
-                const thumbnailBuffer = await generatePdfThumbnailBuffer(pdfBuffer, 1.5);
-                const base64 = thumbnailBuffer.toString("base64");
-                thumbnailDataUrl = `data:image/png;base64,${base64}`;
-              } catch (thumbError) {
-                console.error("Thumbnail generation error:", thumbError);
-              }
+              // Generate thumbnail (graceful - returns null if unavailable)
+              const thumbnailDataUrl = await tryGenerateThumbnail(pdfBuffer, 1.5);
 
               // Extract metadata using local PDF extraction (no Firecrawl)
               const extractResult = await extractPDFMetadataLocal(pdfBuffer);
@@ -118,7 +111,7 @@ export async function POST(request: NextRequest) {
                   dateOrYear: extractResult.data.dateOrYear,
                   topic: extractResult.data.topic,
                   summary: extractResult.data.summary,
-                  thumbnailUrl: thumbnailDataUrl,
+                  thumbnailUrl: thumbnailDataUrl || undefined,
                   continent: extractResult.data.continent,
                   industry: extractResult.data.industry,
                   documentType: extractResult.data.documentType,
@@ -203,15 +196,10 @@ export async function POST(request: NextRequest) {
         const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
         console.log("PDF fetched, size:", pdfBuffer.length, "bytes");
 
-        // Generate thumbnail
-        let thumbnailDataUrl: string | undefined;
-        try {
-          const thumbnailBuffer = await generatePdfThumbnailBuffer(pdfBuffer, 1.5);
-          const base64 = thumbnailBuffer.toString("base64");
-          thumbnailDataUrl = `data:image/png;base64,${base64}`;
+        // Generate thumbnail (graceful - returns null if unavailable)
+        const thumbnailDataUrl = await tryGenerateThumbnail(pdfBuffer, 1.5);
+        if (thumbnailDataUrl) {
           console.log("Thumbnail generated successfully");
-        } catch (thumbError) {
-          console.error("Thumbnail generation error:", thumbError);
         }
 
         // Extract metadata using local PDF extraction (no Firecrawl)
@@ -247,7 +235,7 @@ export async function POST(request: NextRequest) {
             dateOrYear: extractResult.data.dateOrYear,
             topic: extractResult.data.topic,
             summary: extractResult.data.summary,
-            thumbnailUrl: thumbnailDataUrl,
+            thumbnailUrl: thumbnailDataUrl || undefined,
             continent: extractResult.data.continent,
             industry: extractResult.data.industry,
             documentType: extractResult.data.documentType,

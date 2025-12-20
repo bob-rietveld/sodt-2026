@@ -1,52 +1,48 @@
-// Dynamic import to avoid build-time issues
-async function getPdfToImg() {
-  const module = await import("pdf-to-img");
-  return module.pdf;
-}
-
 /**
  * Generate a thumbnail image from the first page of a PDF
+ * Uses unpdf/pdfjs for serverless-compatible rendering
+ *
+ * Note: In serverless environments, thumbnail generation may fail
+ * due to canvas/worker limitations. The caller should handle this gracefully.
+ */
+
+/**
+ * Generate a thumbnail and return as a data URL
  * @param pdfBuffer - The PDF file as a Buffer
  * @param scale - Scale factor for the output image (default 1.0, higher = better quality)
- * @returns Base64-encoded PNG image data URL
+ * @returns Base64-encoded PNG image data URL, or null if generation fails
  */
 export async function generatePdfThumbnail(
   pdfBuffer: Buffer,
   scale: number = 1.0
-): Promise<string> {
+): Promise<string | null> {
   try {
-    const pdf = await getPdfToImg();
-
-    // Convert buffer to base64 data URL for pdf-to-img
-    const base64 = pdfBuffer.toString("base64");
-    const dataUrl = `data:application/pdf;base64,${base64}`;
-
-    // Get the PDF document - returns an async iterable in pdf-to-img v5
-    const document = await pdf(dataUrl, { scale });
-
-    // Get just the first page using the async iterator (v5 API)
-    for await (const page of document) {
-      // First page is a Buffer containing PNG image
-      const pngBase64 = page.toString("base64");
+    // Try using pdf-to-img first (works in environments with canvas support)
+    const thumbnailBuffer = await generatePdfThumbnailBuffer(pdfBuffer, scale);
+    if (thumbnailBuffer) {
+      const pngBase64 = thumbnailBuffer.toString("base64");
       return `data:image/png;base64,${pngBase64}`;
     }
-
-    throw new Error("PDF has no pages");
+    return null;
   } catch (error) {
     console.error("Error generating PDF thumbnail:", error);
-    throw error;
+    // Return null instead of throwing - thumbnail is optional
+    return null;
   }
 }
 
 /**
  * Generate a thumbnail and return as a Buffer (for uploading to storage)
+ * Returns null if generation fails (e.g., in serverless environments without canvas)
  */
 export async function generatePdfThumbnailBuffer(
   pdfBuffer: Buffer,
   scale: number = 1.0
-): Promise<Buffer> {
+): Promise<Buffer | null> {
   try {
-    const pdf = await getPdfToImg();
+    // Dynamic import to avoid build-time issues
+    const pdfToImg = await import("pdf-to-img");
+    const pdf = pdfToImg.pdf;
 
     // Convert buffer to base64 data URL for pdf-to-img
     const base64 = pdfBuffer.toString("base64");
@@ -60,9 +56,41 @@ export async function generatePdfThumbnailBuffer(
       return page;
     }
 
-    throw new Error("PDF has no pages");
+    console.warn("PDF has no pages for thumbnail generation");
+    return null;
   } catch (error) {
+    // Log the error but don't throw - thumbnail generation is optional
     console.error("Error generating PDF thumbnail buffer:", error);
-    throw error;
+
+    // Check for common serverless environment errors
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (
+      errorMessage.includes("worker") ||
+      errorMessage.includes("canvas") ||
+      errorMessage.includes("path")
+    ) {
+      console.warn(
+        "Thumbnail generation failed due to serverless environment limitations. " +
+        "This is expected in some deployment environments."
+      );
+    }
+
+    return null;
+  }
+}
+
+/**
+ * Try to generate a thumbnail, with fallback to null
+ * This is the recommended function to use as it handles all error cases gracefully
+ */
+export async function tryGenerateThumbnail(
+  pdfBuffer: Buffer,
+  scale: number = 1.5
+): Promise<string | null> {
+  try {
+    return await generatePdfThumbnail(pdfBuffer, scale);
+  } catch {
+    // Silently fail - thumbnail is not critical
+    return null;
   }
 }

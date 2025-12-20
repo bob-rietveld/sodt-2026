@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generatePdfThumbnailBuffer } from "@/lib/pdf/thumbnail";
+import { tryGenerateThumbnail } from "@/lib/pdf/thumbnail";
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,17 +30,25 @@ export async function POST(request: NextRequest) {
     console.log("generate-thumbnail: PDF fetched, size:", pdfBuffer.length);
 
     // Generate thumbnail (scale 1.5 for good quality thumbnails)
+    // Uses graceful function that returns null if generation fails in serverless env
     console.log("generate-thumbnail: Generating thumbnail...");
-    const thumbnailBuffer = await generatePdfThumbnailBuffer(pdfBuffer, 1.5);
-    console.log("generate-thumbnail: Thumbnail generated, size:", thumbnailBuffer.length);
+    const thumbnailDataUrl = await tryGenerateThumbnail(pdfBuffer, 1.5);
 
-    // Convert to base64 data URL
-    const base64 = thumbnailBuffer.toString("base64");
-    const dataUrl = `data:image/png;base64,${base64}`;
+    if (!thumbnailDataUrl) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Thumbnail generation not available in this environment"
+        },
+        { status: 503 }
+      );
+    }
+
+    console.log("generate-thumbnail: Thumbnail generated successfully");
 
     return NextResponse.json({
       success: true,
-      thumbnailDataUrl: dataUrl,
+      thumbnailDataUrl: thumbnailDataUrl,
     });
   } catch (error) {
     console.error("generate-thumbnail: Error:", error);

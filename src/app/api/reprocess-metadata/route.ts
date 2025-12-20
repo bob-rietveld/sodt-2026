@@ -3,7 +3,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { extractPDFMetadataLocal } from "@/lib/pdf/extractor";
-import { generatePdfThumbnailBuffer } from "@/lib/pdf/thumbnail";
+import { tryGenerateThumbnail } from "@/lib/pdf/thumbnail";
 
 function getConvexClient(): ConvexHttpClient {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -64,15 +64,16 @@ export async function POST(request: NextRequest) {
     const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
     console.log("PDF fetched, size:", pdfBuffer.length, "bytes");
 
-    // Generate new thumbnail if missing
-    let thumbnailDataUrl = pdf.thumbnailUrl;
+    // Generate new thumbnail if missing (gracefully handles serverless limitations)
+    let thumbnailDataUrl: string | undefined = pdf.thumbnailUrl;
     if (!thumbnailDataUrl) {
-      try {
-        const thumbnailBuffer = await generatePdfThumbnailBuffer(pdfBuffer, 1.5);
-        const base64 = thumbnailBuffer.toString("base64");
-        thumbnailDataUrl = `data:image/png;base64,${base64}`;
-      } catch (thumbError) {
-        console.error("Thumbnail generation error:", thumbError);
+      console.log("Attempting thumbnail generation...");
+      const generatedThumbnail = await tryGenerateThumbnail(pdfBuffer, 1.5);
+      if (generatedThumbnail) {
+        thumbnailDataUrl = generatedThumbnail;
+        console.log("Thumbnail generated successfully");
+      } else {
+        console.log("Thumbnail generation skipped (not available in this environment)");
       }
     }
 
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
         dateOrYear: extractResult.data.dateOrYear,
         topic: extractResult.data.topic,
         summary: extractResult.data.summary,
-        thumbnailUrl: thumbnailDataUrl,
+        thumbnailUrl: thumbnailDataUrl || undefined,
         continent: extractResult.data.continent,
         industry: extractResult.data.industry,
         documentType: extractResult.data.documentType,
