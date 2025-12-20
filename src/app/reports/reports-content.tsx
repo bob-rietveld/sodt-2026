@@ -30,23 +30,10 @@ function ReportsContentInner() {
     api.pdfs.browseReports,
     !filters.search
       ? {
-          continent: filters.continent as
-            | "us"
-            | "eu"
-            | "asia"
-            | "global"
-            | "other"
-            | undefined,
-          industry: filters.industry as
-            | "semicon"
-            | "deeptech"
-            | "biotech"
-            | "fintech"
-            | "cleantech"
-            | "other"
-            | undefined,
-          company: filters.company,
-          year: filters.year,
+          continents: filters.continents,
+          industries: filters.industries,
+          companies: filters.companies,
+          years: filters.years,
           technologyAreas: filters.technologyAreas,
           keywords: filters.keywords,
         }
@@ -58,20 +45,26 @@ function ReportsContentInner() {
     if (filters.search && searchResults) {
       let filtered = [...searchResults];
 
-      // Apply metadata filters on top of search results
-      if (filters.continent) {
-        filtered = filtered.filter((r) => r.continent === filters.continent);
-      }
-      if (filters.industry) {
-        filtered = filtered.filter((r) => r.industry === filters.industry);
-      }
-      if (filters.company) {
+      // Apply metadata filters on top of search results (OR within each filter, AND between filters)
+      if (filters.continents && filters.continents.length > 0) {
         filtered = filtered.filter((r) =>
-          r.company?.toLowerCase().includes(filters.company!.toLowerCase())
+          r.continent && filters.continents!.includes(r.continent)
         );
       }
-      if (filters.year) {
-        filtered = filtered.filter((r) => r.dateOrYear === filters.year);
+      if (filters.industries && filters.industries.length > 0) {
+        filtered = filtered.filter((r) =>
+          r.industry && filters.industries!.includes(r.industry)
+        );
+      }
+      if (filters.companies && filters.companies.length > 0) {
+        filtered = filtered.filter((r) =>
+          r.company && filters.companies!.includes(r.company)
+        );
+      }
+      if (filters.years && filters.years.length > 0) {
+        filtered = filtered.filter((r) =>
+          r.dateOrYear && filters.years!.includes(r.dateOrYear)
+        );
       }
       // Filter by technology areas (report must have at least one of the selected areas)
       if (filters.technologyAreas && filters.technologyAreas.length > 0) {

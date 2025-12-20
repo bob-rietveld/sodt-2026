@@ -1,14 +1,15 @@
 "use client";
 
+import { useMemo } from "react";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { MultiSelectDropdown, FilterOption } from "@/components/ui/multi-select-dropdown";
 
 interface FilterPanelProps {
   options: {
-    continents: string[];
-    industries: string[];
-    companies: string[];
-    years: string[];
+    continents: FilterOption[];
+    industries: FilterOption[];
+    companies: FilterOption[];
+    years: FilterOption[];
     technologyAreas: FilterOption[];
     keywords: FilterOption[];
   };
@@ -33,6 +34,24 @@ const industryLabels: Record<string, string> = {
 
 export function FilterPanel({ options }: FilterPanelProps) {
   const { filters, setFilter, clearFilters, hasActiveFilters } = useUrlFilters();
+
+  // Add labels to continent options
+  const continentOptions = useMemo(() =>
+    options.continents.map((opt) => ({
+      ...opt,
+      label: continentLabels[opt.value] ?? opt.value,
+    })),
+    [options.continents]
+  );
+
+  // Add labels to industry options
+  const industryOptions = useMemo(() =>
+    options.industries.map((opt) => ({
+      ...opt,
+      label: industryLabels[opt.value] ?? opt.value,
+    })),
+    [options.industries]
+  );
 
   return (
     <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden">
@@ -73,75 +92,48 @@ export function FilterPanel({ options }: FilterPanelProps) {
         )}
 
         {/* Region Filter */}
-        <div>
-          <label className="block text-sm font-medium text-foreground/70 mb-2">
-            Region
-          </label>
-          <select
-            value={filters.continent ?? ""}
-            onChange={(e) => setFilter("continent", e.target.value || undefined)}
-            className="w-full px-3 py-2.5 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white"
-          >
-            <option value="">All Regions</option>
-            {options.continents.map((c) => (
-              <option key={c} value={c}>
-                {continentLabels[c] ?? c}
-              </option>
-            ))}
-          </select>
-        </div>
+        {continentOptions.length > 0 && (
+          <MultiSelectDropdown
+            label="Region"
+            placeholder="Search regions..."
+            options={continentOptions}
+            selected={filters.continents ?? []}
+            onChange={(selected) => setFilter("continents", selected)}
+          />
+        )}
 
         {/* Industry Filter */}
-        <div>
-          <label className="block text-sm font-medium text-foreground/70 mb-2">
-            Industry
-          </label>
-          <select
-            value={filters.industry ?? ""}
-            onChange={(e) => setFilter("industry", e.target.value || undefined)}
-            className="w-full px-3 py-2.5 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white"
-          >
-            <option value="">All Industries</option>
-            {options.industries.map((i) => (
-              <option key={i} value={i}>
-                {industryLabels[i] ?? i}
-              </option>
-            ))}
-          </select>
-        </div>
+        {industryOptions.length > 0 && (
+          <MultiSelectDropdown
+            label="Industry"
+            placeholder="Search industries..."
+            options={industryOptions}
+            selected={filters.industries ?? []}
+            onChange={(selected) => setFilter("industries", selected)}
+          />
+        )}
 
         {/* Year Filter */}
-        <div>
-          <label className="block text-sm font-medium text-foreground/70 mb-2">
-            Year
-          </label>
-          <select
-            value={filters.year ?? ""}
-            onChange={(e) => setFilter("year", e.target.value || undefined)}
-            className="w-full px-3 py-2.5 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white"
-          >
-            <option value="">All Years</option>
-            {options.years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Company Search */}
-        <div>
-          <label className="block text-sm font-medium text-foreground/70 mb-2">
-            Company
-          </label>
-          <input
-            type="text"
-            value={filters.company ?? ""}
-            onChange={(e) => setFilter("company", e.target.value || undefined)}
-            placeholder="Search companies..."
-            className="w-full px-3 py-2.5 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+        {options.years.length > 0 && (
+          <MultiSelectDropdown
+            label="Year"
+            placeholder="Search years..."
+            options={options.years}
+            selected={filters.years ?? []}
+            onChange={(selected) => setFilter("years", selected)}
           />
-        </div>
+        )}
+
+        {/* Company Filter */}
+        {options.companies.length > 0 && (
+          <MultiSelectDropdown
+            label="Company"
+            placeholder="Search companies..."
+            options={options.companies}
+            selected={filters.companies ?? []}
+            onChange={(selected) => setFilter("companies", selected)}
+          />
+        )}
       </div>
     </div>
   );

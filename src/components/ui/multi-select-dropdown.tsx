@@ -5,6 +5,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 export interface FilterOption {
   value: string;
   count: number;
+  label?: string; // Optional display label (defaults to value)
 }
 
 interface MultiSelectDropdownProps {
@@ -27,11 +28,18 @@ export function MultiSelectDropdown({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Filter options based on search query
+  // Get display label for a value
+  const getLabel = (value: string): string => {
+    const option = options.find((opt) => opt.value === value);
+    return option?.label ?? option?.value ?? value;
+  };
+
+  // Filter options based on search query (searches both label and value)
   const filteredOptions = useMemo(() => {
     if (!searchQuery.trim()) return options;
     const query = searchQuery.toLowerCase();
     return options.filter((opt) =>
+      (opt.label ?? opt.value).toLowerCase().includes(query) ||
       opt.value.toLowerCase().includes(query)
     );
   }, [options, searchQuery]);
@@ -98,7 +106,7 @@ export function MultiSelectDropdown({
                 key={value}
                 className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-md"
               >
-                <span className="truncate max-w-[100px]">{value}</span>
+                <span className="truncate max-w-[100px]">{getLabel(value)}</span>
                 <button
                   type="button"
                   onClick={(e) => removeOption(value, e)}
@@ -202,7 +210,7 @@ export function MultiSelectDropdown({
                           </svg>
                         )}
                       </div>
-                      <span className="truncate">{option.value}</span>
+                      <span className="truncate">{option.label ?? option.value}</span>
                     </div>
                     <span className="text-foreground/40 text-xs flex-shrink-0 ml-2">
                       ({option.count})

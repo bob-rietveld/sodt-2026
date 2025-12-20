@@ -423,27 +423,10 @@ export const getFileUrl = query({
 // Browse public reports with filters
 export const browseReports = query({
   args: {
-    continent: v.optional(
-      v.union(
-        v.literal("us"),
-        v.literal("eu"),
-        v.literal("asia"),
-        v.literal("global"),
-        v.literal("other")
-      )
-    ),
-    industry: v.optional(
-      v.union(
-        v.literal("semicon"),
-        v.literal("deeptech"),
-        v.literal("biotech"),
-        v.literal("fintech"),
-        v.literal("cleantech"),
-        v.literal("other")
-      )
-    ),
-    company: v.optional(v.string()),
-    year: v.optional(v.string()),
+    continents: v.optional(v.array(v.string())),
+    industries: v.optional(v.array(v.string())),
+    companies: v.optional(v.array(v.string())),
+    years: v.optional(v.array(v.string())),
     technologyAreas: v.optional(v.array(v.string())),
     keywords: v.optional(v.array(v.string())),
   },
@@ -456,20 +439,26 @@ export const browseReports = query({
       )
       .collect();
 
-    // Apply additional filters in memory
-    if (args.continent) {
-      results = results.filter((r) => r.continent === args.continent);
-    }
-    if (args.industry) {
-      results = results.filter((r) => r.industry === args.industry);
-    }
-    if (args.company) {
+    // Apply additional filters in memory (OR logic within each filter, AND logic between filters)
+    if (args.continents && args.continents.length > 0) {
       results = results.filter((r) =>
-        r.company?.toLowerCase().includes(args.company!.toLowerCase())
+        r.continent && args.continents!.includes(r.continent)
       );
     }
-    if (args.year) {
-      results = results.filter((r) => r.dateOrYear === args.year);
+    if (args.industries && args.industries.length > 0) {
+      results = results.filter((r) =>
+        r.industry && args.industries!.includes(r.industry)
+      );
+    }
+    if (args.companies && args.companies.length > 0) {
+      results = results.filter((r) =>
+        r.company && args.companies!.includes(r.company)
+      );
+    }
+    if (args.years && args.years.length > 0) {
+      results = results.filter((r) =>
+        r.dateOrYear && args.years!.includes(r.dateOrYear)
+      );
     }
     // Filter by technology areas (report must have at least one of the selected areas)
     if (args.technologyAreas && args.technologyAreas.length > 0) {
@@ -501,22 +490,49 @@ export const getFilterOptions = query({
       )
       .collect();
 
-    // Extract unique values for each filter
-    const continents = [
-      ...new Set(publicReports.map((r) => r.continent).filter(Boolean)),
-    ] as string[];
+    // Extract continents with counts
+    const continentCounts = new Map<string, number>();
+    for (const report of publicReports) {
+      if (report.continent) {
+        continentCounts.set(report.continent, (continentCounts.get(report.continent) || 0) + 1);
+      }
+    }
+    const continents = Array.from(continentCounts.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
 
-    const industries = [
-      ...new Set(publicReports.map((r) => r.industry).filter(Boolean)),
-    ] as string[];
+    // Extract industries with counts
+    const industryCounts = new Map<string, number>();
+    for (const report of publicReports) {
+      if (report.industry) {
+        industryCounts.set(report.industry, (industryCounts.get(report.industry) || 0) + 1);
+      }
+    }
+    const industries = Array.from(industryCounts.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
 
-    const companies = [
-      ...new Set(publicReports.map((r) => r.company).filter(Boolean)),
-    ] as string[];
+    // Extract companies with counts
+    const companyCounts = new Map<string, number>();
+    for (const report of publicReports) {
+      if (report.company) {
+        companyCounts.set(report.company, (companyCounts.get(report.company) || 0) + 1);
+      }
+    }
+    const companies = Array.from(companyCounts.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
 
-    const years = [
-      ...new Set(publicReports.map((r) => r.dateOrYear).filter(Boolean)),
-    ] as string[];
+    // Extract years with counts
+    const yearCounts = new Map<string, number>();
+    for (const report of publicReports) {
+      if (report.dateOrYear) {
+        yearCounts.set(report.dateOrYear, (yearCounts.get(report.dateOrYear) || 0) + 1);
+      }
+    }
+    const years = Array.from(yearCounts.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => b.value.localeCompare(a.value)); // Most recent first
 
     // Extract technology areas with counts
     const technologyAreaCounts = new Map<string, number>();
@@ -545,10 +561,10 @@ export const getFilterOptions = query({
       .sort((a, b) => a.value.localeCompare(b.value));
 
     return {
-      continents: continents.sort(),
-      industries: industries.sort(),
-      companies: companies.sort(),
-      years: years.sort().reverse(), // Most recent first
+      continents,
+      industries,
+      companies,
+      years,
       technologyAreas,
       keywords,
     };

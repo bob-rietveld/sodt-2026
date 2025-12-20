@@ -5,12 +5,17 @@ import { useCallback, useMemo } from "react";
 
 export interface ReportFilters {
   search?: string;
-  continent?: string;
-  industry?: string;
-  company?: string;
-  year?: string;
+  continents?: string[];
+  industries?: string[];
+  companies?: string[];
+  years?: string[];
   technologyAreas?: string[];
   keywords?: string[];
+}
+
+// Helper to parse comma-separated URL param to array
+function parseArrayParam(param: string | null): string[] | undefined {
+  return param ? param.split(",").filter(Boolean) : undefined;
 }
 
 export function useUrlFilters() {
@@ -20,21 +25,14 @@ export function useUrlFilters() {
 
   // Parse current filters from URL
   const filters: ReportFilters = useMemo(() => {
-    const technologyAreasParam = searchParams.get("technologyAreas");
-    const keywordsParam = searchParams.get("keywords");
-
     return {
       search: searchParams.get("search") ?? undefined,
-      continent: searchParams.get("continent") ?? undefined,
-      industry: searchParams.get("industry") ?? undefined,
-      company: searchParams.get("company") ?? undefined,
-      year: searchParams.get("year") ?? undefined,
-      technologyAreas: technologyAreasParam
-        ? technologyAreasParam.split(",").filter(Boolean)
-        : undefined,
-      keywords: keywordsParam
-        ? keywordsParam.split(",").filter(Boolean)
-        : undefined,
+      continents: parseArrayParam(searchParams.get("continents")),
+      industries: parseArrayParam(searchParams.get("industries")),
+      companies: parseArrayParam(searchParams.get("companies")),
+      years: parseArrayParam(searchParams.get("years")),
+      technologyAreas: parseArrayParam(searchParams.get("technologyAreas")),
+      keywords: parseArrayParam(searchParams.get("keywords")),
     };
   }, [searchParams]);
 
