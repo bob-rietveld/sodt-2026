@@ -14,13 +14,18 @@ function getConvexClient(): ConvexHttpClient {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { storageId } = body;
+    const { storageId, sourceUrl } = body;
 
-    console.log("get-file-url: Received storageId:", storageId);
+    console.log("get-file-url: Received storageId:", storageId, "sourceUrl:", sourceUrl);
+
+    // If sourceUrl is provided directly, return it
+    if (sourceUrl) {
+      return NextResponse.json({ url: sourceUrl });
+    }
 
     if (!storageId) {
       return NextResponse.json(
-        { error: "Storage ID is required" },
+        { error: "Storage ID or source URL is required" },
         { status: 400 }
       );
     }

@@ -102,6 +102,7 @@ export default function PdfsContent() {
     technologyAreas: "",
   });
   const [isSavingProperties, setIsSavingProperties] = useState(false);
+  const [isRegeneratingThumbnail, setIsRegeneratingThumbnail] = useState(false);
 
   const pdfs = useQuery(
     api.pdfs.list,
@@ -734,6 +735,66 @@ export default function PdfsContent() {
     }
   };
 
+  // Regenerate thumbnail for the currently editing PDF
+  const handleRegenerateThumbnail = async () => {
+    if (!editingPdf) return;
+
+    setIsRegeneratingThumbnail(true);
+    try {
+      // Get the file URL for this PDF
+      const fileUrlResponse = await fetch("/api/get-file-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storageId: editingPdf.storageId,
+          sourceUrl: editingPdf.sourceUrl
+        }),
+      });
+
+      if (!fileUrlResponse.ok) {
+        throw new Error("Failed to get file URL");
+      }
+
+      const { url: pdfUrl } = await fileUrlResponse.json();
+
+      if (!pdfUrl) {
+        throw new Error("No file URL available for this PDF");
+      }
+
+      // Generate new thumbnail
+      const thumbnailResponse = await fetch("/api/generate-thumbnail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdfUrl }),
+      });
+
+      const thumbnailResult = await thumbnailResponse.json();
+
+      if (!thumbnailResponse.ok || !thumbnailResult.success) {
+        throw new Error(thumbnailResult.error || "Thumbnail generation failed");
+      }
+
+      // Save the new thumbnail to the database
+      await updateExtractedMetadata({
+        id: editingPdf._id,
+        thumbnailUrl: thumbnailResult.thumbnailDataUrl,
+      });
+
+      // Update the local editing state with the new thumbnail
+      setEditingPdf({
+        ...editingPdf,
+        thumbnailUrl: thumbnailResult.thumbnailDataUrl,
+      });
+
+      alert("Thumbnail regenerated successfully!");
+    } catch (error) {
+      console.error("Thumbnail regeneration error:", error);
+      alert(`Failed to regenerate thumbnail: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsRegeneratingThumbnail(false);
+    }
+  };
+
   const handleRunWorkflow = async () => {
     if (!workflowId) {
       alert("No workflow configured. Please set the Unstructured Workflow ID in Settings.");
@@ -1068,6 +1129,28 @@ export default function PdfsContent() {
                 <p className="mt-2 text-xs text-foreground/50 text-center truncate max-w-40">
                   {editingPdf.filename}
                 </p>
+                <button
+                  onClick={handleRegenerateThumbnail}
+                  disabled={isRegeneratingThumbnail}
+                  className="mt-3 w-full px-3 py-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                >
+                  {isRegeneratingThumbnail ? (
+                    <>
+                      <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Regenerate Thumbnail
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Right: Form Fields */}
