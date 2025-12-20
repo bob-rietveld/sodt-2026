@@ -82,13 +82,20 @@ export async function generatePdfThumbnailBuffer(
 /**
  * Try to generate a thumbnail, with fallback to null
  * This is the recommended function to use as it handles all error cases gracefully
+ *
+ * Note: Scale is limited to 0.3 max to keep thumbnail size under Convex's 1MB limit
+ * For display purposes, 0.3 scale is sufficient for card/list thumbnails
  */
 export async function tryGenerateThumbnail(
   pdfBuffer: Buffer,
-  scale: number = 1.5
+  scale: number = 0.3
 ): Promise<string | null> {
+  // Clamp scale to max 0.3 to avoid exceeding Convex's 1MB value limit
+  // A scale of 0.3 typically produces thumbnails around 50-150KB
+  const clampedScale = Math.min(scale, 0.3);
+
   try {
-    return await generatePdfThumbnail(pdfBuffer, scale);
+    return await generatePdfThumbnail(pdfBuffer, clampedScale);
   } catch {
     // Silently fail - thumbnail is not critical
     return null;
