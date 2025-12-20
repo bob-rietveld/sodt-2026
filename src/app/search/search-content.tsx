@@ -4,6 +4,9 @@ import { useState, useCallback } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Header } from "@/components/ui/header";
+import { ReportCard } from "@/components/reports/report-card";
+import { ReportTable } from "@/components/reports/report-table";
+import { ViewToggle, ViewMode } from "@/components/reports/view-toggle";
 import { PDF } from "@/types";
 
 interface SearchSource {
@@ -24,6 +27,7 @@ export default function SearchContent() {
   const [response, setResponse] = useState<SearchResponse | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("card");
 
   // Also show PDFs from Convex for basic search
   const convexResults = useQuery(api.pdfs.search, { query });
@@ -139,35 +143,21 @@ export default function SearchContent() {
           <div className="space-y-3 sm:space-y-4">
             {convexResults && convexResults.length > 0 ? (
               <>
-                <h2 className="text-base sm:text-lg font-medium text-foreground/70">
-                  Available Documents
-                </h2>
-                {convexResults.map((pdf: PDF) => (
-                  <div
-                    key={pdf._id}
-                    className="bg-white p-4 sm:p-6 rounded-xl border border-foreground/10 hover:border-primary/20 transition-colors"
-                  >
-                    <h3 className="font-semibold text-base sm:text-lg mb-2">{pdf.title}</h3>
-                    {pdf.description && (
-                      <p className="text-foreground/70 mb-3 text-sm sm:text-base">{pdf.description}</p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-foreground/50">
-                      <span className="truncate max-w-[200px]">{pdf.filename}</span>
-                      {pdf.pageCount && <span>{pdf.pageCount} pages</span>}
-                      <span
-                        className={`px-2 py-0.5 rounded text-xs ${
-                          pdf.status === "completed"
-                            ? "bg-success/10 text-success"
-                            : pdf.status === "failed"
-                              ? "bg-danger/10 text-danger"
-                              : "bg-warning/10 text-warning"
-                        }`}
-                      >
-                        {pdf.status}
-                      </span>
-                    </div>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base sm:text-lg font-medium text-foreground/70">
+                    Available Documents ({convexResults.length})
+                  </h2>
+                  <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+                </div>
+                {viewMode === "card" ? (
+                  <div className="grid gap-4">
+                    {convexResults.map((pdf: PDF) => (
+                      <ReportCard key={pdf._id} report={pdf} />
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <ReportTable reports={convexResults} />
+                )}
               </>
             ) : (
               <div className="text-center py-8 sm:py-12 text-foreground/50 text-sm sm:text-base">
