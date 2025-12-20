@@ -28,7 +28,7 @@ export function ReportCard({ report }: ReportCardProps) {
   return (
     <Link
       href={`/reports/${report._id}`}
-      className="block bg-white p-4 sm:p-6 rounded-xl border border-foreground/10 hover:border-primary/20 hover:shadow-md transition-all group active:scale-[0.99]"
+      className="block p-4 sm:p-5 hover:bg-foreground/[0.02] transition-colors group"
     >
       <div className="flex gap-3 sm:gap-4">
         {/* Thumbnail */}

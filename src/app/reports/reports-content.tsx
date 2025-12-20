@@ -237,10 +237,12 @@ function ReportsContentInner() {
             {/* Reports List */}
             {reports && (
               viewMode === "card" ? (
-                <div className="grid gap-4">
-                  {reports.map((report: PDF) => (
-                    <ReportCard key={report._id} report={report} />
-                  ))}
+                <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden">
+                  <div className="divide-y divide-foreground/10">
+                    {reports.map((report: PDF) => (
+                      <ReportCard key={report._id} report={report} />
+                    ))}
+                  </div>
 
                   {reports.length === 0 && (
                     <div className="text-center py-12 text-foreground/50">
