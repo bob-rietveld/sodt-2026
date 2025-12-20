@@ -1,12 +1,23 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import Link from "next/link";
 import { Header } from "@/components/ui/header";
+
+// Validate that a URL is a proper HTTP(S) URL
+function isValidHttpUrl(urlString: string | null | undefined): boolean {
+  if (!urlString) return false;
+  try {
+    const url = new URL(urlString);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 const continentLabels: Record<string, string> = {
   us: "United States",
@@ -47,6 +58,14 @@ export default function ReportDetailContent() {
   const report = useQuery(api.pdfs.getWithFileUrl, {
     id: reportId as Id<"pdfs">,
   });
+
+  // Validate the file URL - only use it if it's a proper HTTP(S) URL
+  const validFileUrl = useMemo(() => {
+    if (report && isValidHttpUrl(report.fileUrl)) {
+      return report.fileUrl;
+    }
+    return null;
+  }, [report]);
 
   // Reset PDF viewer state when navigating between reports
   useEffect(() => {
@@ -259,7 +278,7 @@ export default function ReportDetailContent() {
                 </p>
 
                 {/* View PDF Button */}
-                {report.fileUrl && (
+                {validFileUrl && (
                   <button
                     onClick={togglePdfViewer}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors text-sm sm:text-base"
@@ -294,14 +313,14 @@ export default function ReportDetailContent() {
           </div>
 
           {/* PDF Viewer */}
-          {showPdfViewer && report.fileUrl && (
+          {showPdfViewer && validFileUrl && (
             <div className="border-b border-foreground/10">
               <div className="p-3 sm:p-4 bg-foreground/[0.02] border-b border-foreground/10 flex items-center justify-between">
                 <h2 className="text-xs sm:text-sm font-medium text-foreground/70">
                   PDF Viewer
                 </h2>
                 <a
-                  href={report.fileUrl}
+                  href={validFileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs sm:text-sm text-primary hover:underline"
@@ -374,7 +393,7 @@ export default function ReportDetailContent() {
                 )}
                 <iframe
                   key={`pdf-${reportId}-${retryCount}`}
-                  src={report.fileUrl}
+                  src={validFileUrl!}
                   className="w-full h-[50vh] sm:h-[60vh] lg:h-[800px]"
                   title={`PDF: ${report.title}`}
                   onLoad={handlePdfLoad}
