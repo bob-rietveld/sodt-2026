@@ -268,8 +268,13 @@ export default function PdfsContent() {
               thumbnailUrl: thumbnailDataUrl,
               continent: extractResult.data.continent,
               industry: extractResult.data.industry,
+              documentType: extractResult.data.documentType,
+              authors: extractResult.data.authors,
+              keyFindings: extractResult.data.keyFindings,
+              keywords: extractResult.data.keywords,
+              technologyAreas: extractResult.data.technologyAreas,
             });
-            console.log("Metadata extracted:", extractResult.data);
+            console.log("Metadata extracted and saved:", extractResult.data);
           } else {
             // Even if metadata extraction fails, save the thumbnail if we have it
             if (thumbnailDataUrl) {
