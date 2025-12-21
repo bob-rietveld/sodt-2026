@@ -135,7 +135,12 @@ export default function StatusContent() {
 
   return (
     <div>
-      <h1 className="text-3xl font-semibold mb-8">Processing Status</h1>
+      <div className="mb-8">
+        <h1 className="text-3xl font-semibold">Processing</h1>
+        <p className="text-foreground/60 mt-1">
+          Monitor active jobs and reprocess documents when needed
+        </p>
+      </div>
 
       {/* Active Processing */}
       <div className="mb-8">

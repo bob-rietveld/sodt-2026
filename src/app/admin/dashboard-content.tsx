@@ -29,48 +29,57 @@ export default function DashboardContent() {
 
   return (
     <div>
-      <h1 className="text-3xl font-semibold mb-8">Admin Dashboard</h1>
+      <div className="mb-8">
+        <h1 className="text-3xl font-semibold">Overview</h1>
+        <p className="text-foreground/60 mt-1">
+          Monitor your document library and processing status at a glance
+        </p>
+      </div>
 
       {/* Stats Grid */}
       <div className="grid md:grid-cols-4 gap-6 mb-12">
         <Link
           href="/admin/pdfs"
-          className="bg-white p-6 rounded-xl border border-foreground/10 hover:border-primary/20 transition-colors"
+          className="bg-white p-6 rounded-xl border border-foreground/10 hover:border-primary/20 hover:shadow-sm transition-all"
         >
           <div className="text-4xl font-semibold text-primary mb-2">
             {stats.total}
           </div>
-          <div className="text-foreground/60">Total Documents</div>
+          <div className="font-medium text-foreground/80">Total Documents</div>
+          <div className="text-sm text-foreground/50 mt-1">All uploaded PDFs</div>
         </Link>
 
         <Link
           href="/admin/pending"
-          className="bg-white p-6 rounded-xl border border-foreground/10 hover:border-warning/20 transition-colors"
+          className="bg-white p-6 rounded-xl border border-foreground/10 hover:border-warning/20 hover:shadow-sm transition-all"
         >
           <div className="text-4xl font-semibold text-warning mb-2">
             {stats.pending}
           </div>
-          <div className="text-foreground/60">Pending Approval</div>
+          <div className="font-medium text-foreground/80">Awaiting Review</div>
+          <div className="text-sm text-foreground/50 mt-1">Need your approval</div>
         </Link>
 
         <Link
           href="/admin/status"
-          className="bg-white p-6 rounded-xl border border-foreground/10 hover:border-info/20 transition-colors"
+          className="bg-white p-6 rounded-xl border border-foreground/10 hover:border-info/20 hover:shadow-sm transition-all"
         >
           <div className="text-4xl font-semibold text-info mb-2">
             {stats.processing}
           </div>
-          <div className="text-foreground/60">Processing</div>
+          <div className="font-medium text-foreground/80">Processing Now</div>
+          <div className="text-sm text-foreground/50 mt-1">Currently being indexed</div>
         </Link>
 
         <Link
           href="/admin/status"
-          className="bg-white p-6 rounded-xl border border-foreground/10 hover:border-danger/20 transition-colors"
+          className="bg-white p-6 rounded-xl border border-foreground/10 hover:border-danger/20 hover:shadow-sm transition-all"
         >
           <div className="text-4xl font-semibold text-danger mb-2">
             {stats.failed}
           </div>
-          <div className="text-foreground/60">Failed Jobs</div>
+          <div className="font-medium text-foreground/80">Failed</div>
+          <div className="text-sm text-foreground/50 mt-1">Need attention</div>
         </Link>
       </div>
 
