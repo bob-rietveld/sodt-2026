@@ -247,12 +247,12 @@ export default function PdfsContent() {
             console.error("Thumbnail generation error:", thumbError);
           }
 
-          // Extract metadata using Firecrawl
+          // Extract metadata and store extracted text
           setUploadProgress("Extracting metadata...");
           const extractResponse = await fetch("/api/extract-metadata", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: convexFileUrl }),
+            body: JSON.stringify({ url: convexFileUrl, pdfId }),
           });
 
           const extractResult = await extractResponse.json();
@@ -448,11 +448,11 @@ export default function PdfsContent() {
                 console.error("Thumbnail generation error:", thumbError);
               }
 
-              // Extract metadata using Firecrawl
+              // Extract metadata and store extracted text
               const extractResponse = await fetch("/api/extract-metadata", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ url: convexFileUrl }),
+                body: JSON.stringify({ url: convexFileUrl, pdfId }),
               });
 
               const extractResult = await extractResponse.json();
@@ -467,6 +467,11 @@ export default function PdfsContent() {
                   thumbnailUrl: thumbnailDataUrl,
                   continent: extractResult.data.continent,
                   industry: extractResult.data.industry,
+                  documentType: extractResult.data.documentType,
+                  authors: extractResult.data.authors,
+                  keyFindings: extractResult.data.keyFindings,
+                  keywords: extractResult.data.keywords,
+                  technologyAreas: extractResult.data.technologyAreas,
                 });
               } else if (thumbnailDataUrl) {
                 // Save thumbnail even if metadata extraction failed
