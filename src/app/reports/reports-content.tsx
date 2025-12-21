@@ -8,6 +8,7 @@ import { FilterPanel } from "@/components/reports/filter-panel";
 import { ReportCard } from "@/components/reports/report-card";
 import { ReportTable } from "@/components/reports/report-table";
 import { ViewToggle, ViewMode } from "@/components/reports/view-toggle";
+import { SortSelector, SortOption } from "@/components/reports/sort-selector";
 import { Header } from "@/components/ui/header";
 import { PDF } from "@/types";
 
@@ -16,6 +17,7 @@ function ReportsContentInner() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [searchInput, setSearchInput] = useState(filters.search ?? "");
   const [viewMode, setViewMode] = useState<ViewMode>("card");
+  const [sortBy, setSortBy] = useState<SortOption>("recently_added");
 
   // Fetch filter options
   const filterOptions = useQuery(api.pdfs.getFilterOptions);
@@ -53,8 +55,21 @@ function ReportsContentInner() {
       : "skip"
   );
 
-  // Apply metadata filters to search results if needed
+  // Helper function to parse year from dateOrYear field
+  const parseYear = (dateOrYear: string | undefined): number => {
+    if (!dateOrYear) return 0;
+    // Try to extract a 4-digit year from the string
+    const yearMatch = dateOrYear.match(/\d{4}/);
+    if (yearMatch) {
+      return parseInt(yearMatch[0], 10);
+    }
+    return 0;
+  };
+
+  // Apply metadata filters to search results if needed, then sort
   const reports = useMemo(() => {
+    let results: PDF[] | undefined;
+
     if (filters.search && searchResults) {
       let filtered = [...searchResults];
 
@@ -86,10 +101,22 @@ function ReportsContentInner() {
         );
       }
 
-      return filtered;
+      results = filtered;
+    } else {
+      results = browseResults ? [...browseResults] : undefined;
     }
-    return browseResults ?? undefined;
-  }, [filters, searchResults, browseResults]);
+
+    // Apply sorting
+    if (results) {
+      if (sortBy === "recently_added") {
+        results.sort((a, b) => b.uploadedAt - a.uploadedAt);
+      } else if (sortBy === "published_date") {
+        results.sort((a, b) => parseYear(b.dateOrYear) - parseYear(a.dateOrYear));
+      }
+    }
+
+    return results;
+  }, [filters, searchResults, browseResults, sortBy]);
 
   // Handle search submission
   const handleSearch = (e: React.FormEvent) => {
@@ -215,15 +242,20 @@ function ReportsContentInner() {
               )}
             </form>
 
-            {/* Results Count and View Toggle */}
-            <div className="flex items-center justify-between mb-4">
-              {reports && (
-                <p className="text-foreground/60">
-                  {reports.length} report{reports.length !== 1 ? "s" : ""} found
-                </p>
-              )}
-              {!reports && <div />}
-              <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+            {/* Results Count, Sort, and View Toggle */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-4">
+                {reports && (
+                  <p className="text-foreground/60">
+                    {reports.length} report{reports.length !== 1 ? "s" : ""} found
+                  </p>
+                )}
+                {!reports && <div />}
+              </div>
+              <div className="flex items-center gap-3">
+                <SortSelector sortBy={sortBy} onSortChange={setSortBy} />
+                <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+              </div>
             </div>
 
             {/* Loading State */}
@@ -251,19 +283,19 @@ function ReportsContentInner() {
             {/* Reports List */}
             {reports && (
               viewMode === "card" ? (
-                <div className="grid gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {reports.map((report: PDF) => (
                     <ReportCard key={report._id} report={report} />
                   ))}
 
                   {reports.length === 0 && (
-                    <div className="text-center py-12 text-foreground/50">
+                    <div className="col-span-full text-center py-12 text-foreground/50">
                       No reports found matching your filters.
                     </div>
                   )}
                 </div>
               ) : (
-                <ReportTable reports={reports} />
+                <ReportTable reports={reports} sortBy={sortBy} onSortChange={setSortBy} />
               )
             )}
           </div>
