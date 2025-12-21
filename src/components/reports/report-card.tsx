@@ -65,13 +65,7 @@ export function ReportCard({ report }: ReportCardProps) {
           </h3>
 
           {report.company && (
-            <p className="text-xs sm:text-sm text-foreground/60 mb-1 sm:mb-2">{report.company}</p>
-          )}
-
-          {report.summary && (
-            <p className="text-xs sm:text-sm text-foreground/70 line-clamp-2 mb-2 sm:mb-3 hidden sm:block">
-              {report.summary}
-            </p>
+            <p className="text-xs sm:text-sm text-foreground/60 mb-2">{report.company}</p>
           )}
 
           {/* Metadata tags */}

@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { PDF } from "@/types";
+import { SortOption } from "./sort-selector";
 
 interface ReportTableProps {
   reports: PDF[];
+  sortBy?: SortOption;
+  onSortChange?: (sort: SortOption) => void;
 }
 
 const continentLabels: Record<string, string> = {
@@ -24,7 +27,7 @@ const industryLabels: Record<string, string> = {
   other: "Other",
 };
 
-export function ReportTable({ reports }: ReportTableProps) {
+export function ReportTable({ reports, sortBy, onSortChange }: ReportTableProps) {
   if (reports.length === 0) {
     return (
       <div className="text-center py-12 text-foreground/50">
@@ -33,6 +36,35 @@ export function ReportTable({ reports }: ReportTableProps) {
     );
   }
 
+  const SortableHeader = ({
+    children,
+    sortKey
+  }: {
+    children: React.ReactNode;
+    sortKey: SortOption;
+  }) => {
+    const isActive = sortBy === sortKey;
+
+    return (
+      <th
+        className="text-left px-4 py-3 text-sm font-semibold text-foreground/70 cursor-pointer hover:text-foreground transition-colors group"
+        onClick={() => onSortChange?.(sortKey)}
+      >
+        <div className="flex items-center gap-1">
+          {children}
+          <svg
+            className={`w-4 h-4 transition-opacity ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </th>
+    );
+  };
+
   return (
     <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden">
       {/* Desktop Table View */}
@@ -40,9 +72,9 @@ export function ReportTable({ reports }: ReportTableProps) {
         <table className="w-full">
           <thead className="bg-foreground/5 border-b border-foreground/10">
             <tr>
-              <th className="text-left px-4 py-3 text-sm font-semibold text-foreground/70">
+              <SortableHeader sortKey="recently_added">
                 Title
-              </th>
+              </SortableHeader>
               <th className="text-left px-4 py-3 text-sm font-semibold text-foreground/70">
                 Company
               </th>
@@ -52,9 +84,9 @@ export function ReportTable({ reports }: ReportTableProps) {
               <th className="text-left px-4 py-3 text-sm font-semibold text-foreground/70">
                 Industry
               </th>
-              <th className="text-left px-4 py-3 text-sm font-semibold text-foreground/70">
+              <SortableHeader sortKey="published_date">
                 Year
-              </th>
+              </SortableHeader>
             </tr>
           </thead>
           <tbody className="divide-y divide-foreground/10">
