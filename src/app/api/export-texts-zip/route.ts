@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../convex/_generated/api";
 import archiver from "archiver";
-import { PassThrough } from "stream";
 
 function getConvexClient(): ConvexHttpClient {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -37,22 +36,7 @@ export async function GET() {
       );
     }
 
-    // Create a buffer to hold the zip content
-    const chunks: Buffer[] = [];
-    const passThrough = new PassThrough();
-
-    passThrough.on("data", (chunk) => {
-      chunks.push(Buffer.from(chunk));
-    });
-
-    // Create the archive
-    const archive = archiver("zip", {
-      zlib: { level: 5 }, // Compression level
-    });
-
-    archive.pipe(passThrough);
-
-    // Add each text file to the archive
+    // Fetch all text files first
     const textFetchPromises = pdfsWithText.map(async (pdf) => {
       try {
         const response = await fetch(pdf.extractedTextUrl!);
@@ -68,26 +52,43 @@ export async function GET() {
       }
     });
 
-    const textFiles = await Promise.all(textFetchPromises);
+    const textFiles = (await Promise.all(textFetchPromises)).filter(Boolean) as { filename: string; text: string }[];
 
-    // Add successfully fetched files to the archive
-    for (const file of textFiles) {
-      if (file) {
-        archive.append(file.text, { name: file.filename });
-      }
+    if (textFiles.length === 0) {
+      return NextResponse.json(
+        { error: "Failed to fetch any text files" },
+        { status: 500 }
+      );
     }
 
-    // Finalize the archive
-    await archive.finalize();
+    // Create archive and collect data into buffer
+    const zipBuffer = await new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
 
-    // Wait for the stream to finish
-    await new Promise<void>((resolve, reject) => {
-      passThrough.on("end", resolve);
-      passThrough.on("error", reject);
+      const archive = archiver("zip", {
+        zlib: { level: 5 },
+      });
+
+      archive.on("data", (chunk) => {
+        chunks.push(Buffer.from(chunk));
+      });
+
+      archive.on("end", () => {
+        resolve(Buffer.concat(chunks));
+      });
+
+      archive.on("error", (err) => {
+        reject(err);
+      });
+
+      // Add all files to the archive
+      for (const file of textFiles) {
+        archive.append(file.text, { name: file.filename });
+      }
+
+      // Finalize the archive
+      archive.finalize();
     });
-
-    // Combine all chunks into a single buffer
-    const zipBuffer = Buffer.concat(chunks);
 
     // Generate filename with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
