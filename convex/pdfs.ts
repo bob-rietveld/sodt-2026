@@ -596,6 +596,29 @@ export const getReprocessingStats = query({
   },
 });
 
+// Get all PDFs for export with extracted text URLs
+export const getAllForExport = query({
+  handler: async (ctx) => {
+    const pdfs = await ctx.db.query("pdfs").collect();
+
+    // Get extracted text URLs for each PDF that has one
+    const pdfsWithTextUrls = await Promise.all(
+      pdfs.map(async (pdf) => {
+        let extractedTextUrl: string | null = null;
+        if (pdf.extractedTextStorageId) {
+          extractedTextUrl = await ctx.storage.getUrl(pdf.extractedTextStorageId);
+        }
+        return {
+          ...pdf,
+          extractedTextUrl,
+        };
+      })
+    );
+
+    return pdfsWithTextUrls;
+  },
+});
+
 // Get PDFs that need reprocessing based on filter
 export const getPdfsForReprocessing = query({
   args: {
