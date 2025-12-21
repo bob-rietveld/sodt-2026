@@ -20,6 +20,7 @@
     "@types/node": "^25.0.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "archiver": "^7.0.1",
     "autoprefixer": "^10.4.23",
     "convex": "^1.31.2",
     "eslint": "^9.39.2",
@@ -40,6 +41,7 @@
     "weaviate-client": "^3.10.0"
   },
   "devDependencies": {
+    "@types/archiver": "^7.0.0",
     "@types/pdf-parse": "^1.1.5"
   }
 }
