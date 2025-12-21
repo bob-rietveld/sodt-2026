@@ -911,8 +911,13 @@ export default function PdfsContent() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-semibold">PDF Management</h1>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-semibold">Documents</h1>
+          <p className="text-foreground/60 mt-1">
+            Upload, manage, and organize your PDF documents
+          </p>
+        </div>
 
         {/* Filter */}
         <div className="flex items-center gap-2">
@@ -934,8 +939,9 @@ export default function PdfsContent() {
         </div>
       </div>
 
-      {/* Upload Mode Toggle */}
-      <div className="mb-4 flex items-center gap-4">
+      {/* Toolbar */}
+      <div className="mb-4 flex flex-wrap items-center gap-4">
+        {/* Upload Mode Toggle */}
         <div className="flex gap-2">
           <button
             onClick={() => setUploadMode("file")}
@@ -959,55 +965,12 @@ export default function PdfsContent() {
           </button>
         </div>
 
-        {/* Google Drive Status Indicator */}
-        <div
-          className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 ${
-            driveRefreshToken
-              ? "bg-success/10 text-success"
-              : "bg-foreground/5 text-foreground/50"
-          }`}
-        >
-          <span
-            className={`w-2 h-2 rounded-full ${
-              driveRefreshToken ? "bg-success" : "bg-foreground/30"
-            }`}
-          />
-          {driveRefreshToken ? "Google Drive connected" : "Google Drive not connected"}
-        </div>
-
-        {/* Workflow Status Indicator */}
-        <div
-          className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 ${
-            workflowId
-              ? "bg-success/10 text-success"
-              : "bg-foreground/5 text-foreground/50"
-          }`}
-        >
-          <span
-            className={`w-2 h-2 rounded-full ${
-              workflowId ? "bg-success" : "bg-foreground/30"
-            }`}
-          />
-          {workflowId ? "Workflow configured" : "No workflow configured"}
-        </div>
-
-        {/* Run Workflow Button - for batch processing */}
-        {workflowId && (
-          <button
-            onClick={handleRunWorkflow}
-            disabled={isRunningWorkflow}
-            className="px-4 py-1.5 bg-warning text-white rounded-lg text-sm font-medium hover:bg-warning/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isRunningWorkflow ? "Running..." : "Run Workflow (All Files)"}
-          </button>
-        )}
-
         {/* Export Buttons */}
         <div className="flex items-center gap-2 ml-auto">
           <button
             onClick={handleExportCSV}
             disabled={isExportingCSV}
-            className="px-4 py-1.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 bg-white border border-foreground/10 text-foreground/70 rounded-lg text-sm font-medium hover:bg-foreground/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isExportingCSV ? (
               <>
@@ -1029,7 +992,7 @@ export default function PdfsContent() {
           <button
             onClick={handleExportZip}
             disabled={isExportingZip}
-            className="px-4 py-1.5 bg-secondary text-white rounded-lg text-sm font-medium hover:bg-secondary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 bg-white border border-foreground/10 text-foreground/70 rounded-lg text-sm font-medium hover:bg-foreground/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isExportingZip ? (
               <>
@@ -1044,7 +1007,7 @@ export default function PdfsContent() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                 </svg>
-                Export Text Files (ZIP)
+                Export ZIP
               </>
             )}
           </button>

@@ -379,7 +379,12 @@ export default function SettingsContent() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-semibold">Settings</h1>
+      <div>
+        <h1 className="text-3xl font-semibold">Settings</h1>
+        <p className="text-foreground/60 mt-1">
+          Configure processing options and external integrations
+        </p>
+      </div>
 
       {/* Tabs */}
       <SettingsTabs

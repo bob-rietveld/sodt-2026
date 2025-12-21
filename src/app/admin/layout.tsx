@@ -15,39 +15,45 @@ export default function AdminLayout({
             <Link href="/" className="text-2xl font-semibold">
               Techleap
             </Link>
-            <span className="text-white/60">Admin</span>
+            <span className="text-white/60">Admin Panel</span>
           </div>
           <div className="flex items-center gap-6">
-            <nav className="flex items-center gap-6">
+            <nav className="flex items-center gap-1">
               <Link
                 href="/admin"
-                className="text-white/80 hover:text-white transition-colors"
+                className="px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm font-medium"
               >
-                Dashboard
+                Overview
               </Link>
               <Link
                 href="/admin/pdfs"
-                className="text-white/80 hover:text-white transition-colors"
+                className="px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm font-medium"
               >
-                PDFs
+                Documents
               </Link>
               <Link
                 href="/admin/pending"
-                className="text-white/80 hover:text-white transition-colors"
+                className="px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm font-medium"
               >
-                Pending
+                Review Queue
               </Link>
               <Link
                 href="/admin/status"
-                className="text-white/80 hover:text-white transition-colors"
+                className="px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm font-medium"
               >
-                Status
+                Processing
               </Link>
               <Link
                 href="/admin/settings"
-                className="text-white/80 hover:text-white transition-colors"
+                className="px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm font-medium"
               >
                 Settings
+              </Link>
+              <Link
+                href="/admin/faq"
+                className="px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm font-medium"
+              >
+                Help
               </Link>
             </nav>
             <UserButton afterSignOutUrl="/" />
