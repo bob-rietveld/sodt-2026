@@ -5,6 +5,7 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { PDF } from "@/types";
+import EditSidePanel, { EditPropertiesForm } from "@/components/admin/edit-side-panel";
 
 type StatusFilter = "all" | "pending" | "processing" | "completed" | "failed";
 type UploadMode = "file" | "url";
@@ -17,52 +18,6 @@ interface UploadItem {
   error?: string;
   pdfId?: Id<"pdfs">;
 }
-
-interface EditPropertiesForm {
-  title: string;
-  company: string;
-  dateOrYear: string;
-  topic: string;
-  summary: string;
-  continent: "us" | "eu" | "asia" | "global" | "other" | "";
-  industry: "semicon" | "deeptech" | "biotech" | "fintech" | "cleantech" | "other" | "";
-  documentType: "pitch_deck" | "market_research" | "financial_report" | "white_paper" | "case_study" | "annual_report" | "investor_update" | "other" | "";
-  authors: string;
-  keyFindings: string;
-  keywords: string;
-  technologyAreas: string;
-}
-
-const CONTINENT_OPTIONS = [
-  { value: "", label: "Select Region" },
-  { value: "us", label: "United States" },
-  { value: "eu", label: "Europe" },
-  { value: "asia", label: "Asia" },
-  { value: "global", label: "Global" },
-  { value: "other", label: "Other" },
-] as const;
-
-const INDUSTRY_OPTIONS = [
-  { value: "", label: "Select Industry" },
-  { value: "semicon", label: "Semiconductor" },
-  { value: "deeptech", label: "Deep Tech" },
-  { value: "biotech", label: "Biotech" },
-  { value: "fintech", label: "Fintech" },
-  { value: "cleantech", label: "Cleantech" },
-  { value: "other", label: "Other" },
-] as const;
-
-const DOCUMENT_TYPE_OPTIONS = [
-  { value: "", label: "Select Type" },
-  { value: "pitch_deck", label: "Pitch Deck" },
-  { value: "market_research", label: "Market Research" },
-  { value: "financial_report", label: "Financial Report" },
-  { value: "white_paper", label: "White Paper" },
-  { value: "case_study", label: "Case Study" },
-  { value: "annual_report", label: "Annual Report" },
-  { value: "investor_update", label: "Investor Update" },
-  { value: "other", label: "Other" },
-] as const;
 
 // Calculate SHA-256 hash of file content
 async function calculateFileHash(file: File): Promise<string> {
@@ -84,25 +39,8 @@ export default function PdfsContent() {
   const [batchUploads, setBatchUploads] = useState<UploadItem[]>([]);
   const [isBatchUploading, setIsBatchUploading] = useState(false);
 
-  // Edit properties panel state
+  // Edit side panel state
   const [editingPdf, setEditingPdf] = useState<PDF | null>(null);
-  const [editPropertiesId, setEditPropertiesId] = useState<Id<"pdfs"> | null>(null);
-  const [editPropertiesForm, setEditPropertiesForm] = useState<EditPropertiesForm>({
-    title: "",
-    company: "",
-    dateOrYear: "",
-    topic: "",
-    summary: "",
-    continent: "",
-    industry: "",
-    documentType: "",
-    authors: "",
-    keyFindings: "",
-    keywords: "",
-    technologyAreas: "",
-  });
-  const [isSavingProperties, setIsSavingProperties] = useState(false);
-  const [isRegeneratingThumbnail, setIsRegeneratingThumbnail] = useState(false);
   const [isExportingCSV, setIsExportingCSV] = useState(false);
   const [isExportingZip, setIsExportingZip] = useState(false);
 
@@ -646,90 +584,40 @@ export default function PdfsContent() {
     }
   };
 
-  // Open edit properties panel
+  // Open edit side panel
   const handleEditProperties = (pdf: PDF) => {
     setEditingPdf(pdf);
-    setEditPropertiesId(pdf._id);
-    setEditPropertiesForm({
-      title: pdf.title || "",
-      company: pdf.company || "",
-      dateOrYear: pdf.dateOrYear || "",
-      topic: pdf.topic || "",
-      summary: pdf.summary || "",
-      continent: pdf.continent || "",
-      industry: pdf.industry || "",
-      documentType: pdf.documentType || "",
-      authors: pdf.authors?.join(", ") || "",
-      keyFindings: pdf.keyFindings?.join("\n") || "",
-      keywords: pdf.keywords?.join(", ") || "",
-      technologyAreas: pdf.technologyAreas?.join(", ") || "",
+  };
+
+  // Save properties from side panel
+  const handleSaveProperties = async (id: Id<"pdfs">, form: EditPropertiesForm) => {
+    // Parse arrays from comma/newline-separated strings
+    const parseArray = (str: string, separator: string = ",") =>
+      str
+        .split(separator)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+    await updateExtractedMetadata({
+      id,
+      title: form.title || undefined,
+      company: form.company || undefined,
+      dateOrYear: form.dateOrYear || undefined,
+      topic: form.topic || undefined,
+      summary: form.summary || undefined,
+      continent: form.continent || undefined,
+      industry: form.industry || undefined,
+      documentType: form.documentType || undefined,
+      authors: form.authors ? parseArray(form.authors) : undefined,
+      keyFindings: form.keyFindings ? parseArray(form.keyFindings, "\n") : undefined,
+      keywords: form.keywords ? parseArray(form.keywords) : undefined,
+      technologyAreas: form.technologyAreas ? parseArray(form.technologyAreas) : undefined,
     });
   };
 
-  // Save properties from panel
-  const handleSaveProperties = async () => {
-    if (!editPropertiesId) return;
-
-    setIsSavingProperties(true);
-    try {
-      // Parse arrays from comma/newline-separated strings
-      const parseArray = (str: string, separator: string = ",") =>
-        str
-          .split(separator)
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0);
-
-      await updateExtractedMetadata({
-        id: editPropertiesId,
-        title: editPropertiesForm.title || undefined,
-        company: editPropertiesForm.company || undefined,
-        dateOrYear: editPropertiesForm.dateOrYear || undefined,
-        topic: editPropertiesForm.topic || undefined,
-        summary: editPropertiesForm.summary || undefined,
-        continent: editPropertiesForm.continent || undefined,
-        industry: editPropertiesForm.industry || undefined,
-        documentType: editPropertiesForm.documentType || undefined,
-        authors: editPropertiesForm.authors
-          ? parseArray(editPropertiesForm.authors)
-          : undefined,
-        keyFindings: editPropertiesForm.keyFindings
-          ? parseArray(editPropertiesForm.keyFindings, "\n")
-          : undefined,
-        keywords: editPropertiesForm.keywords
-          ? parseArray(editPropertiesForm.keywords)
-          : undefined,
-        technologyAreas: editPropertiesForm.technologyAreas
-          ? parseArray(editPropertiesForm.technologyAreas)
-          : undefined,
-      });
-      setEditingPdf(null);
-      setEditPropertiesId(null);
-    } catch (error) {
-      console.error("Failed to save properties:", error);
-      alert("Failed to save properties. Please try again.");
-    } finally {
-      setIsSavingProperties(false);
-    }
-  };
-
-  // Close edit properties panel
+  // Close edit side panel
   const handleCloseEditProperties = () => {
     setEditingPdf(null);
-    setEditPropertiesId(null);
-    setEditPropertiesForm({
-      title: "",
-      company: "",
-      dateOrYear: "",
-      topic: "",
-      summary: "",
-      continent: "",
-      industry: "",
-      documentType: "",
-      authors: "",
-      keyFindings: "",
-      keywords: "",
-      technologyAreas: "",
-    });
   };
 
   const handleReprocess = async (id: Id<"pdfs">) => {
@@ -747,63 +635,53 @@ export default function PdfsContent() {
     }
   };
 
-  // Regenerate thumbnail for the currently editing PDF
-  const handleRegenerateThumbnail = async () => {
-    if (!editingPdf) return;
+  // Regenerate thumbnail for a PDF
+  const handleRegenerateThumbnail = async (pdf: PDF) => {
+    // Get the file URL for this PDF
+    const fileUrlResponse = await fetch("/api/get-file-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        storageId: pdf.storageId,
+        sourceUrl: pdf.sourceUrl
+      }),
+    });
 
-    setIsRegeneratingThumbnail(true);
-    try {
-      // Get the file URL for this PDF
-      const fileUrlResponse = await fetch("/api/get-file-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          storageId: editingPdf.storageId,
-          sourceUrl: editingPdf.sourceUrl
-        }),
-      });
+    if (!fileUrlResponse.ok) {
+      throw new Error("Failed to get file URL");
+    }
 
-      if (!fileUrlResponse.ok) {
-        throw new Error("Failed to get file URL");
-      }
+    const { url: pdfUrl } = await fileUrlResponse.json();
 
-      const { url: pdfUrl } = await fileUrlResponse.json();
+    if (!pdfUrl) {
+      throw new Error("No file URL available for this PDF");
+    }
 
-      if (!pdfUrl) {
-        throw new Error("No file URL available for this PDF");
-      }
+    // Generate new thumbnail
+    const thumbnailResponse = await fetch("/api/generate-thumbnail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pdfUrl }),
+    });
 
-      // Generate new thumbnail
-      const thumbnailResponse = await fetch("/api/generate-thumbnail", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pdfUrl }),
-      });
+    const thumbnailResult = await thumbnailResponse.json();
 
-      const thumbnailResult = await thumbnailResponse.json();
+    if (!thumbnailResponse.ok || !thumbnailResult.success) {
+      throw new Error(thumbnailResult.error || "Thumbnail generation failed");
+    }
 
-      if (!thumbnailResponse.ok || !thumbnailResult.success) {
-        throw new Error(thumbnailResult.error || "Thumbnail generation failed");
-      }
+    // Save the new thumbnail to the database
+    await updateExtractedMetadata({
+      id: pdf._id,
+      thumbnailUrl: thumbnailResult.thumbnailDataUrl,
+    });
 
-      // Save the new thumbnail to the database
-      await updateExtractedMetadata({
-        id: editingPdf._id,
-        thumbnailUrl: thumbnailResult.thumbnailDataUrl,
-      });
-
-      // Update the local editing state with the new thumbnail
+    // Update the local editing state with the new thumbnail
+    if (editingPdf && editingPdf._id === pdf._id) {
       setEditingPdf({
         ...editingPdf,
         thumbnailUrl: thumbnailResult.thumbnailDataUrl,
       });
-
-      alert("Thumbnail regenerated successfully!");
-    } catch (error) {
-      console.error("Thumbnail regeneration error:", error);
-      alert(`Failed to regenerate thumbnail: ${error instanceof Error ? error.message : "Unknown error"}`);
-    } finally {
-      setIsRegeneratingThumbnail(false);
     }
   };
 
@@ -1164,278 +1042,15 @@ export default function PdfsContent() {
         </div>
       )}
 
-      {/* Edit Properties Panel */}
+      {/* Edit Side Panel */}
       {editingPdf && (
-        <div className="mb-8 bg-white rounded-xl border border-foreground/10 overflow-hidden">
-          {/* Panel Header */}
-          <div className="flex items-center justify-between px-6 py-4 bg-foreground/5 border-b border-foreground/10">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleCloseEditProperties}
-                className="text-foreground/50 hover:text-foreground transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-              </button>
-              <h2 className="text-lg font-semibold">Edit Document Properties</h2>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleCloseEditProperties}
-                className="px-4 py-2 text-foreground/70 hover:text-foreground transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveProperties}
-                disabled={isSavingProperties}
-                className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSavingProperties ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </div>
-
-          {/* Panel Body */}
-          <div className="p-6">
-            <div className="flex gap-8">
-              {/* Left: Thumbnail */}
-              <div className="flex-shrink-0">
-                {editingPdf.thumbnailUrl ? (
-                  <img
-                    src={editingPdf.thumbnailUrl}
-                    alt={editingPdf.title}
-                    className="w-40 h-52 object-cover rounded-lg border border-foreground/10 shadow-sm"
-                  />
-                ) : (
-                  <div className="w-40 h-52 bg-foreground/5 rounded-lg border border-foreground/10 flex items-center justify-center">
-                    <svg className="w-12 h-12 text-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                )}
-                <p className="mt-2 text-xs text-foreground/50 text-center truncate max-w-40">
-                  {editingPdf.filename}
-                </p>
-                <button
-                  onClick={handleRegenerateThumbnail}
-                  disabled={isRegeneratingThumbnail}
-                  className="mt-3 w-full px-3 py-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                >
-                  {isRegeneratingThumbnail ? (
-                    <>
-                      <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Regenerate Thumbnail
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Right: Form Fields */}
-              <div className="flex-1 space-y-4">
-                {/* Title */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground/70 mb-1">
-                    Title
-                  </label>
-                  <input
-                    type="text"
-                    value={editPropertiesForm.title}
-                    onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                    placeholder="Document title"
-                  />
-                </div>
-
-                {/* Company */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground/70 mb-1">
-                    Company
-                  </label>
-                  <input
-                    type="text"
-                    value={editPropertiesForm.company}
-                    onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, company: e.target.value })}
-                    className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                    placeholder="Company name"
-                  />
-                </div>
-
-                {/* Three columns: Year, Region, Industry */}
-                <div className="grid grid-cols-3 gap-4">
-                  {/* Year */}
-                  <div>
-                    <label className="block text-sm font-medium text-foreground/70 mb-1">
-                      Year
-                    </label>
-                    <input
-                      type="text"
-                      value={editPropertiesForm.dateOrYear}
-                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, dateOrYear: e.target.value })}
-                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                      placeholder="e.g., 2024"
-                    />
-                  </div>
-
-                  {/* Region/Continent */}
-                  <div>
-                    <label className="block text-sm font-medium text-foreground/70 mb-1">
-                      Region
-                    </label>
-                    <select
-                      value={editPropertiesForm.continent}
-                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, continent: e.target.value as EditPropertiesForm["continent"] })}
-                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary bg-white"
-                    >
-                      {CONTINENT_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Industry */}
-                  <div>
-                    <label className="block text-sm font-medium text-foreground/70 mb-1">
-                      Industry
-                    </label>
-                    <select
-                      value={editPropertiesForm.industry}
-                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, industry: e.target.value as EditPropertiesForm["industry"] })}
-                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary bg-white"
-                    >
-                      {INDUSTRY_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Topic */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground/70 mb-1">
-                    Topic
-                  </label>
-                  <input
-                    type="text"
-                    value={editPropertiesForm.topic}
-                    onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, topic: e.target.value })}
-                    className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                    placeholder="Document topic"
-                  />
-                </div>
-
-                {/* Summary */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground/70 mb-1">
-                    Summary
-                  </label>
-                  <textarea
-                    value={editPropertiesForm.summary}
-                    onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, summary: e.target.value })}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
-                    placeholder="Brief summary of the document"
-                  />
-                </div>
-
-                {/* Extended Metadata Section */}
-                <div className="pt-4 border-t border-foreground/10">
-                  <h3 className="text-sm font-semibold text-foreground/70 mb-4">Extended Metadata</h3>
-
-                  {/* Document Type */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-foreground/70 mb-1">
-                      Document Type
-                    </label>
-                    <select
-                      value={editPropertiesForm.documentType}
-                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, documentType: e.target.value as EditPropertiesForm["documentType"] })}
-                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary bg-white"
-                    >
-                      {DOCUMENT_TYPE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Authors */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-foreground/70 mb-1">
-                      Authors
-                    </label>
-                    <input
-                      type="text"
-                      value={editPropertiesForm.authors}
-                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, authors: e.target.value })}
-                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                      placeholder="Comma-separated author names"
-                    />
-                  </div>
-
-                  {/* Keywords */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-foreground/70 mb-1">
-                      Keywords
-                    </label>
-                    <input
-                      type="text"
-                      value={editPropertiesForm.keywords}
-                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, keywords: e.target.value })}
-                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                      placeholder="Comma-separated keywords"
-                    />
-                  </div>
-
-                  {/* Technology Areas */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-foreground/70 mb-1">
-                      Technology Areas
-                    </label>
-                    <input
-                      type="text"
-                      value={editPropertiesForm.technologyAreas}
-                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, technologyAreas: e.target.value })}
-                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                      placeholder="e.g., AI, Machine Learning, IoT"
-                    />
-                  </div>
-
-                  {/* Key Findings */}
-                  <div>
-                    <label className="block text-sm font-medium text-foreground/70 mb-1">
-                      Key Findings
-                    </label>
-                    <textarea
-                      value={editPropertiesForm.keyFindings}
-                      onChange={(e) => setEditPropertiesForm({ ...editPropertiesForm, keyFindings: e.target.value })}
-                      rows={4}
-                      className="w-full px-3 py-2 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
-                      placeholder="One key finding per line"
-                    />
-                    <p className="mt-1 text-xs text-foreground/50">Enter each key finding on a new line</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <EditSidePanel
+          pdf={editingPdf}
+          isOpen={!!editingPdf}
+          onClose={handleCloseEditProperties}
+          onSave={handleSaveProperties}
+          onRegenerateThumbnail={handleRegenerateThumbnail}
+        />
       )}
 
       {/* Table */}

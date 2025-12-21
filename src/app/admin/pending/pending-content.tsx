@@ -6,11 +6,13 @@ import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { PDF } from "@/types";
 import Link from "next/link";
+import EditSidePanel, { EditPropertiesForm } from "@/components/admin/edit-side-panel";
 
 type FilterTab = "awaiting_approval" | "processing" | "failed" | "all_unapproved";
 
 export default function PendingContent() {
   const [activeTab, setActiveTab] = useState<FilterTab>("awaiting_approval");
+  const [editingPdf, setEditingPdf] = useState<PDF | null>(null);
   const allPdfs = useQuery(api.pdfs.list, {});
 
   // All documents that are not approved
@@ -28,6 +30,7 @@ export default function PendingContent() {
   const approvePdf = useMutation(api.pdfs.approve);
   const rejectPdf = useMutation(api.pdfs.reject);
   const removePdf = useMutation(api.pdfs.remove);
+  const updateExtractedMetadata = useMutation(api.pdfs.updateExtractedMetadata);
 
   const handleApprove = async (id: Id<"pdfs">) => {
     await approvePdf({ id, approvedBy: "admin" });
@@ -64,6 +67,100 @@ export default function PendingContent() {
       }
     } catch (error) {
       console.error("Retry error:", error);
+    }
+  };
+
+  // Open edit side panel
+  const handleEdit = (pdf: PDF) => {
+    setEditingPdf(pdf);
+  };
+
+  // Close edit side panel
+  const handleCloseEdit = () => {
+    setEditingPdf(null);
+  };
+
+  // Save properties from side panel
+  const handleSaveProperties = async (id: Id<"pdfs">, form: EditPropertiesForm) => {
+    // Parse arrays from comma/newline-separated strings
+    const parseArray = (str: string, separator: string = ",") =>
+      str
+        .split(separator)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+    await updateExtractedMetadata({
+      id,
+      title: form.title || undefined,
+      company: form.company || undefined,
+      dateOrYear: form.dateOrYear || undefined,
+      topic: form.topic || undefined,
+      summary: form.summary || undefined,
+      continent: form.continent || undefined,
+      industry: form.industry || undefined,
+      documentType: form.documentType || undefined,
+      authors: form.authors ? parseArray(form.authors) : undefined,
+      keyFindings: form.keyFindings ? parseArray(form.keyFindings, "\n") : undefined,
+      keywords: form.keywords ? parseArray(form.keywords) : undefined,
+      technologyAreas: form.technologyAreas ? parseArray(form.technologyAreas) : undefined,
+    });
+  };
+
+  // Save and approve from side panel
+  const handleSaveAndApprove = async (id: Id<"pdfs">, form: EditPropertiesForm) => {
+    // First save the properties
+    await handleSaveProperties(id, form);
+    // Then approve
+    await approvePdf({ id, approvedBy: "admin" });
+  };
+
+  // Regenerate thumbnail for a PDF
+  const handleRegenerateThumbnail = async (pdf: PDF) => {
+    // Get the file URL for this PDF
+    const fileUrlResponse = await fetch("/api/get-file-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        storageId: pdf.storageId,
+        sourceUrl: pdf.sourceUrl
+      }),
+    });
+
+    if (!fileUrlResponse.ok) {
+      throw new Error("Failed to get file URL");
+    }
+
+    const { url: pdfUrl } = await fileUrlResponse.json();
+
+    if (!pdfUrl) {
+      throw new Error("No file URL available for this PDF");
+    }
+
+    // Generate new thumbnail
+    const thumbnailResponse = await fetch("/api/generate-thumbnail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pdfUrl }),
+    });
+
+    const thumbnailResult = await thumbnailResponse.json();
+
+    if (!thumbnailResponse.ok || !thumbnailResult.success) {
+      throw new Error(thumbnailResult.error || "Thumbnail generation failed");
+    }
+
+    // Save the new thumbnail to the database
+    await updateExtractedMetadata({
+      id: pdf._id,
+      thumbnailUrl: thumbnailResult.thumbnailDataUrl,
+    });
+
+    // Update the local editing state with the new thumbnail
+    if (editingPdf && editingPdf._id === pdf._id) {
+      setEditingPdf({
+        ...editingPdf,
+        thumbnailUrl: thumbnailResult.thumbnailDataUrl,
+      });
     }
   };
 
@@ -220,6 +317,12 @@ export default function PendingContent() {
                 {pdf.status === "completed" && (
                   <>
                     <button
+                      onClick={() => handleEdit(pdf)}
+                      className="px-4 py-2 bg-info/10 text-info rounded-lg font-medium hover:bg-info/20 transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
                       onClick={() => handleApprove(pdf._id)}
                       className="px-4 py-2 bg-success text-white rounded-lg font-medium hover:bg-success/90 transition-colors"
                     >
@@ -234,12 +337,20 @@ export default function PendingContent() {
                   </>
                 )}
                 {pdf.status === "failed" && (
-                  <button
-                    onClick={() => handleRetry(pdf._id)}
-                    className="px-4 py-2 bg-warning text-white rounded-lg font-medium hover:bg-warning/90 transition-colors"
-                  >
-                    Retry
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleEdit(pdf)}
+                      className="px-4 py-2 bg-info/10 text-info rounded-lg font-medium hover:bg-info/20 transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleRetry(pdf._id)}
+                      className="px-4 py-2 bg-warning text-white rounded-lg font-medium hover:bg-warning/90 transition-colors"
+                    >
+                      Retry
+                    </button>
+                  </>
                 )}
                 {(pdf.status === "processing" || pdf.status === "pending") && (
                   <Link
@@ -346,6 +457,19 @@ export default function PendingContent() {
           </div>
         )}
       </div>
+
+      {/* Edit Side Panel */}
+      {editingPdf && (
+        <EditSidePanel
+          pdf={editingPdf}
+          isOpen={!!editingPdf}
+          onClose={handleCloseEdit}
+          onSave={handleSaveProperties}
+          onSaveAndApprove={handleSaveAndApprove}
+          onRegenerateThumbnail={handleRegenerateThumbnail}
+          showApproveButton={editingPdf.status === "completed"}
+        />
+      )}
     </div>
   );
 }
