@@ -354,7 +354,7 @@ export const updateExtractedMetadata = mutation({
     id: v.id("pdfs"),
     title: v.optional(v.string()),
     company: v.optional(v.string()),
-    dateOrYear: v.optional(v.string()),
+    dateOrYear: v.optional(v.number()),  // Year of publication as integer (e.g., 2024)
     topic: v.optional(v.string()),
     summary: v.optional(v.string()),
     thumbnailUrl: v.optional(v.string()),
@@ -468,7 +468,7 @@ export const browseReports = query({
       )
     ),
     company: v.optional(v.string()),
-    year: v.optional(v.string()),
+    year: v.optional(v.number()),  // Year as integer (e.g., 2024)
     technologyAreas: v.optional(v.array(v.string())),
     keywords: v.optional(v.array(v.string())),
   },
@@ -540,8 +540,8 @@ export const getFilterOptions = query({
     ] as string[];
 
     const years = [
-      ...new Set(publicReports.map((r) => r.dateOrYear).filter(Boolean)),
-    ] as string[];
+      ...new Set(publicReports.map((r) => r.dateOrYear).filter((y): y is number => typeof y === "number")),
+    ];
 
     // Extract technology areas with counts
     const technologyAreaCounts = new Map<string, number>();
@@ -573,7 +573,7 @@ export const getFilterOptions = query({
       continents: continents.sort(),
       industries: industries.sort(),
       companies: companies.sort(),
-      years: years.sort().reverse(), // Most recent first
+      years: years.sort((a, b) => b - a), // Most recent first (numeric sort descending)
       technologyAreas,
       keywords,
     };
@@ -657,5 +657,39 @@ export const getPdfsForReprocessing = query({
       hasMetadata: !!pdf.summary,
       hasNewFields: !!pdf.documentType,
     }));
+  },
+});
+
+// Get existing keywords and technology areas for extraction context
+// This helps ensure consistency when extracting metadata from new reports
+export const getExtractionContext = query({
+  handler: async (ctx) => {
+    // Get all PDFs with extracted metadata
+    const pdfs = await ctx.db.query("pdfs").collect();
+
+    // Collect unique keywords
+    const keywordsSet = new Set<string>();
+    for (const pdf of pdfs) {
+      if (pdf.keywords) {
+        for (const keyword of pdf.keywords) {
+          keywordsSet.add(keyword);
+        }
+      }
+    }
+
+    // Collect unique technology areas
+    const technologyAreasSet = new Set<string>();
+    for (const pdf of pdfs) {
+      if (pdf.technologyAreas) {
+        for (const area of pdf.technologyAreas) {
+          technologyAreasSet.add(area);
+        }
+      }
+    }
+
+    return {
+      existingKeywords: Array.from(keywordsSet).sort(),
+      existingTechnologyAreas: Array.from(technologyAreasSet).sort(),
+    };
   },
 });

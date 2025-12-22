@@ -137,9 +137,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fetch existing keywords and technology areas for consistency
+    console.log("Fetching existing keywords and technology areas for context...");
+    const extractionContext = await convex.query(api.pdfs.getExtractionContext, {});
+    console.log(`Found ${extractionContext.existingKeywords.length} existing keywords and ${extractionContext.existingTechnologyAreas.length} existing technology areas`);
+
     // Extract metadata from text using Claude
     console.log("Extracting metadata using Claude...");
-    const metadataResult = await extractMetadataFromText(extractedText);
+    const metadataResult = await extractMetadataFromText(extractedText, {
+      existingKeywords: extractionContext.existingKeywords,
+      existingTechnologyAreas: extractionContext.existingTechnologyAreas,
+    });
 
     if (metadataResult.success && metadataResult.data) {
       // Log the extracted data in detail

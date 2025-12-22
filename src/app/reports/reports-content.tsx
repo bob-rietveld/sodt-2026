@@ -55,15 +55,9 @@ function ReportsContentInner() {
       : "skip"
   );
 
-  // Helper function to parse year from dateOrYear field
-  const parseYear = (dateOrYear: string | undefined): number => {
-    if (!dateOrYear) return 0;
-    // Try to extract a 4-digit year from the string
-    const yearMatch = dateOrYear.match(/\d{4}/);
-    if (yearMatch) {
-      return parseInt(yearMatch[0], 10);
-    }
-    return 0;
+  // Helper function to get year from dateOrYear field (now already an integer)
+  const getYear = (dateOrYear: number | undefined): number => {
+    return dateOrYear ?? 0;
   };
 
   // Apply metadata filters to search results if needed, then sort
@@ -111,7 +105,7 @@ function ReportsContentInner() {
       if (sortBy === "recently_added") {
         results.sort((a, b) => b.uploadedAt - a.uploadedAt);
       } else if (sortBy === "published_date") {
-        results.sort((a, b) => parseYear(b.dateOrYear) - parseYear(a.dateOrYear));
+        results.sort((a, b) => getYear(b.dateOrYear) - getYear(a.dateOrYear));
       }
     }
 

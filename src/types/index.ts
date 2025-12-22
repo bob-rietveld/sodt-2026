@@ -22,7 +22,7 @@ export interface PDF {
   source: "upload" | "drive" | "url";
   // Extracted metadata from Firecrawl
   company?: string;
-  dateOrYear?: string;
+  dateOrYear?: number;  // Year of publication as integer (e.g., 2024)
   topic?: string;
   summary?: string;
   thumbnailUrl?: string;
