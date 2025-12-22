@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
-import { extractPDFMetadataFromUrl } from "@/lib/pdf/extractor";
+import { extractPDFMetadataFromUrl, ExtractionContext } from "@/lib/pdf/extractor";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 
@@ -35,8 +35,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fetch existing keywords and technology areas for consistency
+    const convex = getConvexClient();
+    console.log("extract-metadata: Fetching existing keywords and technology areas for context...");
+    let extractionContext: ExtractionContext = {};
+    try {
+      const contextData = await convex.query(api.pdfs.getExtractionContext, {});
+      extractionContext = {
+        existingKeywords: contextData.existingKeywords,
+        existingTechnologyAreas: contextData.existingTechnologyAreas,
+      };
+      console.log(`extract-metadata: Found ${extractionContext.existingKeywords?.length || 0} existing keywords and ${extractionContext.existingTechnologyAreas?.length || 0} existing technology areas`);
+    } catch (contextError) {
+      console.warn("extract-metadata: Failed to fetch extraction context, proceeding without it:", contextError);
+    }
+
     console.log("extract-metadata: Starting local PDF extraction...");
-    const result = await extractPDFMetadataFromUrl(url);
+    const result = await extractPDFMetadataFromUrl(url, extractionContext);
 
     if (!result.success) {
       console.error("extract-metadata: Extraction failed:", result.error);
@@ -49,7 +64,6 @@ export async function POST(request: NextRequest) {
     // Store extracted text in Convex storage if pdfId is provided
     if (pdfId && result.extractedText) {
       try {
-        const convex = getConvexClient();
         const textUploadUrl = await convex.mutation(api.pdfs.generateUploadUrl, {});
         const textBlob = new Blob([result.extractedText], { type: "text/plain" });
         const uploadResponse = await fetch(textUploadUrl, {

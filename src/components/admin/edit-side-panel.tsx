@@ -72,7 +72,7 @@ export default function EditSidePanel({
   const [form, setForm] = useState<EditPropertiesForm>(() => ({
     title: pdf.title || "",
     company: pdf.company || "",
-    dateOrYear: pdf.dateOrYear || "",
+    dateOrYear: pdf.dateOrYear?.toString() || "",
     topic: pdf.topic || "",
     summary: pdf.summary || "",
     continent: pdf.continent || "",
@@ -93,7 +93,7 @@ export default function EditSidePanel({
     setForm({
       title: pdf.title || "",
       company: pdf.company || "",
-      dateOrYear: pdf.dateOrYear || "",
+      dateOrYear: pdf.dateOrYear?.toString() || "",
       topic: pdf.topic || "",
       summary: pdf.summary || "",
       continent: pdf.continent || "",

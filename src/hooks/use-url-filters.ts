@@ -8,7 +8,7 @@ export interface ReportFilters {
   continent?: string;
   industry?: string;
   company?: string;
-  year?: string;
+  year?: number;  // Year as integer (e.g., 2024)
   technologyAreas?: string[];
   keywords?: string[];
 }
@@ -22,13 +22,23 @@ export function useUrlFilters() {
   const filters: ReportFilters = useMemo(() => {
     const technologyAreasParam = searchParams.get("technologyAreas");
     const keywordsParam = searchParams.get("keywords");
+    const yearParam = searchParams.get("year");
+
+    // Parse year as integer
+    let yearValue: number | undefined;
+    if (yearParam) {
+      const parsed = parseInt(yearParam, 10);
+      if (!isNaN(parsed) && parsed >= 1900 && parsed <= 2100) {
+        yearValue = parsed;
+      }
+    }
 
     return {
       search: searchParams.get("search") ?? undefined,
       continent: searchParams.get("continent") ?? undefined,
       industry: searchParams.get("industry") ?? undefined,
       company: searchParams.get("company") ?? undefined,
-      year: searchParams.get("year") ?? undefined,
+      year: yearValue,
       technologyAreas: technologyAreasParam
         ? technologyAreasParam.split(",").filter(Boolean)
         : undefined,
@@ -38,9 +48,9 @@ export function useUrlFilters() {
     };
   }, [searchParams]);
 
-  // Update a single filter (supports both string and array values)
+  // Update a single filter (supports string, number, and array values)
   const setFilter = useCallback(
-    (key: keyof ReportFilters, value: string | string[] | undefined) => {
+    (key: keyof ReportFilters, value: string | number | string[] | undefined) => {
       const params = new URLSearchParams(searchParams.toString());
       if (value !== undefined) {
         if (Array.isArray(value)) {
@@ -49,6 +59,8 @@ export function useUrlFilters() {
           } else {
             params.delete(key);
           }
+        } else if (typeof value === "number") {
+          params.set(key, value.toString());
         } else if (value) {
           params.set(key, value);
         } else {

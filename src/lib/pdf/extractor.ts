@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 export interface PDFMetadata {
   title: string;
   company: string;
-  dateOrYear: string;
+  dateOrYear: number;  // Year of publication as integer (e.g., 2024)
   topic: string;
   summary: string;
   continent: "us" | "eu" | "asia" | "global" | "other";
@@ -13,6 +13,11 @@ export interface PDFMetadata {
   keyFindings: string[];
   keywords: string[];
   technologyAreas: string[];
+}
+
+export interface ExtractionContext {
+  existingKeywords?: string[];
+  existingTechnologyAreas?: string[];
 }
 
 export interface TextExtractionResult {
@@ -98,8 +103,13 @@ export async function extractTextFromPdfUrl(pdfUrl: string): Promise<TextExtract
 /**
  * Extract structured metadata from text content using Claude
  * This replaces the Firecrawl-based extraction
+ * @param textContent - The text content to extract metadata from
+ * @param context - Optional context with existing keywords and technology areas for consistency
  */
-export async function extractMetadataFromText(textContent: string): Promise<MetadataExtractionResult> {
+export async function extractMetadataFromText(
+  textContent: string,
+  context?: ExtractionContext
+): Promise<MetadataExtractionResult> {
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!anthropicApiKey) {
@@ -122,15 +132,36 @@ export async function extractMetadataFromText(textContent: string): Promise<Meta
     // Truncate content if too long (same as before - 15k chars)
     const truncatedContent = textContent.substring(0, 15000);
 
+    // Build context sections for keywords and technology areas
+    let keywordsContext = "";
+    if (context?.existingKeywords && context.existingKeywords.length > 0) {
+      keywordsContext = `
+EXISTING KEYWORDS IN DATABASE (prefer mapping to these when semantically equivalent):
+${context.existingKeywords.join(", ")}
+
+When extracting keywords, prefer using existing keywords from the list above if they match the document's content semantically. This ensures consistency and prevents fragmentation (e.g., use "Machine Learning" instead of "ML", use "Artificial Intelligence" instead of "AI/Artificial Intelligence"). Only introduce new keywords if no existing keyword adequately describes the concept.`;
+    }
+
+    let technologyAreasContext = "";
+    if (context?.existingTechnologyAreas && context.existingTechnologyAreas.length > 0) {
+      technologyAreasContext = `
+EXISTING TECHNOLOGY AREAS IN DATABASE (prefer mapping to these when semantically equivalent):
+${context.existingTechnologyAreas.join(", ")}
+
+When extracting technology areas, prefer using existing technology areas from the list above if they match the document's content semantically. This ensures consistency and prevents fragmentation (e.g., use "Artificial Intelligence" instead of "AI", use "Machine Learning" instead of "Deep Learning" when referring to the same concept). Only introduce new technology areas if no existing one adequately describes the technology.`;
+    }
+
     const extractionPrompt = `Analyze the following document content and extract metadata in JSON format.
 
 Document content:
 ${truncatedContent}
+${keywordsContext}
+${technologyAreasContext}
 
 Extract the following fields:
 - title: The title of the document or report
 - company: The company name that authored or is the subject of the document
-- dateOrYear: The date or year the document was published or refers to
+- dateOrYear: The publication year as an INTEGER (e.g., 2024, 2023). Extract ONLY the 4-digit year number, not a date string. If multiple years are mentioned, use the most recent publication year.
 - topic: A brief topic description (1 sentence, max 100 characters)
 - summary: A comprehensive executive summary of the document (2-4 paragraphs, covering key findings, insights, and conclusions)
 - continent: The geographic region (must be one of: "us", "eu", "asia", "global", "other")
@@ -138,8 +169,8 @@ Extract the following fields:
 - documentType: Type of document (must be one of: "pitch_deck", "market_research", "financial_report", "white_paper", "case_study", "annual_report", "investor_update", "other")
 - authors: Array of author names found in the document (empty array if not found, max 10)
 - keyFindings: Array of 3-5 key takeaways or insights from the document
-- keywords: Array of up to 10 searchable keywords/tags relevant to the content
-- technologyAreas: Array of specific technology focus areas mentioned (e.g., "AI", "Machine Learning", "IoT", "Blockchain", "Quantum Computing", "Robotics", "Cloud Computing")
+- keywords: Array of up to 10 searchable keywords/tags relevant to the content. IMPORTANT: Prefer using existing keywords from the database when semantically equivalent to avoid fragmentation.
+- technologyAreas: Array of specific technology focus areas mentioned. IMPORTANT: Prefer using existing technology areas from the database when semantically equivalent to avoid fragmentation.
 
 Respond ONLY with valid JSON, no other text:`;
 
@@ -172,7 +203,7 @@ Respond ONLY with valid JSON, no other text:`;
       data: {
         title: extractedData.title || "",
         company: extractedData.company || "",
-        dateOrYear: extractedData.dateOrYear || "",
+        dateOrYear: validateYear(extractedData.dateOrYear),
         topic: extractedData.topic || "",
         summary: extractedData.summary || "",
         continent: validateContinent(extractedData.continent),
@@ -196,8 +227,13 @@ Respond ONLY with valid JSON, no other text:`;
 /**
  * Combined function: Extract text from PDF buffer and then extract metadata
  * This is the main entry point replacing the Firecrawl-based extraction
+ * @param pdfBuffer - The PDF buffer to extract from
+ * @param context - Optional context with existing keywords and technology areas for consistency
  */
-export async function extractPDFMetadataLocal(pdfBuffer: Buffer): Promise<MetadataExtractionResult & { extractedText?: string; pageCount?: number }> {
+export async function extractPDFMetadataLocal(
+  pdfBuffer: Buffer,
+  context?: ExtractionContext
+): Promise<MetadataExtractionResult & { extractedText?: string; pageCount?: number }> {
   // Step 1: Extract text from PDF
   console.log("Extracting text from PDF locally using unpdf...");
   const textResult = await extractTextFromPdf(pdfBuffer);
@@ -213,7 +249,7 @@ export async function extractPDFMetadataLocal(pdfBuffer: Buffer): Promise<Metada
 
   // Step 2: Extract metadata from text using Claude
   console.log("Extracting metadata using Claude...");
-  const metadataResult = await extractMetadataFromText(textResult.text);
+  const metadataResult = await extractMetadataFromText(textResult.text, context);
 
   if (!metadataResult.success) {
     return metadataResult;
@@ -228,8 +264,13 @@ export async function extractPDFMetadataLocal(pdfBuffer: Buffer): Promise<Metada
 
 /**
  * Extract metadata from a PDF URL (convenience function)
+ * @param pdfUrl - The URL of the PDF to extract from
+ * @param context - Optional context with existing keywords and technology areas for consistency
  */
-export async function extractPDFMetadataFromUrl(pdfUrl: string): Promise<MetadataExtractionResult & { extractedText?: string; pageCount?: number }> {
+export async function extractPDFMetadataFromUrl(
+  pdfUrl: string,
+  context?: ExtractionContext
+): Promise<MetadataExtractionResult & { extractedText?: string; pageCount?: number }> {
   try {
     console.log("Fetching PDF from URL:", pdfUrl);
     const response = await fetch(pdfUrl);
@@ -246,7 +287,7 @@ export async function extractPDFMetadataFromUrl(pdfUrl: string): Promise<Metadat
 
     console.log("PDF fetched, size:", buffer.length, "bytes");
 
-    return extractPDFMetadataLocal(buffer);
+    return extractPDFMetadataLocal(buffer, context);
   } catch (error) {
     console.error("PDF metadata extraction error:", error);
     return {
@@ -257,6 +298,37 @@ export async function extractPDFMetadataFromUrl(pdfUrl: string): Promise<Metadat
 }
 
 // Validation helpers
+
+/**
+ * Validate and extract year as integer from various input formats
+ * Handles: number (2024), string ("2024"), date string ("2024-01-15"), etc.
+ */
+function validateYear(value: unknown): number {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 1900 && value <= 2100) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    // Try to extract a 4-digit year from the string
+    const yearMatch = value.match(/\b(19|20)\d{2}\b/);
+    if (yearMatch) {
+      const year = parseInt(yearMatch[0], 10);
+      if (year >= 1900 && year <= 2100) {
+        return year;
+      }
+    }
+
+    // Try parsing as a number directly
+    const parsed = parseInt(value, 10);
+    if (!isNaN(parsed) && parsed >= 1900 && parsed <= 2100) {
+      return parsed;
+    }
+  }
+
+  // Default to current year if no valid year found
+  return new Date().getFullYear();
+}
+
 function validateContinent(value: string): "us" | "eu" | "asia" | "global" | "other" {
   const valid = ["us", "eu", "asia", "global", "other"];
   return valid.includes(value?.toLowerCase()) ? (value.toLowerCase() as "us" | "eu" | "asia" | "global" | "other") : "other";

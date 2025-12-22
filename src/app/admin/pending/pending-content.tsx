@@ -89,11 +89,22 @@ export default function PendingContent() {
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
 
+    // Parse year from string to number
+    const parseYear = (str: string): number | undefined => {
+      if (!str) return undefined;
+      const yearMatch = str.match(/\b(19|20)\d{2}\b/);
+      if (yearMatch) {
+        return parseInt(yearMatch[0], 10);
+      }
+      const parsed = parseInt(str, 10);
+      return !isNaN(parsed) && parsed >= 1900 && parsed <= 2100 ? parsed : undefined;
+    };
+
     await updateExtractedMetadata({
       id,
       title: form.title || undefined,
       company: form.company || undefined,
-      dateOrYear: form.dateOrYear || undefined,
+      dateOrYear: parseYear(form.dateOrYear),
       topic: form.topic || undefined,
       summary: form.summary || undefined,
       continent: form.continent || undefined,

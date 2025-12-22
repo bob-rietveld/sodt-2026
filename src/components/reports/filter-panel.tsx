@@ -8,7 +8,7 @@ interface FilterPanelProps {
     continents: string[];
     industries: string[];
     companies: string[];
-    years: string[];
+    years: number[];  // Years as integers (e.g., 2024)
     technologyAreas: FilterOption[];
     keywords: FilterOption[];
   };
@@ -116,8 +116,18 @@ export function FilterPanel({ options }: FilterPanelProps) {
             Year
           </label>
           <select
-            value={filters.year ?? ""}
-            onChange={(e) => setFilter("year", e.target.value || undefined)}
+            value={filters.year?.toString() ?? ""}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (!value) {
+                setFilter("year", undefined);
+              } else {
+                const parsed = parseInt(value, 10);
+                if (!isNaN(parsed)) {
+                  setFilter("year", parsed);
+                }
+              }
+            }}
             className="w-full px-3 py-2.5 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white"
           >
             <option value="">All Years</option>
