@@ -12,6 +12,7 @@ import type * as chat from "../chat.js";
 import type * as pdfWorkpool from "../pdfWorkpool.js";
 import type * as pdfs from "../pdfs.js";
 import type * as processing from "../processing.js";
+import type * as searchAnalytics from "../searchAnalytics.js";
 import type * as settings from "../settings.js";
 
 import type {
@@ -25,6 +26,7 @@ declare const fullApi: ApiFromModules<{
   pdfWorkpool: typeof pdfWorkpool;
   pdfs: typeof pdfs;
   processing: typeof processing;
+  searchAnalytics: typeof searchAnalytics;
   settings: typeof settings;
 }>;
 

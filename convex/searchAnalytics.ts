@@ -44,17 +44,20 @@ export const getRecentSearches = query({
   handler: async (ctx, args) => {
     const limit = args.limit ?? 50;
 
-    let queryBuilder = ctx.db.query("searchQueries");
-
     if (args.searchType) {
-      queryBuilder = queryBuilder.withIndex("by_search_type", (q) =>
-        q.eq("searchType", args.searchType!)
-      );
-    } else {
-      queryBuilder = queryBuilder.withIndex("by_timestamp");
+      const results = await ctx.db
+        .query("searchQueries")
+        .withIndex("by_search_type", (q) => q.eq("searchType", args.searchType!))
+        .order("desc")
+        .take(limit);
+      return results;
     }
 
-    const results = await queryBuilder.order("desc").take(limit);
+    const results = await ctx.db
+      .query("searchQueries")
+      .withIndex("by_timestamp")
+      .order("desc")
+      .take(limit);
     return results;
   },
 });
