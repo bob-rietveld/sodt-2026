@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useMemo } from "react";
+import { Suspense, useState, useMemo, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useUrlFilters } from "@/hooks/use-url-filters";
@@ -12,24 +12,33 @@ import { SortSelector, SortOption } from "@/components/reports/sort-selector";
 import { Header } from "@/components/ui/header";
 import { PDF } from "@/types";
 
+const PAGE_SIZE = 15;
+
 function ReportsContentInner() {
   const { filters, setFilter, hasActiveFilters } = useUrlFilters();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [searchInput, setSearchInput] = useState(filters.search ?? "");
   const [viewMode, setViewMode] = useState<ViewMode>("card");
   const [sortBy, setSortBy] = useState<SortOption>("recently_added");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters.continent, filters.industry, filters.company, filters.year, filters.technologyAreas, filters.keywords, filters.search]);
 
   // Fetch filter options
   const filterOptions = useQuery(api.pdfs.getFilterOptions);
 
-  // Use fullTextSearch when there's a search query, otherwise use browseReports
+  // Use fullTextSearch when there's a search query (not paginated for now as search is limited)
   const searchResults = useQuery(
     api.pdfs.fullTextSearch,
     filters.search ? { query: filters.search } : "skip"
   );
 
+  // Use paginated browse for non-search queries
   const browseResults = useQuery(
-    api.pdfs.browseReports,
+    api.pdfs.browseReportsPaginated,
     !filters.search
       ? {
           continent: filters.continent as
@@ -51,6 +60,8 @@ function ReportsContentInner() {
           year: filters.year,
           technologyAreas: filters.technologyAreas,
           keywords: filters.keywords,
+          page: currentPage,
+          pageSize: PAGE_SIZE,
         }
       : "skip"
   );
@@ -64,6 +75,20 @@ function ReportsContentInner() {
     }
     return 0;
   };
+
+  // Pagination info for non-search browse
+  const paginationInfo = useMemo(() => {
+    if (!filters.search && browseResults) {
+      return {
+        totalCount: browseResults.totalCount,
+        totalPages: browseResults.totalPages,
+        currentPage: browseResults.currentPage,
+        hasNextPage: browseResults.hasNextPage,
+        hasPreviousPage: browseResults.hasPreviousPage,
+      };
+    }
+    return null;
+  }, [filters.search, browseResults]);
 
   // Apply metadata filters to search results if needed, then sort
   const reports = useMemo(() => {
@@ -101,12 +126,13 @@ function ReportsContentInner() {
       }
 
       results = filtered;
-    } else {
-      results = browseResults ? [...browseResults] : undefined;
+    } else if (browseResults) {
+      // Use paginated results directly (already sorted on server)
+      results = browseResults.reports as PDF[];
     }
 
-    // Apply sorting
-    if (results) {
+    // Apply sorting for search results only (browse results are sorted on server)
+    if (results && filters.search) {
       if (sortBy === "recently_added") {
         results.sort((a, b) => b.uploadedAt - a.uploadedAt);
       } else if (sortBy === "published_date") {
@@ -246,7 +272,15 @@ function ReportsContentInner() {
               <div className="flex items-center gap-4">
                 {reports && (
                   <p className="text-foreground/60">
-                    {reports.length} report{reports.length !== 1 ? "s" : ""} found
+                    {paginationInfo ? (
+                      <>
+                        Showing {reports.length} of {paginationInfo.totalCount} report{paginationInfo.totalCount !== 1 ? "s" : ""}
+                      </>
+                    ) : (
+                      <>
+                        {reports.length} report{reports.length !== 1 ? "s" : ""} found
+                      </>
+                    )}
                   </p>
                 )}
                 {!reports && <div />}
@@ -296,6 +330,70 @@ function ReportsContentInner() {
               ) : (
                 <ReportTable reports={reports} sortBy={sortBy} onSortChange={setSortBy} />
               )
+            )}
+
+            {/* Pagination Controls */}
+            {paginationInfo && paginationInfo.totalPages > 1 && (
+              <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-xl border border-foreground/10 px-4 py-3">
+                <div className="text-sm text-foreground/60">
+                  Page <span className="font-medium text-foreground">{paginationInfo.currentPage}</span> of{" "}
+                  <span className="font-medium text-foreground">{paginationInfo.totalPages}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={!paginationInfo.hasPreviousPage}
+                    className="px-4 py-2 bg-white border border-foreground/20 text-foreground/70 rounded-lg text-sm font-medium hover:bg-foreground/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Previous
+                  </button>
+
+                  {/* Page number buttons */}
+                  <div className="hidden sm:flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, paginationInfo.totalPages) }, (_, i) => {
+                      // Calculate which page numbers to show
+                      let pageNum: number;
+                      if (paginationInfo.totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (paginationInfo.currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (paginationInfo.currentPage >= paginationInfo.totalPages - 2) {
+                        pageNum = paginationInfo.totalPages - 4 + i;
+                      } else {
+                        pageNum = paginationInfo.currentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
+                            pageNum === paginationInfo.currentPage
+                              ? "bg-primary text-white"
+                              : "bg-white border border-foreground/20 text-foreground/70 hover:bg-foreground/5"
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(paginationInfo.totalPages, p + 1))}
+                    disabled={!paginationInfo.hasNextPage}
+                    className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    Next
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>
