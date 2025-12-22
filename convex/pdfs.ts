@@ -693,3 +693,96 @@ export const getExtractionContext = query({
     };
   },
 });
+
+// Get homepage statistics for public display
+export const getHomeStats = query({
+  handler: async (ctx) => {
+    const publicReports = await ctx.db
+      .query("pdfs")
+      .withIndex("by_public_browse", (q) =>
+        q.eq("approved", true).eq("status", "completed")
+      )
+      .collect();
+
+    // Count unique companies
+    const companies = new Set<string>();
+    for (const report of publicReports) {
+      if (report.company) {
+        companies.add(report.company);
+      }
+    }
+
+    // Count unique technology areas
+    const technologyAreas = new Set<string>();
+    for (const report of publicReports) {
+      if (report.technologyAreas) {
+        for (const area of report.technologyAreas) {
+          technologyAreas.add(area);
+        }
+      }
+    }
+
+    // Count unique industries
+    const industries = new Set<string>();
+    for (const report of publicReports) {
+      if (report.industry) {
+        industries.add(report.industry);
+      }
+    }
+
+    // Get year range
+    const years = publicReports
+      .map((r) => r.dateOrYear)
+      .filter((y): y is number => typeof y === "number");
+    const minYear = years.length > 0 ? Math.min(...years) : null;
+    const maxYear = years.length > 0 ? Math.max(...years) : null;
+
+    return {
+      totalReports: publicReports.length,
+      uniqueCompanies: companies.size,
+      uniqueTechnologyAreas: technologyAreas.size,
+      uniqueIndustries: industries.size,
+      yearRange: minYear && maxYear ? { min: minYear, max: maxYear } : null,
+    };
+  },
+});
+
+// Get latest uploaded reports for homepage display
+export const getLatestReports = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 6;
+
+    const reports = await ctx.db
+      .query("pdfs")
+      .withIndex("by_public_browse", (q) =>
+        q.eq("approved", true).eq("status", "completed")
+      )
+      .collect();
+
+    // Sort by upload date (most recent first) and take the limit
+    reports.sort((a, b) => b.uploadedAt - a.uploadedAt);
+    const latestReports = reports.slice(0, limit);
+
+    // Get thumbnail URLs for reports that have them
+    return await Promise.all(
+      latestReports.map(async (report) => {
+        let thumbnailUrl = report.thumbnailUrl || null;
+
+        return {
+          _id: report._id,
+          title: report.title,
+          company: report.company,
+          summary: report.summary,
+          dateOrYear: report.dateOrYear,
+          industry: report.industry,
+          technologyAreas: report.technologyAreas,
+          thumbnailUrl,
+          uploadedAt: report.uploadedAt,
+        };
+      })
+    );
+  },
+});

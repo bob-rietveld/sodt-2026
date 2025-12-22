@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Header } from "@/components/ui/header";
+import { HomeContent } from "./home-content";
 
 export default function Home() {
   return (
@@ -35,21 +36,8 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* Stats Section */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 mb-12 sm:mb-16 py-6 sm:py-8 border-y border-foreground/10">
-            <div>
-              <p className="text-3xl sm:text-4xl font-semibold text-primary">€3.1B+</p>
-              <p className="text-foreground/60 mt-2 text-sm sm:text-base">Dutch VC funding in 2024</p>
-            </div>
-            <div>
-              <p className="text-3xl sm:text-4xl font-semibold text-primary">#4</p>
-              <p className="text-foreground/60 mt-2 text-sm sm:text-base">Largest European startup hub</p>
-            </div>
-            <div>
-              <p className="text-3xl sm:text-4xl font-semibold text-primary">35%</p>
-              <p className="text-foreground/60 mt-2 text-sm sm:text-base">Deep tech ecosystem share</p>
-            </div>
-          </div>
+          {/* Dynamic Stats and Latest Reports */}
+          <HomeContent />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             {/* Reports Card */}
@@ -108,10 +96,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-foreground/60 text-sm text-center sm:text-left">
-              Powered by Techleap — Accelerating the Dutch tech ecosystem
+              European Tech Intelligence — Curated insights on the European startup ecosystem
             </p>
             <Link href="/about" className="text-primary hover:text-primary/80 text-sm">
-              About Techleap
+              About this project
             </Link>
           </div>
         </div>
