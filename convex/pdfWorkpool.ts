@@ -5,10 +5,10 @@ import { action, internalAction, internalMutation, mutation, query } from "./_ge
 import { internal, api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
-// Create workpool instance with max 3 parallel jobs
-// (to avoid overwhelming external APIs)
+// Create workpool instance with max 1 parallel job
+// (limited RAM on prod server - reports are queued sequentially)
 export const pool = new Workpool(components.pdfWorkpool, {
-  maxParallelism: 3,
+  maxParallelism: 1,
 });
 
 // The action handler that processes a single PDF
