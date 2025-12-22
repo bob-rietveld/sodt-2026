@@ -348,13 +348,36 @@ export const remove = mutation({
   },
 });
 
+// Helper to normalize year from string or number to integer
+function normalizeYear(value: string | number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+
+  if (typeof value === "number") {
+    return Number.isInteger(value) && value >= 1900 && value <= 2100 ? value : undefined;
+  }
+
+  if (typeof value === "string") {
+    // Try to extract a 4-digit year from the string
+    const yearMatch = value.match(/\b(19|20)\d{2}\b/);
+    if (yearMatch) {
+      const year = parseInt(yearMatch[0], 10);
+      if (year >= 1900 && year <= 2100) return year;
+    }
+    // Try parsing as a number directly
+    const parsed = parseInt(value, 10);
+    if (!isNaN(parsed) && parsed >= 1900 && parsed <= 2100) return parsed;
+  }
+
+  return undefined;
+}
+
 // Update extracted metadata from Firecrawl
 export const updateExtractedMetadata = mutation({
   args: {
     id: v.id("pdfs"),
     title: v.optional(v.string()),
     company: v.optional(v.string()),
-    dateOrYear: v.optional(v.number()),  // Year of publication as integer (e.g., 2024)
+    dateOrYear: v.optional(v.union(v.number(), v.string())),  // Accept both for backward compatibility, normalized to integer
     topic: v.optional(v.string()),
     summary: v.optional(v.string()),
     thumbnailUrl: v.optional(v.string()),
@@ -390,10 +413,19 @@ export const updateExtractedMetadata = mutation({
     technologyAreas: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    const { id, ...updates } = args;
+    const { id, dateOrYear, ...updates } = args;
+
+    // Normalize dateOrYear to integer
+    const normalizedYear = normalizeYear(dateOrYear);
+
     const filteredUpdates = Object.fromEntries(
       Object.entries(updates).filter(([_, v]) => v !== undefined)
     );
+
+    // Add normalized year if provided
+    if (normalizedYear !== undefined) {
+      (filteredUpdates as Record<string, unknown>).dateOrYear = normalizedYear;
+    }
 
     // Auto-set extraction metadata
     if (Object.keys(filteredUpdates).length > 0) {
@@ -691,5 +723,27 @@ export const getExtractionContext = query({
       existingKeywords: Array.from(keywordsSet).sort(),
       existingTechnologyAreas: Array.from(technologyAreasSet).sort(),
     };
+  },
+});
+
+// Migration: Convert any string years to integers in existing data
+export const migrateYearsToIntegers = mutation({
+  handler: async (ctx) => {
+    const pdfs = await ctx.db.query("pdfs").collect();
+    let migrated = 0;
+
+    for (const pdf of pdfs) {
+      // Check if dateOrYear exists and is a string (shouldn't happen with schema, but legacy data might have it)
+      const year = pdf.dateOrYear as unknown;
+      if (typeof year === "string") {
+        const normalizedYear = normalizeYear(year);
+        if (normalizedYear !== undefined) {
+          await ctx.db.patch(pdf._id, { dateOrYear: normalizedYear });
+          migrated++;
+        }
+      }
+    }
+
+    return { migrated, total: pdfs.length };
   },
 });
