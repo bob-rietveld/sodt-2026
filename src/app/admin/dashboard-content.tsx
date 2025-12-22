@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, usePaginatedQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 
@@ -14,17 +14,27 @@ interface PDF {
 }
 
 export default function DashboardContent() {
-  const allPdfs = useQuery(api.pdfs.list, {});
-  const pendingPdfs = useQuery(api.pdfs.list, { approvedOnly: false });
+  // Use optimized count queries instead of loading all PDFs
+  const totalCount = useQuery(api.pdfs.getTotalCount, {});
+  const unapprovedCount = useQuery(api.pdfs.getUnapprovedCount);
+  const completedCount = useQuery(api.pdfs.getTotalCount, { status: "completed" });
+
+  // Get only recent PDFs for the list (using paginated query with limit)
+  const recentPdfs = usePaginatedQuery(
+    api.pdfs.listPaginated,
+    {},
+    { initialNumItems: 5 }
+  );
+
   const activeJobs = useQuery(api.processing.getActiveJobs);
   const failedJobs = useQuery(api.processing.getFailedJobs);
 
   const stats = {
-    total: allPdfs?.length ?? 0,
-    pending: pendingPdfs?.filter((p: { approved: boolean }) => !p.approved).length ?? 0,
+    total: totalCount ?? 0,
+    pending: unapprovedCount ?? 0,
     processing: activeJobs?.length ?? 0,
     failed: failedJobs?.length ?? 0,
-    completed: allPdfs?.filter((p: { status: string }) => p.status === "completed").length ?? 0,
+    completed: completedCount ?? 0,
   };
 
   return (
@@ -87,7 +97,7 @@ export default function DashboardContent() {
       <div className="bg-white rounded-xl border border-foreground/10 p-6">
         <h2 className="text-xl font-semibold mb-4">Recent Documents</h2>
         <div className="space-y-4">
-          {allPdfs?.slice(0, 5).map((pdf: PDF) => (
+          {recentPdfs.results?.map((pdf: PDF) => (
             <div
               key={pdf._id}
               className="flex items-center justify-between py-3 border-b border-foreground/5 last:border-0"
@@ -122,7 +132,12 @@ export default function DashboardContent() {
               </div>
             </div>
           ))}
-          {(!allPdfs || allPdfs.length === 0) && (
+          {recentPdfs.status === "LoadingFirstPage" && (
+            <div className="text-center py-8 text-foreground/50">
+              Loading...
+            </div>
+          )}
+          {recentPdfs.status !== "LoadingFirstPage" && (!recentPdfs.results || recentPdfs.results.length === 0) && (
             <div className="text-center py-8 text-foreground/50">
               No documents yet
             </div>

@@ -1,5 +1,9 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { paginationOptsValidator } from "convex/server";
+
+// Constants for pagination
+const DEFAULT_PAGE_SIZE = 15;
 
 // Get all PDFs with optional filters
 export const list = query({
@@ -32,6 +36,88 @@ export const list = query({
     }
 
     return pdfs;
+  },
+});
+
+// Get PDFs with pagination for admin panel
+export const listPaginated = query({
+  args: {
+    status: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("processing"),
+        v.literal("completed"),
+        v.literal("failed")
+      )
+    ),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    let query;
+
+    if (args.status) {
+      query = ctx.db
+        .query("pdfs")
+        .withIndex("by_status", (q) => q.eq("status", args.status!));
+    } else {
+      query = ctx.db.query("pdfs");
+    }
+
+    // Paginate with the provided options
+    return await query.order("desc").paginate(args.paginationOpts);
+  },
+});
+
+// Get total count for pagination UI
+export const getTotalCount = query({
+  args: {
+    status: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("processing"),
+        v.literal("completed"),
+        v.literal("failed")
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    let pdfs;
+
+    if (args.status) {
+      pdfs = await ctx.db
+        .query("pdfs")
+        .withIndex("by_status", (q) => q.eq("status", args.status!))
+        .collect();
+    } else {
+      pdfs = await ctx.db.query("pdfs").collect();
+    }
+
+    return pdfs.length;
+  },
+});
+
+// Get count of unapproved documents for dashboard
+export const getUnapprovedCount = query({
+  handler: async (ctx) => {
+    const pdfs = await ctx.db
+      .query("pdfs")
+      .withIndex("by_approved", (q) => q.eq("approved", false))
+      .collect();
+    return pdfs.length;
+  },
+});
+
+// Get unapproved PDFs with pagination for pending page
+export const listUnapprovedPaginated = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("pdfs")
+      .withIndex("by_approved", (q) => q.eq("approved", false))
+      .order("desc")
+      .paginate(args.paginationOpts);
   },
 });
 
@@ -545,6 +631,159 @@ export const browseReports = query({
     results.sort((a, b) => b.uploadedAt - a.uploadedAt);
 
     return results;
+  },
+});
+
+// Browse public reports with pagination
+export const browseReportsPaginated = query({
+  args: {
+    continent: v.optional(
+      v.union(
+        v.literal("us"),
+        v.literal("eu"),
+        v.literal("asia"),
+        v.literal("global"),
+        v.literal("other")
+      )
+    ),
+    industry: v.optional(
+      v.union(
+        v.literal("semicon"),
+        v.literal("deeptech"),
+        v.literal("biotech"),
+        v.literal("fintech"),
+        v.literal("cleantech"),
+        v.literal("other")
+      )
+    ),
+    company: v.optional(v.string()),
+    year: v.optional(v.number()),
+    technologyAreas: v.optional(v.array(v.string())),
+    keywords: v.optional(v.array(v.string())),
+    page: v.number(),
+    pageSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const pageSize = args.pageSize ?? DEFAULT_PAGE_SIZE;
+    const page = Math.max(1, args.page);
+
+    // Get all approved, completed reports using compound index
+    let results = await ctx.db
+      .query("pdfs")
+      .withIndex("by_public_browse", (q) =>
+        q.eq("approved", true).eq("status", "completed")
+      )
+      .collect();
+
+    // Apply additional filters in memory
+    if (args.continent) {
+      results = results.filter((r) => r.continent === args.continent);
+    }
+    if (args.industry) {
+      results = results.filter((r) => r.industry === args.industry);
+    }
+    if (args.company) {
+      results = results.filter((r) =>
+        r.company?.toLowerCase().includes(args.company!.toLowerCase())
+      );
+    }
+    if (args.year) {
+      results = results.filter((r) => r.dateOrYear === args.year);
+    }
+    if (args.technologyAreas && args.technologyAreas.length > 0) {
+      results = results.filter((r) =>
+        r.technologyAreas?.some((area) => args.technologyAreas!.includes(area))
+      );
+    }
+    if (args.keywords && args.keywords.length > 0) {
+      results = results.filter((r) =>
+        r.keywords?.some((keyword) => args.keywords!.includes(keyword))
+      );
+    }
+
+    // Sort by most recent first
+    results.sort((a, b) => b.uploadedAt - a.uploadedAt);
+
+    // Calculate pagination
+    const totalCount = results.length;
+    const totalPages = Math.ceil(totalCount / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedResults = results.slice(startIndex, endIndex);
+
+    return {
+      reports: paginatedResults,
+      totalCount,
+      totalPages,
+      currentPage: page,
+      pageSize,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    };
+  },
+});
+
+// Get count for browse reports (useful for pagination UI)
+export const getBrowseReportsCount = query({
+  args: {
+    continent: v.optional(
+      v.union(
+        v.literal("us"),
+        v.literal("eu"),
+        v.literal("asia"),
+        v.literal("global"),
+        v.literal("other")
+      )
+    ),
+    industry: v.optional(
+      v.union(
+        v.literal("semicon"),
+        v.literal("deeptech"),
+        v.literal("biotech"),
+        v.literal("fintech"),
+        v.literal("cleantech"),
+        v.literal("other")
+      )
+    ),
+    company: v.optional(v.string()),
+    year: v.optional(v.number()),
+    technologyAreas: v.optional(v.array(v.string())),
+    keywords: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    let results = await ctx.db
+      .query("pdfs")
+      .withIndex("by_public_browse", (q) =>
+        q.eq("approved", true).eq("status", "completed")
+      )
+      .collect();
+
+    if (args.continent) {
+      results = results.filter((r) => r.continent === args.continent);
+    }
+    if (args.industry) {
+      results = results.filter((r) => r.industry === args.industry);
+    }
+    if (args.company) {
+      results = results.filter((r) =>
+        r.company?.toLowerCase().includes(args.company!.toLowerCase())
+      );
+    }
+    if (args.year) {
+      results = results.filter((r) => r.dateOrYear === args.year);
+    }
+    if (args.technologyAreas && args.technologyAreas.length > 0) {
+      results = results.filter((r) =>
+        r.technologyAreas?.some((area) => args.technologyAreas!.includes(area))
+      );
+    }
+    if (args.keywords && args.keywords.length > 0) {
+      results = results.filter((r) =>
+        r.keywords?.some((keyword) => args.keywords!.includes(keyword))
+      );
+    }
+
+    return results.length;
   },
 });
 

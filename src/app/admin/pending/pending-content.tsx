@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useState, useMemo } from "react";
+import { useMutation, usePaginatedQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { PDF } from "@/types";
@@ -10,22 +10,35 @@ import EditSidePanel, { EditPropertiesForm } from "@/components/admin/edit-side-
 
 type FilterTab = "awaiting_approval" | "processing" | "failed" | "all_unapproved";
 
+const PAGE_SIZE = 15;
+
 export default function PendingContent() {
   const [activeTab, setActiveTab] = useState<FilterTab>("awaiting_approval");
   const [editingPdf, setEditingPdf] = useState<PDF | null>(null);
-  const allPdfs = useQuery(api.pdfs.list, {});
 
-  // All documents that are not approved
-  const allUnapproved = allPdfs?.filter((p: PDF) => !p.approved);
+  // Use paginated query for unapproved PDFs
+  const paginatedQuery = usePaginatedQuery(
+    api.pdfs.listUnapprovedPaginated,
+    {},
+    { initialNumItems: PAGE_SIZE }
+  );
 
-  // Documents ready for approval (completed but not approved)
-  const awaitingApproval = allPdfs?.filter((p: PDF) => !p.approved && p.status === "completed");
+  const allUnapproved = paginatedQuery.results as PDF[] | undefined;
 
-  // Documents still processing
-  const processingDocs = allPdfs?.filter((p: PDF) => !p.approved && (p.status === "processing" || p.status === "pending"));
+  // Filter based on active tab (client-side filtering of paginated results)
+  const filteredDocs = useMemo(() => {
+    if (!allUnapproved) return { awaitingApproval: [], processingDocs: [], failedDocs: [] };
 
-  // Failed documents that need attention
-  const failedDocs = allPdfs?.filter((p: PDF) => !p.approved && p.status === "failed");
+    return {
+      awaitingApproval: allUnapproved.filter((p: PDF) => p.status === "completed"),
+      processingDocs: allUnapproved.filter((p: PDF) => p.status === "processing" || p.status === "pending"),
+      failedDocs: allUnapproved.filter((p: PDF) => p.status === "failed"),
+    };
+  }, [allUnapproved]);
+
+  const awaitingApproval = filteredDocs.awaitingApproval;
+  const processingDocs = filteredDocs.processingDocs;
+  const failedDocs = filteredDocs.failedDocs;
 
   const approvePdf = useMutation(api.pdfs.approve);
   const rejectPdf = useMutation(api.pdfs.reject);
@@ -465,6 +478,26 @@ export default function PendingContent() {
                 </p>
               </>
             )}
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {paginatedQuery.status === "CanLoadMore" && (
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={() => paginatedQuery.loadMore(PAGE_SIZE)}
+              className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
+            >
+              Load More
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+        )}
+        {paginatedQuery.status === "Exhausted" && allUnapproved && allUnapproved.length > PAGE_SIZE && (
+          <div className="mt-4 text-center text-sm text-foreground/50">
+            All documents loaded
           </div>
         )}
       </div>
