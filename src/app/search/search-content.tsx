@@ -150,7 +150,7 @@ export default function SearchContent() {
                   <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
                 </div>
                 {viewMode === "card" ? (
-                  <div className="grid gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {convexResults.map((pdf: PDF) => (
                       <ReportCard key={pdf._id} report={pdf} />
                     ))}

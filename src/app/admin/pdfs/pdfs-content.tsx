@@ -43,6 +43,7 @@ export default function PdfsContent() {
   const [editingPdf, setEditingPdf] = useState<PDF | null>(null);
   const [isExportingCSV, setIsExportingCSV] = useState(false);
   const [isExportingZip, setIsExportingZip] = useState(false);
+  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
 
   const pdfs = useQuery(
     api.pdfs.list,
@@ -1065,32 +1066,32 @@ export default function PdfsContent() {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden overflow-x-auto">
-        <table className="w-full">
+      <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden">
+        <table className="w-full table-fixed">
           <thead className="bg-foreground/5">
             <tr>
-              <th className="text-left px-4 py-4 text-sm font-medium text-foreground/70 w-20">
+              <th className="text-left px-3 py-3 text-sm font-medium text-foreground/70 w-16 lg:w-20">
                 Preview
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-foreground/70">
+              <th className="text-left px-3 py-3 text-sm font-medium text-foreground/70">
                 Title
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-foreground/70">
+              <th className="hidden lg:table-cell text-left px-3 py-3 text-sm font-medium text-foreground/70 w-28">
                 Company
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-foreground/70">
+              <th className="hidden xl:table-cell text-left px-3 py-3 text-sm font-medium text-foreground/70 w-20">
                 Year
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-foreground/70">
+              <th className="hidden xl:table-cell text-left px-3 py-3 text-sm font-medium text-foreground/70 w-24">
                 Region
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-foreground/70">
+              <th className="hidden lg:table-cell text-left px-3 py-3 text-sm font-medium text-foreground/70 w-28">
                 Industry
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-foreground/70">
+              <th className="text-left px-3 py-3 text-sm font-medium text-foreground/70 w-24">
                 Status
               </th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-foreground/70">
+              <th className="text-right px-3 py-3 text-sm font-medium text-foreground/70 w-20">
                 Actions
               </th>
             </tr>
@@ -1098,41 +1099,57 @@ export default function PdfsContent() {
           <tbody>
             {pdfs?.map((pdf: PDF) => (
               <tr key={pdf._id} className="border-t border-foreground/5">
-                <td className="px-4 py-4">
+                <td className="px-3 py-3">
                   {pdf.thumbnailUrl ? (
                     <img
                       src={pdf.thumbnailUrl}
                       alt={pdf.title}
-                      className="w-16 h-20 object-cover rounded border border-foreground/10"
+                      className="w-12 h-16 lg:w-16 lg:h-20 object-cover rounded border border-foreground/10"
                     />
                   ) : (
-                    <div className="w-16 h-20 bg-foreground/5 rounded border border-foreground/10 flex items-center justify-center">
-                      <svg className="w-6 h-6 text-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-12 h-16 lg:w-16 lg:h-20 bg-foreground/5 rounded border border-foreground/10 flex items-center justify-center">
+                      <svg className="w-5 h-5 lg:w-6 lg:h-6 text-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                       </svg>
                     </div>
                   )}
                 </td>
-                <td className="px-6 py-4">
-                  <div>
-                    <div className="font-medium">{pdf.title}</div>
-                    <div className="text-sm text-foreground/50">
+                <td className="px-3 py-3">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate" title={pdf.title}>{pdf.title}</div>
+                    <div className="text-xs text-foreground/50 truncate">
                       {pdf.filename}
                     </div>
                     {pdf.summary && (
-                      <div className="mt-1 text-xs text-foreground/60 line-clamp-2" title={pdf.summary}>
+                      <div className="mt-1 text-xs text-foreground/60 line-clamp-1 lg:line-clamp-2" title={pdf.summary}>
                         {pdf.summary}
                       </div>
                     )}
+                    {/* Show metadata on mobile */}
+                    <div className="lg:hidden mt-2 flex flex-wrap gap-1">
+                      {pdf.company && (
+                        <span className="text-xs text-foreground/60">{pdf.company}</span>
+                      )}
+                      {pdf.continent && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-info/10 text-info uppercase">
+                          {pdf.continent}
+                        </span>
+                      )}
+                      {pdf.industry && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-secondary/10 text-secondary">
+                          {pdf.industry}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-sm text-foreground/70">
+                <td className="hidden lg:table-cell px-3 py-3 text-sm text-foreground/70 truncate">
                   {pdf.company || "-"}
                 </td>
-                <td className="px-6 py-4 text-sm text-foreground/70">
+                <td className="hidden xl:table-cell px-3 py-3 text-sm text-foreground/70">
                   {pdf.dateOrYear || "-"}
                 </td>
-                <td className="px-6 py-4">
+                <td className="hidden xl:table-cell px-3 py-3">
                   {pdf.continent ? (
                     <span className="px-2 py-1 rounded text-xs font-medium bg-info/10 text-info uppercase">
                       {pdf.continent}
@@ -1141,7 +1158,7 @@ export default function PdfsContent() {
                     <span className="text-foreground/40">-</span>
                   )}
                 </td>
-                <td className="px-6 py-4">
+                <td className="hidden lg:table-cell px-3 py-3">
                   {pdf.industry ? (
                     <span className="px-2 py-1 rounded text-xs font-medium bg-secondary/10 text-secondary">
                       {pdf.industry}
@@ -1150,9 +1167,9 @@ export default function PdfsContent() {
                     <span className="text-foreground/40">-</span>
                   )}
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-3 py-3">
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${
                       pdf.status === "completed"
                         ? "bg-success/10 text-success"
                         : pdf.status === "failed"
@@ -1165,38 +1182,83 @@ export default function PdfsContent() {
                     {pdf.status}
                   </span>
                 </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-2">
+                <td className="px-3 py-3">
+                  {/* Actions Dropdown */}
+                  <div className="relative flex justify-end">
                     <button
-                      onClick={() => handleEditProperties(pdf)}
-                      className="text-sm text-info hover:underline"
+                      onClick={() => setOpenActionMenu(openActionMenu === pdf._id ? null : pdf._id)}
+                      className="p-2 rounded-lg hover:bg-foreground/5 transition-colors"
+                      title="Actions"
                     >
-                      Edit
+                      <svg className="w-5 h-5 text-foreground/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                      </svg>
                     </button>
-                    {!pdf.approved && (
-                      <button
-                        onClick={() =>
-                          approvePdf({ id: pdf._id, approvedBy: "admin" })
-                        }
-                        className="text-sm text-success hover:underline"
-                      >
-                        Approve
-                      </button>
+                    {openActionMenu === pdf._id && (
+                      <>
+                        {/* Backdrop to close menu */}
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setOpenActionMenu(null)}
+                        />
+                        {/* Dropdown menu */}
+                        <div className="absolute right-0 top-full mt-1 z-20 bg-white rounded-lg shadow-lg border border-foreground/10 py-1 min-w-[140px]">
+                          <button
+                            onClick={() => {
+                              handleEditProperties(pdf);
+                              setOpenActionMenu(null);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-foreground/5 flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4 text-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit
+                          </button>
+                          {!pdf.approved && (
+                            <button
+                              onClick={() => {
+                                approvePdf({ id: pdf._id, approvedBy: "admin" });
+                                setOpenActionMenu(null);
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-foreground/5 flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Approve
+                            </button>
+                          )}
+                          {pdf.status === "failed" && (
+                            <button
+                              onClick={() => {
+                                handleReprocess(pdf._id);
+                                setOpenActionMenu(null);
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-foreground/5 flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              Retry
+                            </button>
+                          )}
+                          <div className="border-t border-foreground/10 my-1" />
+                          <button
+                            onClick={() => {
+                              handleDelete(pdf._id);
+                              setOpenActionMenu(null);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-danger hover:bg-danger/5 flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete
+                          </button>
+                        </div>
+                      </>
                     )}
-                    {pdf.status === "failed" && (
-                      <button
-                        onClick={() => handleReprocess(pdf._id)}
-                        className="text-sm text-warning hover:underline"
-                      >
-                        Retry
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleDelete(pdf._id)}
-                      className="text-sm text-danger hover:underline"
-                    >
-                      Delete
-                    </button>
                   </div>
                 </td>
               </tr>
@@ -1205,7 +1267,7 @@ export default function PdfsContent() {
               <tr>
                 <td
                   colSpan={8}
-                  className="px-6 py-12 text-center text-foreground/50"
+                  className="px-3 py-12 text-center text-foreground/50"
                 >
                   No documents found
                 </td>
