@@ -44,6 +44,7 @@ export default function PdfsContent() {
   const [isExportingCSV, setIsExportingCSV] = useState(false);
   const [isExportingZip, setIsExportingZip] = useState(false);
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+  const [extractingMetadataId, setExtractingMetadataId] = useState<string | null>(null);
 
   const pdfs = useQuery(
     api.pdfs.list,
@@ -647,6 +648,29 @@ export default function PdfsContent() {
     }
   };
 
+  // Extract metadata for a single PDF
+  const handleExtractMetadata = async (id: Id<"pdfs">) => {
+    setExtractingMetadataId(id);
+    try {
+      const response = await fetch("/api/reprocess-metadata", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdfId: id }),
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        alert("Metadata extracted successfully!");
+      } else {
+        alert(`Metadata extraction failed: ${result.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Extract metadata error:", error);
+      alert("Failed to extract metadata. Please try again.");
+    } finally {
+      setExtractingMetadataId(null);
+    }
+  };
+
   // Regenerate thumbnail for a PDF
   const handleRegenerateThumbnail = async (pdf: PDF) => {
     // Get the file URL for this PDF
@@ -1214,6 +1238,31 @@ export default function PdfsContent() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                             Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleExtractMetadata(pdf._id);
+                              setOpenActionMenu(null);
+                            }}
+                            disabled={extractingMetadataId === pdf._id}
+                            className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-foreground/5 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {extractingMetadataId === pdf._id ? (
+                              <>
+                                <svg className="w-4 h-4 text-secondary animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                Extracting...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                </svg>
+                                Extract Metadata
+                              </>
+                            )}
                           </button>
                           {!pdf.approved && (
                             <button
