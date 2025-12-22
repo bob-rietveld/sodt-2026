@@ -20,7 +20,7 @@ export default defineSchema({
 
     // Extracted metadata from Firecrawl
     company: v.optional(v.string()),
-    dateOrYear: v.optional(v.number()),  // Year of publication as integer (e.g., 2024)
+    dateOrYear: v.optional(v.union(v.number(), v.string())),  // Year of publication (accepts string for migration, normalized to integer)
     topic: v.optional(v.string()),
     summary: v.optional(v.string()),
     thumbnailUrl: v.optional(v.string()),
