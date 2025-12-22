@@ -152,4 +152,35 @@ export default defineSchema({
   })
     .index("by_status", ["status"])
     .index("by_work_id", ["workId"]),
+
+  // Search analytics - track user search queries and results
+  searchQueries: defineTable({
+    // Query details
+    query: v.string(),
+    searchType: v.union(v.literal("agent"), v.literal("chat")),
+    sessionId: v.optional(v.string()),
+
+    // Timing
+    timestamp: v.number(),
+    responseTimeMs: v.optional(v.number()),
+
+    // Results
+    answer: v.optional(v.string()),
+    sources: v.optional(v.array(v.object({
+      convexId: v.optional(v.string()),
+      title: v.optional(v.string()),
+      filename: v.optional(v.string()),
+      pageNumber: v.optional(v.number()),
+    }))),
+    resultCount: v.number(),
+
+    // User context (anonymous)
+    userAgent: v.optional(v.string()),
+    ipHash: v.optional(v.string()),  // Hashed for privacy
+  })
+    .index("by_timestamp", ["timestamp"])
+    .index("by_search_type", ["searchType"])
+    .searchIndex("search_query", {
+      searchField: "query",
+    }),
 });
