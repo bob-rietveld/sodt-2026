@@ -55,9 +55,14 @@ function ReportsContentInner() {
       : "skip"
   );
 
-  // Helper function to get year from dateOrYear field (now already an integer)
-  const getYear = (dateOrYear: number | undefined): number => {
-    return dateOrYear ?? 0;
+  // Helper function to get year from dateOrYear field (handles both string and number)
+  const getYear = (dateOrYear: number | string | undefined): number => {
+    if (typeof dateOrYear === "number") return dateOrYear;
+    if (typeof dateOrYear === "string") {
+      const parsed = parseInt(dateOrYear, 10);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
   };
 
   // Apply metadata filters to search results if needed, then sort
