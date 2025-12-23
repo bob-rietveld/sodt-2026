@@ -11,8 +11,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Techleap PDF Search",
-  description: "Search, chat with, and manage PDF documents",
+  title: "TechStaple — Dutch Tech Intelligence",
+  description: "All the reports on Dutch tech, stapled together. Search, analyze, and chat with ecosystem reports.",
 };
 
 export default function RootLayout({
