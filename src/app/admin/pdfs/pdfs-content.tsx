@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useAction, usePaginatedQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -9,6 +9,7 @@ import EditSidePanel, { EditPropertiesForm } from "@/components/admin/edit-side-
 
 type StatusFilter = "all" | "pending" | "processing" | "completed" | "failed";
 type UploadMode = "file" | "url";
+type SortOption = "recently_added" | "published_date" | "title_asc" | "title_desc";
 
 const PAGE_SIZE = 15;
 
@@ -48,14 +49,60 @@ export default function PdfsContent() {
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
   const [extractingMetadataId, setExtractingMetadataId] = useState<string | null>(null);
 
-  // Pagination using Convex's native cursor-based pagination
+  // Search and sort state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<SortOption>("recently_added");
+  const isSearching = searchQuery.trim().length > 0;
+
+  // Pagination using Convex's native cursor-based pagination (used when not searching)
   const paginatedQuery = usePaginatedQuery(
     api.pdfs.listPaginated,
     filter === "all" ? {} : { status: filter as "pending" | "processing" | "completed" | "failed" },
     { initialNumItems: PAGE_SIZE }
   );
 
-  const pdfs = paginatedQuery.results as PDF[] | undefined;
+  // Search results (used when searching)
+  const searchResults = useQuery(
+    api.pdfs.adminFullTextSearch,
+    isSearching
+      ? {
+          query: searchQuery,
+          status: filter === "all" ? undefined : (filter as "pending" | "processing" | "completed" | "failed"),
+        }
+      : "skip"
+  );
+
+  // Sort and memoize the display results
+  const sortedResults = useMemo(() => {
+    const results = isSearching ? searchResults : paginatedQuery.results;
+    if (!results) return undefined;
+
+    // Create a copy to avoid mutating the original
+    const sorted = [...results] as PDF[];
+
+    switch (sortBy) {
+      case "recently_added":
+        sorted.sort((a, b) => b.uploadedAt - a.uploadedAt);
+        break;
+      case "published_date":
+        sorted.sort((a, b) => {
+          const yearA = typeof a.dateOrYear === "number" ? a.dateOrYear : 0;
+          const yearB = typeof b.dateOrYear === "number" ? b.dateOrYear : 0;
+          return yearB - yearA;
+        });
+        break;
+      case "title_asc":
+        sorted.sort((a, b) => a.title.localeCompare(b.title));
+        break;
+      case "title_desc":
+        sorted.sort((a, b) => b.title.localeCompare(a.title));
+        break;
+    }
+
+    return sorted;
+  }, [isSearching, searchResults, paginatedQuery.results, sortBy]);
+
+  const pdfs = sortedResults;
   const paginationStatus = paginatedQuery.status;
 
   // Get total count for display
@@ -868,6 +915,55 @@ export default function PdfsContent() {
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center gap-4">
+        {/* Search Input */}
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search documents..."
+            className="w-full pl-10 pr-4 py-2 border border-foreground/20 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary bg-white"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/60"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Sort Selector */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-foreground/60 hidden sm:inline">Sort:</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            className="px-3 py-2 bg-white border border-foreground/20 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+          >
+            <option value="recently_added">Recently Added</option>
+            <option value="published_date">Published Date</option>
+            <option value="title_asc">Title A-Z</option>
+            <option value="title_desc">Title Z-A</option>
+          </select>
+        </div>
+
         {/* Upload Mode Toggle */}
         <div className="flex gap-2">
           <button
@@ -1325,7 +1421,7 @@ export default function PdfsContent() {
                 </td>
               </tr>
             ))}
-            {(!pdfs || pdfs.length === 0) && paginationStatus !== "LoadingFirstPage" && (
+            {(!pdfs || pdfs.length === 0) && paginationStatus !== "LoadingFirstPage" && !isSearching && (
               <tr>
                 <td
                   colSpan={8}
@@ -1335,7 +1431,17 @@ export default function PdfsContent() {
                 </td>
               </tr>
             )}
-            {paginationStatus === "LoadingFirstPage" && (
+            {(!pdfs || pdfs.length === 0) && isSearching && searchResults !== undefined && (
+              <tr>
+                <td
+                  colSpan={8}
+                  className="px-3 py-12 text-center text-foreground/50"
+                >
+                  No documents match &quot;{searchQuery}&quot;
+                </td>
+              </tr>
+            )}
+            {paginationStatus === "LoadingFirstPage" && !isSearching && (
               <tr>
                 <td
                   colSpan={8}
@@ -1351,6 +1457,22 @@ export default function PdfsContent() {
                 </td>
               </tr>
             )}
+            {isSearching && searchResults === undefined && (
+              <tr>
+                <td
+                  colSpan={8}
+                  className="px-3 py-12 text-center text-foreground/50"
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Searching...
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -1358,15 +1480,21 @@ export default function PdfsContent() {
       {/* Pagination Controls */}
       <div className="mt-4 flex items-center justify-between bg-white rounded-xl border border-foreground/10 px-4 py-3">
         <div className="text-sm text-foreground/60">
-          {pdfs && totalCount !== undefined && (
+          {isSearching && pdfs ? (
             <>
-              Showing <span className="font-medium text-foreground">{pdfs.length}</span> of{" "}
-              <span className="font-medium text-foreground">{totalCount}</span> documents
+              Found <span className="font-medium text-foreground">{pdfs.length}</span> result{pdfs.length !== 1 ? "s" : ""} for &quot;{searchQuery}&quot;
             </>
+          ) : (
+            pdfs && totalCount !== undefined && (
+              <>
+                Showing <span className="font-medium text-foreground">{pdfs.length}</span> of{" "}
+                <span className="font-medium text-foreground">{totalCount}</span> documents
+              </>
+            )
           )}
         </div>
         <div className="flex items-center gap-2">
-          {paginationStatus === "LoadingMore" && (
+          {!isSearching && paginationStatus === "LoadingMore" && (
             <button
               disabled
               className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium opacity-50 cursor-not-allowed flex items-center gap-2"
@@ -1378,7 +1506,7 @@ export default function PdfsContent() {
               Loading...
             </button>
           )}
-          {paginationStatus === "CanLoadMore" && (
+          {!isSearching && paginationStatus === "CanLoadMore" && (
             <button
               onClick={() => paginatedQuery.loadMore(PAGE_SIZE)}
               className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
@@ -1389,8 +1517,16 @@ export default function PdfsContent() {
               </svg>
             </button>
           )}
-          {paginationStatus === "Exhausted" && pdfs && pdfs.length > 0 && (
+          {!isSearching && paginationStatus === "Exhausted" && pdfs && pdfs.length > 0 && (
             <span className="text-sm text-foreground/50">All documents loaded</span>
+          )}
+          {isSearching && pdfs && pdfs.length > 0 && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="px-4 py-2 bg-foreground/10 text-foreground/70 rounded-lg text-sm font-medium hover:bg-foreground/20 transition-colors"
+            >
+              Clear search
+            </button>
           )}
         </div>
       </div>
