@@ -11,36 +11,23 @@ export default function Home() {
       {/* Hero Section with Background Illustration */}
       <main className="relative overflow-hidden">
         {/* Background illustration */}
-        <div className="absolute inset-0 pointer-events-none">
-          <Image
-            src="/techstaple-hero.svg"
-            alt=""
-            fill
-            className="object-contain object-right-bottom opacity-100 text-foreground"
-            style={{ color: 'currentColor' }}
-            priority
-          />
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="max-w-7xl mx-auto h-full relative px-4 sm:px-6 lg:px-8">
+            <div className="absolute right-0 top-0 bottom-0 w-[500px] lg:w-[600px]">
+              <Image
+                src="/pechtold.png"
+                alt=""
+                fill
+                className="object-contain object-right-bottom opacity-30"
+                priority
+              />
+            </div>
+          </div>
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
           <div className="max-w-3xl">
-            {/* Staple icon accent */}
-            <div className="flex items-center gap-3 mb-6">
-              <div className="flex gap-1">
-                <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 6h16M4 6v12M20 6v12"/>
-                </svg>
-                <svg className="w-5 h-5 text-primary/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 6h16M4 6v12M20 6v12"/>
-                </svg>
-                <svg className="w-5 h-5 text-primary/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 6h16M4 6v12M20 6v12"/>
-                </svg>
-              </div>
-              <p className="text-primary font-semibold tracking-wide uppercase text-sm">
-                Dutch Tech Intelligence
-              </p>
-            </div>
+          
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold text-foreground mb-6 leading-tight">
               All the Reports,{" "}
