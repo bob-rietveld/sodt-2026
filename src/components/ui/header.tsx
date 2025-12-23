@@ -24,8 +24,12 @@ export function Header({ showAdmin = true }: HeaderProps) {
   return (
     <header className="border-b border-foreground/10 bg-background sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-        <Link href="/" className="text-2xl font-semibold text-primary">
-          Techleap
+        <Link href="/" className="text-2xl font-semibold text-primary flex items-center gap-2">
+          <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 6h16M4 6v12M20 6v12"/>
+            <rect x="7" y="10" width="10" height="6" rx="1" fill="currentColor" opacity="0.2"/>
+          </svg>
+          TechStaple
         </Link>
 
         {/* Desktop Navigation */}

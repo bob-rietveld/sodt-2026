@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 700" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Stack of reports/papers behind -->
+  <g class="papers" opacity="0.15">
+    <!-- Bottom stack -->
+    <rect x="120" y="400" width="180" height="12" rx="1"/>
+    <rect x="118" y="388" width="184" height="12" rx="1"/>
+    <rect x="116" y="376" width="188" height="12" rx="1"/>
+    <rect x="114" y="364" width="192" height="12" rx="1"/>
+    <rect x="112" y="352" width="196" height="12" rx="1"/>
+    <rect x="110" y="340" width="200" height="12" rx="1"/>
+    <rect x="108" y="328" width="204" height="12" rx="1"/>
+    <rect x="106" y="316" width="208" height="12" rx="1"/>
+    <rect x="104" y="304" width="212" height="12" rx="1"/>
+    <rect x="102" y="292" width="216" height="12" rx="1"/>
+
+    <!-- Middle stack -->
+    <rect x="122" y="280" width="176" height="12" rx="1"/>
+    <rect x="120" y="268" width="180" height="12" rx="1"/>
+    <rect x="118" y="256" width="184" height="12" rx="1"/>
+    <rect x="116" y="244" width="188" height="12" rx="1"/>
+    <rect x="114" y="232" width="192" height="12" rx="1"/>
+    <rect x="112" y="220" width="196" height="12" rx="1"/>
+    <rect x="110" y="208" width="200" height="12" rx="1"/>
+    <rect x="108" y="196" width="204" height="12" rx="1"/>
+    <rect x="106" y="184" width="208" height="12" rx="1"/>
+    <rect x="104" y="172" width="212" height="12" rx="1"/>
+
+    <!-- Top stack -->
+    <rect x="124" y="160" width="172" height="12" rx="1"/>
+    <rect x="122" y="148" width="176" height="12" rx="1"/>
+    <rect x="120" y="136" width="180" height="12" rx="1"/>
+    <rect x="118" y="124" width="184" height="12" rx="1"/>
+    <rect x="116" y="112" width="188" height="12" rx="1"/>
+    <rect x="114" y="100" width="192" height="12" rx="1"/>
+  </g>
+
+  <!-- Person figure -->
+  <g class="person" opacity="0.12">
+    <!-- Head -->
+    <ellipse cx="480" cy="140" rx="55" ry="65"/>
+    <!-- Hair -->
+    <path d="M425 120 Q440 80 480 75 Q520 80 535 120"/>
+    <path d="M430 130 Q425 100 445 85"/>
+    <path d="M530 130 Q535 100 515 85"/>
+
+    <!-- Neck -->
+    <path d="M460 200 L460 230 M500 200 L500 230"/>
+
+    <!-- Suit jacket -->
+    <path d="M380 230 L420 230 L450 280 L480 350 L510 280 L540 230 L580 230 L600 400 L360 400 Z"/>
+    <!-- Lapels -->
+    <path d="M450 230 L470 300 L480 350"/>
+    <path d="M510 230 L490 300 L480 350"/>
+    <!-- Tie -->
+    <path d="M470 230 L480 240 L490 230 L485 330 L480 340 L475 330 Z" fill="none"/>
+    <line x1="475" y1="250" x2="485" y2="250"/>
+    <line x1="476" y1="270" x2="484" y2="270"/>
+    <line x1="477" y1="290" x2="483" y2="290"/>
+
+    <!-- Arms -->
+    <path d="M380 240 Q340 280 350 350 Q360 400 380 420"/>
+    <path d="M580 240 Q620 280 610 350 Q600 400 580 420"/>
+
+    <!-- Hands gesturing -->
+    <circle cx="380" cy="430" r="25"/>
+    <path d="M360 415 L350 390"/>
+    <path d="M370 410 L355 385"/>
+    <path d="M380 408 L370 380"/>
+
+    <!-- Microphone -->
+    <ellipse cx="420" cy="320" rx="8" ry="12"/>
+    <path d="M420 332 Q420 380 400 420"/>
+
+    <!-- Pocket square hint -->
+    <path d="M545 270 L555 260 L565 270"/>
+  </g>
+
+  <!-- Podium/lectern with more papers -->
+  <g class="podium" opacity="0.1">
+    <rect x="350" y="450" width="260" height="180" rx="3"/>
+    <!-- Papers on podium -->
+    <rect x="370" y="420" width="120" height="8" rx="1"/>
+    <rect x="372" y="412" width="116" height="8" rx="1"/>
+    <rect x="374" y="404" width="112" height="8" rx="1"/>
+    <!-- Podium detail -->
+    <rect x="360" y="500" width="240" height="4" rx="1"/>
+  </g>
+
+  <!-- Decorative staples -->
+  <g class="staples" opacity="0.08">
+    <path d="M650 150 L650 170 L670 170 L670 150"/>
+    <path d="M680 200 L680 220 L700 220 L700 200"/>
+    <path d="M640 250 L640 270 L660 270 L660 250"/>
+    <path d="M690 300 L690 320 L710 320 L710 300"/>
+    <path d="M660 350 L660 370 L680 370 L680 350"/>
+    <path d="M700 400 L700 420 L720 420 L720 400"/>
+
+    <path d="M80 200 L80 220 L100 220 L100 200"/>
+    <path d="M60 280 L60 300 L80 300 L80 280"/>
+    <path d="M90 360 L90 380 L110 380 L110 360"/>
+    <path d="M70 440 L70 460 L90 460 L90 440"/>
+  </g>
+</svg>
