@@ -1040,6 +1040,108 @@ export const getHomeStats = query({
   },
 });
 
+// Admin full-text search across title, summary, author, and company (no approval filter)
+export const adminFullTextSearch = query({
+  args: {
+    query: v.string(),
+    status: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("processing"),
+        v.literal("completed"),
+        v.literal("failed")
+      )
+    ),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const searchQuery = args.query.trim();
+    const limit = args.limit ?? 100;
+
+    // If no query, return all documents (optionally filtered by status)
+    if (!searchQuery) {
+      let results;
+      if (args.status) {
+        results = await ctx.db
+          .query("pdfs")
+          .withIndex("by_status", (q) => q.eq("status", args.status!))
+          .order("desc")
+          .take(limit);
+      } else {
+        results = await ctx.db.query("pdfs").order("desc").take(limit);
+      }
+      return results;
+    }
+
+    // Search across all four fields in parallel (without approved filter for admin)
+    const [titleResults, summaryResults, authorResults, companyResults] = await Promise.all([
+      ctx.db
+        .query("pdfs")
+        .withSearchIndex("search_title", (q) => q.search("title", searchQuery))
+        .take(limit),
+      ctx.db
+        .query("pdfs")
+        .withSearchIndex("search_summary", (q) => q.search("summary", searchQuery))
+        .take(limit),
+      ctx.db
+        .query("pdfs")
+        .withSearchIndex("search_author", (q) => q.search("author", searchQuery))
+        .take(limit),
+      ctx.db
+        .query("pdfs")
+        .withSearchIndex("search_company", (q) => q.search("company", searchQuery))
+        .take(limit),
+    ]);
+
+    // Combine and deduplicate results, prioritizing by search relevance
+    const seenIds = new Set<string>();
+    const combinedResults: typeof titleResults = [];
+
+    // Title matches first (most relevant)
+    for (const doc of titleResults) {
+      if (!seenIds.has(doc._id)) {
+        // Apply status filter if provided
+        if (!args.status || doc.status === args.status) {
+          seenIds.add(doc._id);
+          combinedResults.push(doc);
+        }
+      }
+    }
+
+    // Company matches second
+    for (const doc of companyResults) {
+      if (!seenIds.has(doc._id)) {
+        if (!args.status || doc.status === args.status) {
+          seenIds.add(doc._id);
+          combinedResults.push(doc);
+        }
+      }
+    }
+
+    // Author matches third
+    for (const doc of authorResults) {
+      if (!seenIds.has(doc._id)) {
+        if (!args.status || doc.status === args.status) {
+          seenIds.add(doc._id);
+          combinedResults.push(doc);
+        }
+      }
+    }
+
+    // Summary matches last
+    for (const doc of summaryResults) {
+      if (!seenIds.has(doc._id)) {
+        if (!args.status || doc.status === args.status) {
+          seenIds.add(doc._id);
+          combinedResults.push(doc);
+        }
+      }
+    }
+
+    return combinedResults.slice(0, limit);
+  },
+});
+
 // Get latest uploaded reports for homepage display
 export const getLatestReports = query({
   args: {
