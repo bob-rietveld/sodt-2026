@@ -662,6 +662,10 @@ export const browseReportsPaginated = query({
     keywords: v.optional(v.array(v.string())),
     page: v.number(),
     pageSize: v.optional(v.number()),
+    sortBy: v.optional(
+      v.union(v.literal("recently_added"), v.literal("published_date"))
+    ),
+    sortDirection: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
   },
   handler: async (ctx, args) => {
     const pageSize = args.pageSize ?? DEFAULT_PAGE_SIZE;
@@ -701,8 +705,21 @@ export const browseReportsPaginated = query({
       );
     }
 
-    // Sort by most recent first
-    results.sort((a, b) => b.uploadedAt - a.uploadedAt);
+    // Sort based on sortBy and sortDirection (defaults to recently_added desc for backward compatibility)
+    const sortBy = args.sortBy ?? "recently_added";
+    const sortDirection = args.sortDirection ?? "desc";
+    const multiplier = sortDirection === "asc" ? 1 : -1;
+
+    if (sortBy === "recently_added") {
+      results.sort((a, b) => multiplier * (a.uploadedAt - b.uploadedAt));
+    } else if (sortBy === "published_date") {
+      // Treat missing dateOrYear as 0 (places at end for desc, start for asc)
+      results.sort((a, b) => {
+        const yearA = typeof a.dateOrYear === "number" ? a.dateOrYear : 0;
+        const yearB = typeof b.dateOrYear === "number" ? b.dateOrYear : 0;
+        return multiplier * (yearA - yearB);
+      });
+    }
 
     // Calculate pagination
     const totalCount = results.length;
