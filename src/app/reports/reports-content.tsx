@@ -8,7 +8,7 @@ import { FilterPanel } from "@/components/reports/filter-panel";
 import { ReportCard } from "@/components/reports/report-card";
 import { ReportTable } from "@/components/reports/report-table";
 import { ViewToggle, ViewMode } from "@/components/reports/view-toggle";
-import { SortSelector, SortOption } from "@/components/reports/sort-selector";
+import { SortSelector, SortField, SortDirection } from "@/components/reports/sort-selector";
 import { Header } from "@/components/ui/header";
 import { PDF } from "@/types";
 
@@ -19,13 +19,14 @@ function ReportsContentInner() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [searchInput, setSearchInput] = useState(filters.search ?? "");
   const [viewMode, setViewMode] = useState<ViewMode>("card");
-  const [sortBy, setSortBy] = useState<SortOption>("recently_added");
+  const [sortBy, setSortBy] = useState<SortField>("recently_added");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Reset page when filters change
+  // Reset page when filters or sort options change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters.continent, filters.industry, filters.company, filters.year, filters.technologyAreas, filters.keywords, filters.search]);
+  }, [filters.continent, filters.industry, filters.company, filters.year, filters.technologyAreas, filters.keywords, filters.search, sortBy, sortDirection]);
 
   // Fetch filter options
   const filterOptions = useQuery(api.pdfs.getFilterOptions);
@@ -62,6 +63,8 @@ function ReportsContentInner() {
           keywords: filters.keywords,
           page: currentPage,
           pageSize: PAGE_SIZE,
+          sortBy: sortBy,
+          sortDirection: sortDirection,
         }
       : "skip"
   );
@@ -133,15 +136,16 @@ function ReportsContentInner() {
 
     // Apply sorting for search results only (browse results are sorted on server)
     if (results && filters.search) {
+      const multiplier = sortDirection === "asc" ? 1 : -1;
       if (sortBy === "recently_added") {
-        results.sort((a, b) => b.uploadedAt - a.uploadedAt);
+        results.sort((a, b) => multiplier * (a.uploadedAt - b.uploadedAt));
       } else if (sortBy === "published_date") {
-        results.sort((a, b) => getYear(b.dateOrYear) - getYear(a.dateOrYear));
+        results.sort((a, b) => multiplier * (getYear(a.dateOrYear) - getYear(b.dateOrYear)));
       }
     }
 
     return results;
-  }, [filters, searchResults, browseResults, sortBy]);
+  }, [filters, searchResults, browseResults, sortBy, sortDirection]);
 
   // Handle search submission
   const handleSearch = (e: React.FormEvent) => {
@@ -286,7 +290,12 @@ function ReportsContentInner() {
                 {!reports && <div />}
               </div>
               <div className="flex items-center gap-3">
-                <SortSelector sortBy={sortBy} onSortChange={setSortBy} />
+                <SortSelector
+                  sortBy={sortBy}
+                  sortDirection={sortDirection}
+                  onSortChange={setSortBy}
+                  onSortDirectionChange={setSortDirection}
+                />
                 <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
               </div>
             </div>
@@ -328,7 +337,7 @@ function ReportsContentInner() {
                   )}
                 </div>
               ) : (
-                <ReportTable reports={reports} sortBy={sortBy} onSortChange={setSortBy} />
+                <ReportTable reports={reports} sortBy={sortBy} sortDirection={sortDirection} onSortChange={setSortBy} onSortDirectionChange={setSortDirection} />
               )
             )}
 

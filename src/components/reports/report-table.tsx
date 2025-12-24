@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { PDF } from "@/types";
-import { SortOption } from "./sort-selector";
+import { SortOption, SortDirection } from "./sort-selector";
 
 interface ReportTableProps {
   reports: PDF[];
   sortBy?: SortOption;
+  sortDirection?: SortDirection;
   onSortChange?: (sort: SortOption) => void;
+  onSortDirectionChange?: (direction: SortDirection) => void;
 }
 
 const continentLabels: Record<string, string> = {
@@ -27,7 +29,7 @@ const industryLabels: Record<string, string> = {
   other: "Other",
 };
 
-export function ReportTable({ reports, sortBy, onSortChange }: ReportTableProps) {
+export function ReportTable({ reports, sortBy, sortDirection, onSortChange, onSortDirectionChange }: ReportTableProps) {
   if (reports.length === 0) {
     return (
       <div className="text-center py-12 text-foreground/50">
