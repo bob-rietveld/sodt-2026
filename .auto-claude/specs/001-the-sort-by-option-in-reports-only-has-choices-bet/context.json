@@ -1,0 +1,32 @@
+{
+  "task_description": "Add ascending/descending (ASC/DESC) sort direction toggle to the reports browsing interface, extending existing sorting by 'Recently Added' and 'Published Date' fields to support both sort directions.",
+  "files_to_modify": {
+    "main": [
+      "src/components/reports/sort-selector.tsx",
+      "src/app/reports/reports-content.tsx",
+      "src/components/reports/report-table.tsx",
+      "convex/pdfs.ts"
+    ]
+  },
+  "files_to_reference": [
+    "src/components/reports/view-toggle.tsx",
+    "src/components/reports/filter-panel.tsx"
+  ],
+  "patterns": {
+    "toggle_ui_pattern": "view-toggle.tsx uses segmented buttons with bg-foreground/5 container and bg-white shadow-sm for active state",
+    "state_pattern": "useState hooks with TypeScript types, state passed as props to child components",
+    "backend_pattern": "Convex queries use v.optional() for new params, v.union(v.literal()) for enum values",
+    "sorting_pattern": "Server-side sorting for browseReportsPaginated, client-side sorting for search results with multiplier pattern"
+  },
+  "existing_implementations": {
+    "description": "Current sorting is hardcoded to DESC order. browseReportsPaginated (line 705) and client-side sorting (lines 136-141) both use b - a pattern for descending.",
+    "relevant_files": [
+      "convex/pdfs.ts (line 705: results.sort((a, b) => b.uploadedAt - a.uploadedAt))",
+      "src/app/reports/reports-content.tsx (lines 136-141: client-side sorting)"
+    ]
+  },
+  "key_types": {
+    "current": "type SortOption = 'recently_added' | 'published_date'",
+    "proposed": "type SortField = 'recently_added' | 'published_date'; type SortDirection = 'asc' | 'desc'"
+  }
+}

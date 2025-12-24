@@ -1,0 +1,176 @@
+{
+  "project_root": "/Users/bobrietveld/Documents/Techleap/sodt_app",
+  "project_type": "single",
+  "services": {
+    "main": {
+      "name": "main",
+      "path": "/Users/bobrietveld/Documents/Techleap/sodt_app",
+      "language": "TypeScript",
+      "framework": "Next.js",
+      "type": "frontend",
+      "package_manager": "npm",
+      "default_port": 3000,
+      "styling": "Tailwind CSS",
+      "dev_command": "npm run dev",
+      "key_directories": {
+        "src": {
+          "path": "src",
+          "purpose": "Source code"
+        }
+      },
+      "dependencies": [
+        "@anthropic-ai/sdk",
+        "@clerk/nextjs",
+        "@convex-dev/workpool",
+        "@eslint/eslintrc",
+        "@mendable/firecrawl-js",
+        "@tailwindcss/postcss",
+        "@types/node",
+        "@types/react",
+        "@types/react-dom",
+        "archiver",
+        "autoprefixer",
+        "convex",
+        "eslint",
+        "eslint-config-next",
+        "googleapis",
+        "next",
+        "pdf-parse",
+        "pdf-to-img",
+        "postcss",
+        "react"
+      ],
+      "dev_dependencies": [
+        "@types/archiver",
+        "@types/pdf-parse"
+      ],
+      "environment": {
+        "variables": {
+          "CONVEX_DEPLOYMENT": {
+            "value": "dev:judicious-dog-722 # team: ramp-up, project: sodt-app",
+            "source": ".env.local",
+            "type": "string",
+            "sensitive": false,
+            "required": false
+          },
+          "NEXT_PUBLIC_CONVEX_URL": {
+            "value": "https://judicious-dog-722.convex.cloud",
+            "source": ".env.local",
+            "type": "url",
+            "sensitive": false,
+            "required": false
+          },
+          "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY": {
+            "value": "<REDACTED>",
+            "source": ".env.local",
+            "type": "string",
+            "sensitive": true,
+            "required": false
+          },
+          "CLERK_SECRET_KEY": {
+            "value": "<REDACTED>",
+            "source": ".env.local",
+            "type": "string",
+            "sensitive": true,
+            "required": false
+          },
+          "CLERK_JWT_ISSUER_DOMAIN": {
+            "value": "https://funny-akita-78.clerk.accounts.dev",
+            "source": ".env.local",
+            "type": "url",
+            "sensitive": false,
+            "required": false
+          },
+          "NEXT_PUBLIC_CLERK_SIGN_IN_URL": {
+            "value": "/sign-in",
+            "source": ".env.local",
+            "type": "path",
+            "sensitive": false,
+            "required": false
+          },
+          "NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL": {
+            "value": "/admin",
+            "source": ".env.local",
+            "type": "path",
+            "sensitive": false,
+            "required": false
+          },
+          "WEAVIATE_URL": {
+            "value": "xlrnvxvurqix2syrpugha.c0.europe-west3.gcp.weaviate.cloud",
+            "source": ".env.local",
+            "type": "string",
+            "sensitive": false,
+            "required": false
+          },
+          "WEAVIATE_API_KEY": {
+            "value": "<REDACTED>",
+            "source": ".env.local",
+            "type": "string",
+            "sensitive": true,
+            "required": false
+          },
+          "VOYAGE_API_KEY": {
+            "value": "<REDACTED>",
+            "source": ".env.local",
+            "type": "string",
+            "sensitive": true,
+            "required": false
+          },
+          "ANTHROPIC_API_KEY": {
+            "value": "<REDACTED>",
+            "source": ".env.local",
+            "type": "string",
+            "sensitive": true,
+            "required": false
+          },
+          "UNSTRUCTURED_API_KEY": {
+            "value": "<REDACTED>",
+            "source": ".env.local",
+            "type": "string",
+            "sensitive": true,
+            "required": false
+          },
+          "UNSTRUCTURED_API_URL": {
+            "value": "https://platform.unstructuredapp.io/api/v1",
+            "source": ".env.local",
+            "type": "url",
+            "sensitive": false,
+            "required": false
+          },
+          "FIRECRAWL_API_KEY": {
+            "value": "<REDACTED>",
+            "source": ".env.local",
+            "type": "string",
+            "sensitive": true,
+            "required": false
+          }
+        },
+        "required_count": 0,
+        "optional_count": 0,
+        "detected_count": 14
+      },
+      "api": {
+        "routes": [
+          {
+            "path": "/cats",
+            "methods": [
+              "GET"
+            ],
+            "file": ".next/dev/server/chunks/78339_async_dist_async_mjs_2ff04a03._.js",
+            "framework": "Express",
+            "requires_auth": false
+          }
+        ],
+        "total_routes": 1,
+        "methods": [
+          "GET"
+        ],
+        "protected_routes": []
+      }
+    }
+  },
+  "infrastructure": {},
+  "conventions": {
+    "typescript": true
+  }
+}

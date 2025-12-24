@@ -1,0 +1,92 @@
+{
+  "complexity": "standard",
+  "workflow_type": "feature",
+  "confidence": 0.90,
+  "reasoning": "Adding ASC/DESC sort direction to existing sort functionality is a contained feature enhancement. It affects 4 files across frontend and backend but follows existing patterns. The sorting logic already exists - we just need to parameterize the direction. No external integrations or infrastructure changes required.",
+
+  "analysis": {
+    "scope": {
+      "estimated_files": 4,
+      "estimated_services": 1,
+      "is_cross_cutting": false,
+      "notes": "Changes limited to: sort-selector.tsx (UI), reports-content.tsx (state/logic), report-table.tsx (header icons), convex/pdfs.ts (backend API). All contained to reports feature."
+    },
+    "integrations": {
+      "external_services": [],
+      "new_dependencies": [],
+      "research_needed": false,
+      "notes": "No external integrations. Standard sorting pattern already exists in codebase."
+    },
+    "infrastructure": {
+      "docker_changes": false,
+      "database_changes": false,
+      "config_changes": false,
+      "notes": "No infrastructure changes. Only modifying query parameters for existing Convex functions."
+    },
+    "knowledge": {
+      "patterns_exist": true,
+      "research_required": false,
+      "unfamiliar_tech": [],
+      "notes": "Current sorting implementation exists in reports-content.tsx (lines 136-141) and pdfs.ts (lines 631, 705). Just needs direction parameter added."
+    },
+    "risk": {
+      "level": "low",
+      "concerns": [
+        "Report display order will change when ascending is selected",
+        "Need to maintain backwards compatibility with existing sort behavior (default DESC)"
+      ],
+      "notes": "Low risk - affects data display order only. No security, auth, or data modification concerns."
+    }
+  },
+
+  "key_findings": {
+    "current_sort_options": ["recently_added", "published_date"],
+    "current_direction": "DESC only (hardcoded)",
+    "frontend_files": [
+      "src/components/reports/sort-selector.tsx",
+      "src/app/reports/reports-content.tsx",
+      "src/components/reports/report-table.tsx"
+    ],
+    "backend_files": [
+      "convex/pdfs.ts"
+    ],
+    "functions_to_modify": [
+      "browseReportsPaginated (add sortBy and sortDirection params)",
+      "browseReports (add sortBy and sortDirection params)",
+      "client-side sorting in reports-content.tsx"
+    ]
+  },
+
+  "recommended_phases": [
+    "discovery",
+    "requirements",
+    "context",
+    "spec_writing",
+    "planning",
+    "validation"
+  ],
+
+  "flags": {
+    "needs_research": false,
+    "needs_self_critique": false,
+    "needs_infrastructure_setup": false
+  },
+
+  "validation_recommendations": {
+    "risk_level": "low",
+    "skip_validation": false,
+    "minimal_mode": true,
+    "test_types_required": ["unit"],
+    "security_scan_required": false,
+    "staging_deployment_required": false,
+    "reasoning": "Simple feature enhancement with no security implications. Unit tests to verify sorting logic works correctly in both directions. No auth or sensitive data involved."
+  },
+
+  "implementation_hints": {
+    "type_changes": "Expand SortOption type to include direction or create compound type (e.g., 'recently_added_asc', 'recently_added_desc') or separate sortDirection state",
+    "ui_approach": "Add toggle button/icon next to sort dropdown, or expand dropdown options to include direction variants",
+    "backend_approach": "Add sortBy and sortDirection parameters to browseReportsPaginated, default to DESC for backwards compatibility"
+  },
+
+  "created_at": "2025-12-24T10:30:00.000Z"
+}

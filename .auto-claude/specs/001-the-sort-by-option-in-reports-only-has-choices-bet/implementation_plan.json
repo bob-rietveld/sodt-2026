@@ -1,0 +1,339 @@
+{
+  "feature": "Add ASC/DESC Sort Direction for Reports",
+  "workflow_type": "feature",
+  "workflow_rationale": "This is a feature enhancement that extends existing sorting functionality. Changes span frontend UI components, state management, and backend query logic, but all follow established patterns in the codebase.",
+  "phases": [
+    {
+      "id": "phase-1-backend",
+      "name": "Backend API Enhancement",
+      "type": "implementation",
+      "description": "Add sortBy and sortDirection parameters to the browseReportsPaginated Convex query and implement server-side sorting logic",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-1-1",
+          "description": "Add sortBy and sortDirection arguments to browseReportsPaginated query in convex/pdfs.ts with v.optional() for backward compatibility. Update the sorting logic to use a multiplier pattern based on direction.",
+          "service": "main",
+          "files_to_modify": [
+            "convex/pdfs.ts"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "convex/pdfs.ts (existing v.optional and v.union patterns at lines 43-53)"
+          ],
+          "implementation_details": {
+            "location": "browseReportsPaginated query (lines 638-723)",
+            "changes": [
+              "Add sortBy: v.optional(v.union(v.literal('recently_added'), v.literal('published_date')))",
+              "Add sortDirection: v.optional(v.union(v.literal('asc'), v.literal('desc')))",
+              "Update sort logic at line 705 to check sortBy and sortDirection args",
+              "Use multiplier pattern: const multiplier = sortDirection === 'asc' ? 1 : -1",
+              "Default to 'desc' when sortDirection not provided for backward compatibility"
+            ]
+          },
+          "verification": {
+            "type": "command",
+            "command": "cd /Users/bobrietveld/Documents/Techleap/sodt_app && npx convex dev --once",
+            "expected": "Convex functions should deploy without errors"
+          },
+          "status": "completed",
+          "notes": "Added sortBy and sortDirection arguments to browseReportsPaginated query with v.optional() for backward compatibility. Implemented multiplier pattern for direction sorting. Defaults to \"desc\" to maintain existing behavior. Handles missing dateOrYear by treating as 0.",
+          "updated_at": "2025-12-24T20:29:40.428327+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-2-sort-selector",
+      "name": "Sort Selector UI Enhancement",
+      "type": "implementation",
+      "description": "Add SortDirection type and direction toggle UI to the sort-selector component",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-2-1",
+          "description": "Extend sort-selector.tsx with SortDirection type and add a direction toggle button next to the dropdown. Follow the toggle button styling pattern from view-toggle.tsx.",
+          "service": "main",
+          "files_to_modify": [
+            "src/components/reports/sort-selector.tsx"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/components/reports/view-toggle.tsx"
+          ],
+          "implementation_details": {
+            "type_changes": [
+              "Rename SortOption to SortField for clarity",
+              "Add: export type SortDirection = 'asc' | 'desc'",
+              "Export both types"
+            ],
+            "ui_changes": [
+              "Add direction toggle with ASC/DESC buttons using up/down arrow icons",
+              "Use bg-foreground/5 container with bg-white shadow-sm for active state",
+              "Add onDirectionChange prop to SortSelectorProps"
+            ],
+            "props_to_add": [
+              "sortDirection: SortDirection",
+              "onDirectionChange: (direction: SortDirection) => void"
+            ]
+          },
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify that sort-selector.tsx exports SortField, SortDirection types and renders direction toggle buttons"
+          },
+          "status": "completed",
+          "notes": "Extended sort-selector.tsx with SortField and SortDirection types. Added direction toggle buttons (Newest/Oldest) following the view-toggle.tsx styling pattern. Maintained backward compatibility with SortOption alias. Commit: 136acb5",
+          "updated_at": "2025-12-24T20:31:30.956047+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-3-state-integration",
+      "name": "State Management & API Integration",
+      "type": "implementation",
+      "description": "Add sortDirection state to reports-content.tsx, update API calls, and implement client-side sorting with direction support",
+      "depends_on": [
+        "phase-1-backend",
+        "phase-2-sort-selector"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-3-1",
+          "description": "Add sortDirection state and update browseReportsPaginated API call to include sorting parameters. Update client-side sorting for search results to respect direction.",
+          "service": "main",
+          "files_to_modify": [
+            "src/app/reports/reports-content.tsx"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/app/reports/reports-content.tsx (existing state pattern at lines 22-23)"
+          ],
+          "implementation_details": {
+            "state_changes": [
+              "Import SortField, SortDirection from sort-selector",
+              "Change sortBy type from SortOption to SortField",
+              "Add: const [sortDirection, setSortDirection] = useState<SortDirection>('desc')",
+              "Reset page when sortDirection changes (add to useEffect dependency array)"
+            ],
+            "api_changes": [
+              "Add sortBy and sortDirection to browseReportsPaginated call (lines 40-67)"
+            ],
+            "client_side_sorting": [
+              "Update sorting logic at lines 134-141",
+              "Use: const multiplier = sortDirection === 'asc' ? 1 : -1",
+              "Change: results.sort((a, b) => multiplier * (a.uploadedAt - b.uploadedAt))"
+            ],
+            "props_to_pass": [
+              "Pass sortDirection and setSortDirection to SortSelector component",
+              "Pass sortDirection to ReportTable component"
+            ]
+          },
+          "verification": {
+            "type": "browser",
+            "url": "http://localhost:3000/reports",
+            "checks": [
+              "Sort direction toggle appears next to sort dropdown",
+              "Clicking ASC/DESC toggles direction and re-orders reports",
+              "Default is DESC (newest first)"
+            ]
+          },
+          "status": "completed",
+          "notes": "Added sortDirection state with default \"desc\", updated browseReportsPaginated API call to include sortBy and sortDirection parameters, implemented multiplier pattern for client-side sorting respecting direction, updated SortSelector and ReportTable props. Commit: 5575af1",
+          "updated_at": "2025-12-24T20:35:18.136529+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-4-table-headers",
+      "name": "Table Header Enhancement",
+      "type": "implementation",
+      "description": "Update SortableHeader component to toggle direction on click and show direction indicators",
+      "depends_on": [
+        "phase-3-state-integration"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Update report-table.tsx to accept sortDirection prop, modify SortableHeader click behavior to toggle direction when clicking same column, and update arrow icons to reflect direction.",
+          "service": "main",
+          "files_to_modify": [
+            "src/components/reports/report-table.tsx"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/components/reports/report-table.tsx (existing SortableHeader at lines 39-66)"
+          ],
+          "implementation_details": {
+            "props_changes": [
+              "Add sortDirection: SortDirection to ReportTableProps",
+              "Add onDirectionChange: (direction: SortDirection) => void to ReportTableProps"
+            ],
+            "sortable_header_changes": [
+              "Update onClick handler: if same column clicked, toggle direction; else set column and default to DESC",
+              "Update arrow SVG: use d='M5 15l7-7 7 7' for ASC (up), d='M19 9l-7 7-7-7' for DESC (down)",
+              "Always show arrow on active column (remove opacity toggle)"
+            ]
+          },
+          "verification": {
+            "type": "browser",
+            "url": "http://localhost:3000/reports",
+            "checks": [
+              "Switch to table view",
+              "Click Title header - sorts by recently_added DESC",
+              "Click Title header again - toggles to ASC",
+              "Click Year header - switches to published_date DESC",
+              "Arrow direction matches sort direction"
+            ]
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-5-integration",
+      "name": "Integration & Verification",
+      "type": "integration",
+      "description": "Verify all components work together and pagination maintains sort order",
+      "depends_on": [
+        "phase-4-table-headers"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "End-to-end verification of sorting functionality across all views and with pagination",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "e2e",
+            "steps": [
+              "Load /reports - verify default sort is Recently Added DESC",
+              "Toggle to ASC - verify oldest reports appear first",
+              "Switch to Published Date - verify sorting by year",
+              "Navigate to page 2 - verify sort order maintained",
+              "Switch to table view - verify header arrows match selector direction",
+              "Click table header to toggle direction - verify selector updates",
+              "Perform a search - verify client-side sorting respects direction",
+              "Clear search - verify server-side sorting resumes with correct direction"
+            ]
+          },
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_phases": 5,
+    "total_subtasks": 5,
+    "services_involved": [
+      "main"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 2,
+      "parallel_groups": [
+        {
+          "phases": [
+            "phase-1-backend",
+            "phase-2-sort-selector"
+          ],
+          "reason": "Backend API and frontend UI component can be built independently before integration"
+        }
+      ],
+      "recommended_workers": 1,
+      "speedup_estimate": "Minimal - phases have dependencies, recommend sequential for this small feature"
+    },
+    "startup_command": "source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 001 --parallel 1"
+  },
+  "verification_strategy": {
+    "risk_level": "low",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "unit"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "Sort direction toggle renders in sort selector UI",
+      "Clicking direction changes report order (visually verified)",
+      "Table headers toggle direction on repeated clicks",
+      "Arrow icons show correct direction (up for ASC, down for DESC)",
+      "Pagination maintains sort order across pages",
+      "Search results respect sort direction (client-side)",
+      "Default behavior is DESC (newest first) - backward compatible",
+      "No console errors",
+      "Convex functions deploy without errors"
+    ],
+    "verification_steps": [
+      {
+        "name": "Convex Deployment",
+        "command": "cd /Users/bobrietveld/Documents/Techleap/sodt_app && npx convex dev --once",
+        "expected_outcome": "Functions deploy successfully",
+        "type": "build",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Next.js Build",
+        "command": "cd /Users/bobrietveld/Documents/Techleap/sodt_app && npm run build",
+        "expected_outcome": "Build completes without TypeScript errors",
+        "type": "build",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "ESLint Check",
+        "command": "cd /Users/bobrietveld/Documents/Techleap/sodt_app && npm run lint",
+        "expected_outcome": "No lint errors",
+        "type": "lint",
+        "required": true,
+        "blocking": false
+      }
+    ],
+    "reasoning": "Low risk feature enhancement with no security implications. Visual verification through browser testing is primary validation method."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": false,
+      "commands": [],
+      "minimum_coverage": null,
+      "notes": "No existing test infrastructure detected. Browser verification is primary validation."
+    },
+    "integration_tests": {
+      "required": false,
+      "commands": [],
+      "services_to_test": []
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": true,
+      "pages": [
+        {
+          "url": "http://localhost:3000/reports",
+          "checks": [
+            "Sort selector renders with direction toggle",
+            "Direction toggle switches between ASC/DESC",
+            "Reports reorder when direction changes",
+            "Table view shows direction arrows on headers",
+            "Pagination maintains sort order"
+          ]
+        }
+      ]
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    }
+  },
+  "qa_signoff": null,
+  "last_updated": "2025-12-24T20:35:18.136543+00:00"
+}

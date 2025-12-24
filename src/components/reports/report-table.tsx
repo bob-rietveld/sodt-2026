@@ -47,10 +47,27 @@ export function ReportTable({ reports, sortBy, sortDirection, onSortChange, onSo
   }) => {
     const isActive = sortBy === sortKey;
 
+    const handleClick = () => {
+      if (isActive) {
+        // Toggle direction when clicking the same column
+        const newDirection = sortDirection === "desc" ? "asc" : "desc";
+        onSortDirectionChange?.(newDirection);
+      } else {
+        // Switch to new column with DESC as default
+        onSortChange?.(sortKey);
+        onSortDirectionChange?.("desc");
+      }
+    };
+
+    // Arrow path: up for ASC, down for DESC
+    const arrowPath = isActive && sortDirection === "asc"
+      ? "M5 15l7-7 7 7"  // Up arrow
+      : "M19 9l-7 7-7-7"; // Down arrow
+
     return (
       <th
         className="text-left px-4 py-3 text-sm font-semibold text-foreground/70 cursor-pointer hover:text-foreground transition-colors group"
-        onClick={() => onSortChange?.(sortKey)}
+        onClick={handleClick}
       >
         <div className="flex items-center gap-1">
           {children}
@@ -60,7 +77,7 @@ export function ReportTable({ reports, sortBy, sortDirection, onSortChange, onSo
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={arrowPath} />
           </svg>
         </div>
       </th>

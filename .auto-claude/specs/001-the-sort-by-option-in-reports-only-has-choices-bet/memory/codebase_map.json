@@ -1,0 +1,10 @@
+{
+  "discovered_files": {
+    "convex/pdfs.ts": {
+      "description": "browseReportsPaginated query now supports sortBy (recently_added, published_date) and sortDirection (asc, desc) optional parameters. Uses multiplier pattern for direction and defaults to desc for backward compatibility.",
+      "category": "API",
+      "discovered_at": "2025-12-24T20:29:47.941856+00:00"
+    }
+  },
+  "last_updated": "2025-12-24T20:29:47.941878+00:00"
+}
