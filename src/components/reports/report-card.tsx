@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { PDF } from "@/types";
+import { BrowseReport } from "@/types";
 
 interface ReportCardProps {
-  report: PDF;
+  report: BrowseReport;
 }
 
 const continentLabels: Record<string, string> = {

@@ -5,6 +5,50 @@ import { paginationOptsValidator } from "convex/server";
 // Constants for pagination
 const DEFAULT_PAGE_SIZE = 15;
 
+// Helper: Project only fields needed for browse views (excludes heavy fields like summary)
+// This reduces data transfer significantly for list views
+type BrowseReport = {
+  _id: string;
+  _creationTime: number;
+  title: string;
+  company?: string;
+  thumbnailUrl?: string;
+  continent?: string;
+  industry?: string;
+  dateOrYear?: number | string;
+  uploadedAt: number;
+  technologyAreas?: string[];
+  keywords?: string[];
+};
+
+function toBrowseReport(report: {
+  _id: string;
+  _creationTime: number;
+  title: string;
+  company?: string;
+  thumbnailUrl?: string;
+  continent?: string;
+  industry?: string;
+  dateOrYear?: number | string;
+  uploadedAt: number;
+  technologyAreas?: string[];
+  keywords?: string[];
+}): BrowseReport {
+  return {
+    _id: report._id,
+    _creationTime: report._creationTime,
+    title: report.title,
+    company: report.company,
+    thumbnailUrl: report.thumbnailUrl,
+    continent: report.continent,
+    industry: report.industry,
+    dateOrYear: report.dateOrYear,
+    uploadedAt: report.uploadedAt,
+    technologyAreas: report.technologyAreas,
+    keywords: report.keywords,
+  };
+}
+
 // Get all PDFs with optional filters
 export const list = query({
   args: {
@@ -387,8 +431,9 @@ export const fullTextSearchPaginated = query({
       const startIndex = (page - 1) * pageSize;
       const paginatedResults = results.slice(startIndex, startIndex + pageSize);
 
+      // Project only fields needed for browse (excludes summary, keyFindings, etc.)
       return {
-        reports: paginatedResults,
+        reports: paginatedResults.map(toBrowseReport),
         totalCount,
         totalPages,
         currentPage: page,
@@ -508,8 +553,9 @@ export const fullTextSearchPaginated = query({
     const startIndex = (page - 1) * pageSize;
     const paginatedResults = combinedResults.slice(startIndex, startIndex + pageSize);
 
+    // Project only fields needed for browse (excludes summary, keyFindings, etc.)
     return {
-      reports: paginatedResults,
+      reports: paginatedResults.map(toBrowseReport),
       totalCount,
       totalPages,
       currentPage: page,
@@ -923,8 +969,9 @@ export const browseReportsPaginated = query({
       allReports.sort((a, b) => b.uploadedAt - a.uploadedAt);
       const paginatedResults = allReports.slice(startIndex, startIndex + pageSize);
 
+      // Project only fields needed for browse (excludes summary, keyFindings, etc.)
       return {
-        reports: paginatedResults,
+        reports: paginatedResults.map(toBrowseReport),
         totalCount,
         totalPages,
         currentPage: page,
@@ -986,8 +1033,9 @@ export const browseReportsPaginated = query({
     const endIndex = startIndex + pageSize;
     const paginatedResults = results.slice(startIndex, endIndex);
 
+    // Project only fields needed for browse (excludes summary, keyFindings, etc.)
     return {
-      reports: paginatedResults,
+      reports: paginatedResults.map(toBrowseReport),
       totalCount,
       totalPages,
       currentPage: page,

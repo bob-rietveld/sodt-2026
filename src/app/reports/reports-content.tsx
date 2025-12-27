@@ -10,7 +10,7 @@ import { ReportTable } from "@/components/reports/report-table";
 import { ViewToggle, ViewMode } from "@/components/reports/view-toggle";
 import { SortSelector, SortOption } from "@/components/reports/sort-selector";
 import { Header } from "@/components/ui/header";
-import { PDF } from "@/types";
+import { BrowseReport } from "@/types";
 
 const PAGE_SIZE = 15;
 
@@ -112,7 +112,7 @@ function ReportsContentInner() {
   const reports = useMemo(() => {
     const results = filters.search ? searchResults : browseResults;
     if (results) {
-      return results.reports as PDF[];
+      return results.reports as BrowseReport[];
     }
     return undefined;
   }, [filters.search, searchResults, browseResults]);
@@ -291,7 +291,7 @@ function ReportsContentInner() {
             {reports && (
               viewMode === "card" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {reports.map((report: PDF) => (
+                  {reports.map((report) => (
                     <ReportCard key={report._id} report={report} />
                   ))}
 
