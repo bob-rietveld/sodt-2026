@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { PDF } from "@/types";
+import { BrowseReport } from "@/types";
 import { SortOption } from "./sort-selector";
 
 interface ReportTableProps {
-  reports: PDF[];
+  reports: BrowseReport[];
   sortBy?: SortOption;
   onSortChange?: (sort: SortOption) => void;
 }

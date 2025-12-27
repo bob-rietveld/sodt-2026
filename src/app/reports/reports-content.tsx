@@ -10,7 +10,7 @@ import { ReportTable } from "@/components/reports/report-table";
 import { ViewToggle, ViewMode } from "@/components/reports/view-toggle";
 import { SortSelector, SortOption } from "@/components/reports/sort-selector";
 import { Header } from "@/components/ui/header";
-import { PDF } from "@/types";
+import { BrowseReport } from "@/types";
 
 const PAGE_SIZE = 15;
 
@@ -22,21 +22,47 @@ function ReportsContentInner() {
   const [sortBy, setSortBy] = useState<SortOption>("recently_added");
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Reset page when filters change
+  // Reset page when filters or sort changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters.continent, filters.industry, filters.company, filters.year, filters.technologyAreas, filters.keywords, filters.search]);
+  }, [filters.continent, filters.industry, filters.company, filters.year, filters.technologyAreas, filters.keywords, filters.search, sortBy]);
 
   // Fetch filter options
   const filterOptions = useQuery(api.pdfs.getFilterOptions);
 
-  // Use fullTextSearch when there's a search query (not paginated for now as search is limited)
+  // Use unified paginated search for search queries (with server-side filtering and sorting)
   const searchResults = useQuery(
-    api.pdfs.fullTextSearch,
-    filters.search ? { query: filters.search } : "skip"
+    api.pdfs.fullTextSearchPaginated,
+    filters.search
+      ? {
+          query: filters.search,
+          continent: filters.continent as
+            | "us"
+            | "eu"
+            | "asia"
+            | "global"
+            | "other"
+            | undefined,
+          industry: filters.industry as
+            | "semicon"
+            | "deeptech"
+            | "biotech"
+            | "fintech"
+            | "cleantech"
+            | "other"
+            | undefined,
+          company: filters.company,
+          year: filters.year,
+          technologyAreas: filters.technologyAreas,
+          keywords: filters.keywords,
+          page: currentPage,
+          pageSize: PAGE_SIZE,
+          sortBy: sortBy,
+        }
+      : "skip"
   );
 
-  // Use paginated browse for non-search queries
+  // Use paginated browse for non-search queries (with server-side filtering and sorting)
   const browseResults = useQuery(
     api.pdfs.browseReportsPaginated,
     !filters.search
@@ -62,86 +88,34 @@ function ReportsContentInner() {
           keywords: filters.keywords,
           page: currentPage,
           pageSize: PAGE_SIZE,
+          sortBy: sortBy,
         }
       : "skip"
   );
 
-  // Helper function to get year from dateOrYear field (handles both string and number)
-  const getYear = (dateOrYear: number | string | undefined): number => {
-    if (typeof dateOrYear === "number") return dateOrYear;
-    if (typeof dateOrYear === "string") {
-      const parsed = parseInt(dateOrYear, 10);
-      return isNaN(parsed) ? 0 : parsed;
-    }
-    return 0;
-  };
-
-  // Pagination info for non-search browse
+  // Unified pagination info for both search and browse modes
   const paginationInfo = useMemo(() => {
-    if (!filters.search && browseResults) {
+    const results = filters.search ? searchResults : browseResults;
+    if (results) {
       return {
-        totalCount: browseResults.totalCount,
-        totalPages: browseResults.totalPages,
-        currentPage: browseResults.currentPage,
-        hasNextPage: browseResults.hasNextPage,
-        hasPreviousPage: browseResults.hasPreviousPage,
+        totalCount: results.totalCount,
+        totalPages: results.totalPages,
+        currentPage: results.currentPage,
+        hasNextPage: results.hasNextPage,
+        hasPreviousPage: results.hasPreviousPage,
       };
     }
     return null;
-  }, [filters.search, browseResults]);
+  }, [filters.search, searchResults, browseResults]);
 
-  // Apply metadata filters to search results if needed, then sort
+  // Get reports from either search or browse results (both now use same format)
   const reports = useMemo(() => {
-    let results: PDF[] | undefined;
-
-    if (filters.search && searchResults) {
-      let filtered = [...searchResults];
-
-      // Apply metadata filters on top of search results
-      if (filters.continent) {
-        filtered = filtered.filter((r) => r.continent === filters.continent);
-      }
-      if (filters.industry) {
-        filtered = filtered.filter((r) => r.industry === filters.industry);
-      }
-      if (filters.company) {
-        filtered = filtered.filter((r) =>
-          r.company?.toLowerCase().includes(filters.company!.toLowerCase())
-        );
-      }
-      if (filters.year) {
-        filtered = filtered.filter((r) => r.dateOrYear === filters.year);
-      }
-      // Filter by technology areas (report must have at least one of the selected areas)
-      if (filters.technologyAreas && filters.technologyAreas.length > 0) {
-        filtered = filtered.filter((r) =>
-          r.technologyAreas?.some((area) => filters.technologyAreas!.includes(area))
-        );
-      }
-      // Filter by keywords (report must have at least one of the selected keywords)
-      if (filters.keywords && filters.keywords.length > 0) {
-        filtered = filtered.filter((r) =>
-          r.keywords?.some((keyword) => filters.keywords!.includes(keyword))
-        );
-      }
-
-      results = filtered;
-    } else if (browseResults) {
-      // Use paginated results directly (already sorted on server)
-      results = browseResults.reports as PDF[];
+    const results = filters.search ? searchResults : browseResults;
+    if (results) {
+      return results.reports as BrowseReport[];
     }
-
-    // Apply sorting for search results only (browse results are sorted on server)
-    if (results && filters.search) {
-      if (sortBy === "recently_added") {
-        results.sort((a, b) => b.uploadedAt - a.uploadedAt);
-      } else if (sortBy === "published_date") {
-        results.sort((a, b) => getYear(b.dateOrYear) - getYear(a.dateOrYear));
-      }
-    }
-
-    return results;
-  }, [filters, searchResults, browseResults, sortBy]);
+    return undefined;
+  }, [filters.search, searchResults, browseResults]);
 
   // Handle search submission
   const handleSearch = (e: React.FormEvent) => {
@@ -317,7 +291,7 @@ function ReportsContentInner() {
             {reports && (
               viewMode === "card" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {reports.map((report: PDF) => (
+                  {reports.map((report) => (
                     <ReportCard key={report._id} report={report} />
                   ))}
 

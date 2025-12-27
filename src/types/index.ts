@@ -2,6 +2,22 @@
 // These match the Convex schema definitions
 import type { Id } from "../../convex/_generated/dataModel";
 
+// Lightweight type for browse/list views - excludes heavy fields like summary
+// This is the minimal set of fields needed to display report cards/tables
+export interface BrowseReport {
+  _id: Id<"pdfs">;
+  _creationTime?: number;
+  title: string;
+  company?: string;
+  thumbnailUrl?: string;
+  continent?: "us" | "eu" | "asia" | "global" | "other";
+  industry?: "semicon" | "deeptech" | "biotech" | "fintech" | "cleantech" | "other";
+  dateOrYear?: number | string;
+  uploadedAt: number;
+  technologyAreas?: string[];
+  keywords?: string[];
+}
+
 export interface PDF {
   _id: Id<"pdfs">;
   title: string;

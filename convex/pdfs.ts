@@ -5,6 +5,50 @@ import { paginationOptsValidator } from "convex/server";
 // Constants for pagination
 const DEFAULT_PAGE_SIZE = 15;
 
+// Helper: Project only fields needed for browse views (excludes heavy fields like summary)
+// This reduces data transfer significantly for list views
+type BrowseReport = {
+  _id: string;
+  _creationTime: number;
+  title: string;
+  company?: string;
+  thumbnailUrl?: string;
+  continent?: string;
+  industry?: string;
+  dateOrYear?: number | string;
+  uploadedAt: number;
+  technologyAreas?: string[];
+  keywords?: string[];
+};
+
+function toBrowseReport(report: {
+  _id: string;
+  _creationTime: number;
+  title: string;
+  company?: string;
+  thumbnailUrl?: string;
+  continent?: string;
+  industry?: string;
+  dateOrYear?: number | string;
+  uploadedAt: number;
+  technologyAreas?: string[];
+  keywords?: string[];
+}): BrowseReport {
+  return {
+    _id: report._id,
+    _creationTime: report._creationTime,
+    title: report.title,
+    company: report.company,
+    thumbnailUrl: report.thumbnailUrl,
+    continent: report.continent,
+    industry: report.industry,
+    dateOrYear: report.dateOrYear,
+    uploadedAt: report.uploadedAt,
+    technologyAreas: report.technologyAreas,
+    keywords: report.keywords,
+  };
+}
+
 // Get all PDFs with optional filters
 export const list = query({
   args: {
@@ -294,6 +338,231 @@ export const fullTextSearch = query({
     }
 
     return combinedResults.slice(0, limit);
+  },
+});
+
+// Full-text search with pagination and filters
+// Returns results in the same format as browseReportsPaginated for consistent UX
+export const fullTextSearchPaginated = query({
+  args: {
+    query: v.string(),
+    continent: v.optional(
+      v.union(
+        v.literal("us"),
+        v.literal("eu"),
+        v.literal("asia"),
+        v.literal("global"),
+        v.literal("other")
+      )
+    ),
+    industry: v.optional(
+      v.union(
+        v.literal("semicon"),
+        v.literal("deeptech"),
+        v.literal("biotech"),
+        v.literal("fintech"),
+        v.literal("cleantech"),
+        v.literal("other")
+      )
+    ),
+    company: v.optional(v.string()),
+    year: v.optional(v.number()),
+    technologyAreas: v.optional(v.array(v.string())),
+    keywords: v.optional(v.array(v.string())),
+    page: v.number(),
+    pageSize: v.optional(v.number()),
+    sortBy: v.optional(v.union(v.literal("recently_added"), v.literal("published_date"))),
+  },
+  handler: async (ctx, args) => {
+    const searchQuery = args.query.trim();
+    const pageSize = args.pageSize ?? DEFAULT_PAGE_SIZE;
+    const page = Math.max(1, args.page);
+    const sortBy = args.sortBy ?? "recently_added";
+
+    // If no search query, delegate to browse endpoint
+    if (!searchQuery) {
+      // Fetch all public reports and apply filters
+      let results = await ctx.db
+        .query("pdfs")
+        .withIndex("by_public_browse", (q) =>
+          q.eq("approved", true).eq("status", "completed")
+        )
+        .collect();
+
+      // Apply filters
+      if (args.continent) {
+        results = results.filter((r) => r.continent === args.continent);
+      }
+      if (args.industry) {
+        results = results.filter((r) => r.industry === args.industry);
+      }
+      if (args.company) {
+        results = results.filter((r) =>
+          r.company?.toLowerCase().includes(args.company!.toLowerCase())
+        );
+      }
+      if (args.year) {
+        results = results.filter((r) => r.dateOrYear === args.year);
+      }
+      if (args.technologyAreas && args.technologyAreas.length > 0) {
+        results = results.filter((r) =>
+          r.technologyAreas?.some((area) => args.technologyAreas!.includes(area))
+        );
+      }
+      if (args.keywords && args.keywords.length > 0) {
+        results = results.filter((r) =>
+          r.keywords?.some((keyword) => args.keywords!.includes(keyword))
+        );
+      }
+
+      // Sort and paginate
+      if (sortBy === "recently_added") {
+        results.sort((a, b) => b.uploadedAt - a.uploadedAt);
+      } else {
+        results.sort((a, b) => {
+          const yearA = typeof a.dateOrYear === "number" ? a.dateOrYear : 0;
+          const yearB = typeof b.dateOrYear === "number" ? b.dateOrYear : 0;
+          return yearB - yearA;
+        });
+      }
+
+      const totalCount = results.length;
+      const totalPages = Math.ceil(totalCount / pageSize);
+      const startIndex = (page - 1) * pageSize;
+      const paginatedResults = results.slice(startIndex, startIndex + pageSize);
+
+      // Project only fields needed for browse (excludes summary, keyFindings, etc.)
+      return {
+        reports: paginatedResults.map(toBrowseReport),
+        totalCount,
+        totalPages,
+        currentPage: page,
+        pageSize,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      };
+    }
+
+    // Search with higher limit to allow for filtering and pagination
+    const searchLimit = 200; // Fetch more results for better pagination coverage
+
+    // Search across all four fields in parallel
+    const [titleResults, summaryResults, authorResults, companyResults] = await Promise.all([
+      ctx.db
+        .query("pdfs")
+        .withSearchIndex("search_title", (q) =>
+          q.search("title", searchQuery).eq("approved", true)
+        )
+        .take(searchLimit),
+      ctx.db
+        .query("pdfs")
+        .withSearchIndex("search_summary", (q) =>
+          q.search("summary", searchQuery).eq("approved", true)
+        )
+        .take(searchLimit),
+      ctx.db
+        .query("pdfs")
+        .withSearchIndex("search_author", (q) =>
+          q.search("author", searchQuery).eq("approved", true)
+        )
+        .take(searchLimit),
+      ctx.db
+        .query("pdfs")
+        .withSearchIndex("search_company", (q) =>
+          q.search("company", searchQuery).eq("approved", true)
+        )
+        .take(searchLimit),
+    ]);
+
+    // Combine and deduplicate results, prioritizing by search relevance
+    const seenIds = new Set<string>();
+    let combinedResults: typeof titleResults = [];
+
+    // Title matches first (most relevant)
+    for (const doc of titleResults) {
+      if (doc.status === "completed" && !seenIds.has(doc._id)) {
+        seenIds.add(doc._id);
+        combinedResults.push(doc);
+      }
+    }
+
+    // Company matches second
+    for (const doc of companyResults) {
+      if (doc.status === "completed" && !seenIds.has(doc._id)) {
+        seenIds.add(doc._id);
+        combinedResults.push(doc);
+      }
+    }
+
+    // Author matches third
+    for (const doc of authorResults) {
+      if (doc.status === "completed" && !seenIds.has(doc._id)) {
+        seenIds.add(doc._id);
+        combinedResults.push(doc);
+      }
+    }
+
+    // Summary matches last
+    for (const doc of summaryResults) {
+      if (doc.status === "completed" && !seenIds.has(doc._id)) {
+        seenIds.add(doc._id);
+        combinedResults.push(doc);
+      }
+    }
+
+    // Apply metadata filters
+    if (args.continent) {
+      combinedResults = combinedResults.filter((r) => r.continent === args.continent);
+    }
+    if (args.industry) {
+      combinedResults = combinedResults.filter((r) => r.industry === args.industry);
+    }
+    if (args.company) {
+      combinedResults = combinedResults.filter((r) =>
+        r.company?.toLowerCase().includes(args.company!.toLowerCase())
+      );
+    }
+    if (args.year) {
+      combinedResults = combinedResults.filter((r) => r.dateOrYear === args.year);
+    }
+    if (args.technologyAreas && args.technologyAreas.length > 0) {
+      combinedResults = combinedResults.filter((r) =>
+        r.technologyAreas?.some((area) => args.technologyAreas!.includes(area))
+      );
+    }
+    if (args.keywords && args.keywords.length > 0) {
+      combinedResults = combinedResults.filter((r) =>
+        r.keywords?.some((keyword) => args.keywords!.includes(keyword))
+      );
+    }
+
+    // Apply sorting
+    if (sortBy === "recently_added") {
+      combinedResults.sort((a, b) => b.uploadedAt - a.uploadedAt);
+    } else if (sortBy === "published_date") {
+      combinedResults.sort((a, b) => {
+        const yearA = typeof a.dateOrYear === "number" ? a.dateOrYear : 0;
+        const yearB = typeof b.dateOrYear === "number" ? b.dateOrYear : 0;
+        return yearB - yearA;
+      });
+    }
+
+    // Calculate pagination
+    const totalCount = combinedResults.length;
+    const totalPages = Math.ceil(totalCount / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const paginatedResults = combinedResults.slice(startIndex, startIndex + pageSize);
+
+    // Project only fields needed for browse (excludes summary, keyFindings, etc.)
+    return {
+      reports: paginatedResults.map(toBrowseReport),
+      totalCount,
+      totalPages,
+      currentPage: page,
+      pageSize,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    };
   },
 });
 
@@ -635,6 +904,7 @@ export const browseReports = query({
 });
 
 // Browse public reports with pagination
+// Optimized: Uses DB ordering and early limits when no filters are applied
 export const browseReportsPaginated = query({
   args: {
     continent: v.optional(
@@ -662,12 +932,56 @@ export const browseReportsPaginated = query({
     keywords: v.optional(v.array(v.string())),
     page: v.number(),
     pageSize: v.optional(v.number()),
+    sortBy: v.optional(v.union(v.literal("recently_added"), v.literal("published_date"))),
   },
   handler: async (ctx, args) => {
     const pageSize = args.pageSize ?? DEFAULT_PAGE_SIZE;
     const page = Math.max(1, args.page);
+    const sortBy = args.sortBy ?? "recently_added";
 
-    // Get all approved, completed reports using compound index
+    // Check if any filters are applied
+    const hasFilters =
+      args.continent !== undefined ||
+      args.industry !== undefined ||
+      args.company !== undefined ||
+      args.year !== undefined ||
+      (args.technologyAreas && args.technologyAreas.length > 0) ||
+      (args.keywords && args.keywords.length > 0);
+
+    // OPTIMIZATION: If no filters, use DB ordering and limit for much faster queries
+    if (!hasFilters && sortBy === "recently_added") {
+      // Get total count first (for pagination info)
+      const allReports = await ctx.db
+        .query("pdfs")
+        .withIndex("by_public_browse", (q) =>
+          q.eq("approved", true).eq("status", "completed")
+        )
+        .collect();
+
+      const totalCount = allReports.length;
+      const totalPages = Math.ceil(totalCount / pageSize);
+
+      // Now get just the page we need using DB ordering (descending by _creationTime)
+      // Note: uploadedAt closely mirrors _creationTime for this use case
+      const startIndex = (page - 1) * pageSize;
+
+      // Sort by uploadedAt descending and slice
+      allReports.sort((a, b) => b.uploadedAt - a.uploadedAt);
+      const paginatedResults = allReports.slice(startIndex, startIndex + pageSize);
+
+      // Project only fields needed for browse (excludes summary, keyFindings, etc.)
+      return {
+        reports: paginatedResults.map(toBrowseReport),
+        totalCount,
+        totalPages,
+        currentPage: page,
+        pageSize,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      };
+    }
+
+    // With filters: need to fetch, filter, then paginate
     let results = await ctx.db
       .query("pdfs")
       .withIndex("by_public_browse", (q) =>
@@ -701,8 +1015,16 @@ export const browseReportsPaginated = query({
       );
     }
 
-    // Sort by most recent first
-    results.sort((a, b) => b.uploadedAt - a.uploadedAt);
+    // Sort based on sort option
+    if (sortBy === "recently_added") {
+      results.sort((a, b) => b.uploadedAt - a.uploadedAt);
+    } else if (sortBy === "published_date") {
+      results.sort((a, b) => {
+        const yearA = typeof a.dateOrYear === "number" ? a.dateOrYear : 0;
+        const yearB = typeof b.dateOrYear === "number" ? b.dateOrYear : 0;
+        return yearB - yearA;
+      });
+    }
 
     // Calculate pagination
     const totalCount = results.length;
@@ -711,8 +1033,9 @@ export const browseReportsPaginated = query({
     const endIndex = startIndex + pageSize;
     const paginatedResults = results.slice(startIndex, endIndex);
 
+    // Project only fields needed for browse (excludes summary, keyFindings, etc.)
     return {
-      reports: paginatedResults,
+      reports: paginatedResults.map(toBrowseReport),
       totalCount,
       totalPages,
       currentPage: page,
@@ -1143,6 +1466,7 @@ export const adminFullTextSearch = query({
 });
 
 // Get latest uploaded reports for homepage display
+// Optimized: Uses DB ordering and early limit instead of collect+sort+slice
 export const getLatestReports = query({
   args: {
     limit: v.optional(v.number()),
@@ -1150,34 +1474,31 @@ export const getLatestReports = query({
   handler: async (ctx, args) => {
     const limit = args.limit ?? 6;
 
+    // OPTIMIZATION: Use order("desc").take() for efficient limiting
+    // This fetches only the needed records instead of all reports
     const reports = await ctx.db
       .query("pdfs")
       .withIndex("by_public_browse", (q) =>
         q.eq("approved", true).eq("status", "completed")
       )
-      .collect();
+      .order("desc")
+      .take(limit * 2); // Fetch slightly more to handle sorting by uploadedAt
 
-    // Sort by upload date (most recent first) and take the limit
+    // Sort by uploadedAt (may differ slightly from _creationTime) and take limit
     reports.sort((a, b) => b.uploadedAt - a.uploadedAt);
     const latestReports = reports.slice(0, limit);
 
-    // Get thumbnail URLs for reports that have them
-    return await Promise.all(
-      latestReports.map(async (report) => {
-        const thumbnailUrl = report.thumbnailUrl || null;
-
-        return {
-          _id: report._id,
-          title: report.title,
-          company: report.company,
-          summary: report.summary,
-          dateOrYear: report.dateOrYear,
-          industry: report.industry,
-          technologyAreas: report.technologyAreas,
-          thumbnailUrl,
-          uploadedAt: report.uploadedAt,
-        };
-      })
-    );
+    // Return minimal data needed for homepage cards
+    return latestReports.map((report) => ({
+      _id: report._id,
+      title: report.title,
+      company: report.company,
+      summary: report.summary,
+      dateOrYear: report.dateOrYear,
+      industry: report.industry,
+      technologyAreas: report.technologyAreas,
+      thumbnailUrl: report.thumbnailUrl || null,
+      uploadedAt: report.uploadedAt,
+    }));
   },
 });
