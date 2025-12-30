@@ -206,7 +206,13 @@ export async function POST(request: NextRequest) {
 
 ### 2.3 Create Browser Analytics Client
 
-The client sends events to our API route (not directly to Tinybird):
+The client batches events and sends them periodically to reduce API calls. With 10-minute acceptable latency, we use aggressive batching.
+
+**Batching Strategy:**
+- **Flush interval**: 5 minutes (reduces API calls significantly)
+- **Max batch size**: 100 events (flush early if high activity)
+- **Page unload**: Always flush via `sendBeacon` (never lose events)
+- **Visibility change**: Flush when tab goes hidden (user might close)
 
 ```typescript
 // src/lib/analytics/tinybird-client.ts
@@ -215,24 +221,33 @@ import { TinybirdEvent } from './types';
 
 class TinybirdClient {
   private eventQueue: TinybirdEvent[] = [];
-  private flushInterval: number = 1000; // 1 second
-  private maxBatchSize: number = 25;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
 
+  // Batching configuration - optimized for low latency requirements
+  private readonly config = {
+    flushIntervalMs: 5 * 60 * 1000,  // 5 minutes - acceptable latency
+    maxBatchSize: 100,                // Flush if queue gets large
+    maxRetryQueue: 200,               // Don't grow queue infinitely on errors
+  };
+
   constructor() {
-    // Auto-flush queue periodically (browser only)
-    if (typeof window !== 'undefined') {
-      this.flushTimer = setInterval(() => this.flush(), this.flushInterval);
+    if (typeof window === 'undefined') return;
 
-      // Flush on page unload using sendBeacon for reliability
-      window.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-          this.flushWithBeacon();
-        }
-      });
+    // Periodic flush every 5 minutes
+    this.flushTimer = setInterval(() => this.flush(), this.config.flushIntervalMs);
 
-      window.addEventListener('beforeunload', () => this.flushWithBeacon());
-    }
+    // Flush when user leaves/hides tab (critical - don't lose events)
+    window.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        this.flushWithBeacon();
+      }
+    });
+
+    // Flush on page unload
+    window.addEventListener('beforeunload', () => this.flushWithBeacon());
+
+    // Also flush on pagehide (iOS Safari)
+    window.addEventListener('pagehide', () => this.flushWithBeacon());
   }
 
   private async sendEvents(events: TinybirdEvent[]): Promise<void> {
@@ -247,31 +262,41 @@ class TinybirdClient {
     }
   }
 
-  // Use sendBeacon for page unload - more reliable
+  // Use sendBeacon for page unload - more reliable than fetch
   private flushWithBeacon(): void {
     if (this.eventQueue.length === 0) return;
 
     const events = [...this.eventQueue];
     this.eventQueue = [];
 
-    // sendBeacon is more reliable for page unload
     if (navigator.sendBeacon) {
       const blob = new Blob([JSON.stringify(events)], { type: 'application/json' });
-      navigator.sendBeacon('/api/analytics', blob);
+      const success = navigator.sendBeacon('/api/analytics', blob);
+      if (!success) {
+        // sendBeacon can fail if payload too large, fallback to fetch
+        this.fallbackFetch(events);
+      }
     } else {
-      // Fallback to fetch with keepalive
-      fetch('/api/analytics', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(events),
-        keepalive: true,
-      }).catch(() => {});
+      this.fallbackFetch(events);
     }
+  }
+
+  private fallbackFetch(events: TinybirdEvent[]): void {
+    fetch('/api/analytics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(events),
+      keepalive: true, // Allows request to outlive the page
+    }).catch(() => {
+      // Silent fail on page unload - nothing we can do
+    });
   }
 
   queue(event: TinybirdEvent): void {
     this.eventQueue.push(event);
-    if (this.eventQueue.length >= this.maxBatchSize) {
+
+    // Flush early if we hit max batch size (high activity page)
+    if (this.eventQueue.length >= this.config.maxBatchSize) {
       this.flush();
     }
   }
@@ -285,17 +310,32 @@ class TinybirdClient {
     try {
       await this.sendEvents(events);
     } catch (error) {
-      console.error('Failed to flush events:', error);
+      console.error('Failed to flush analytics events:', error);
       // Re-queue failed events (with limit to prevent infinite growth)
-      if (this.eventQueue.length < 100) {
+      if (this.eventQueue.length < this.config.maxRetryQueue) {
         this.eventQueue.push(...events);
       }
     }
+  }
+
+  // For testing/debugging
+  getQueueLength(): number {
+    return this.eventQueue.length;
   }
 }
 
 export const tinybirdClient = new TinybirdClient();
 ```
+
+**Why this batching approach:**
+
+| Scenario | Behavior |
+|----------|----------|
+| Normal browsing | Events queue up, flush every 5 min |
+| High activity | Auto-flush at 100 events |
+| User closes tab | `sendBeacon` sends all queued events |
+| User switches tabs | Flush on visibility hidden |
+| Network error | Re-queue events, retry next flush |
 
 ### 2.4 Create Event Builder Utilities (Anonymous-First)
 
