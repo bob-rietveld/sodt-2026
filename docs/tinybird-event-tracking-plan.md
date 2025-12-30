@@ -2,7 +2,15 @@
 
 ## Overview
 
-This plan outlines the implementation of a comprehensive event tracking system using Tinybird for the TechStaple platform. The focus is on **ingestion first**, with a uniform event format that makes it easy to track user-level events like clicks, report views, downloads, and more.
+This plan outlines the implementation of a comprehensive event tracking system using Tinybird for the TechStaple platform. The focus is on **ingestion first**, with a uniform event format optimized for **public-facing analytics** where most visitors are anonymous (not logged in).
+
+### Key Design Principles
+
+1. **Anonymous-First**: Tracking works without authentication; user_id is optional enrichment
+2. **Visitor Identification**: Persistent visitor ID via localStorage for cross-session tracking
+3. **Session Tracking**: Session ID via sessionStorage for single-visit analysis
+4. **Privacy-Compliant**: Hashed IPs, no PII, cookie-less identification option
+5. **Public Page Focus**: Optimized for reports browse, report detail, search, and homepage
 
 ---
 
@@ -21,9 +29,9 @@ This plan outlines the implementation of a comprehensive event tracking system u
   ```
 - [ ] Add tokens to Vercel/production environment
 
-### 1.2 Define Uniform Event Schema
+### 1.2 Define Uniform Event Schema (Anonymous-First)
 
-Create a standardized event format that all events will follow:
+Create a standardized event format optimized for anonymous public visitors:
 
 ```typescript
 // src/lib/analytics/types.ts
@@ -34,9 +42,12 @@ export interface TinybirdEvent {
   event_name: string;         // e.g., "report_view", "download_click", "search_query"
   event_category: string;     // e.g., "engagement", "navigation", "conversion"
 
-  // User context
-  user_id: string | null;     // Clerk user ID (null for anonymous)
-  session_id: string;         // Browser session ID
+  // Anonymous visitor identification (PRIMARY)
+  visitor_id: string;         // Persistent ID stored in localStorage (cross-session)
+  session_id: string;         // Session ID stored in sessionStorage (single visit)
+
+  // Authenticated user (OPTIONAL - only when logged in)
+  user_id: string | null;     // Clerk user ID (null for anonymous visitors)
 
   // Temporal
   timestamp: string;          // ISO 8601 format
@@ -46,6 +57,11 @@ export interface TinybirdEvent {
   page_title: string;         // e.g., "Annual Tech Report 2024"
   referrer: string | null;    // Previous page or external referrer
 
+  // Marketing attribution
+  utm_source: string | null;  // e.g., "google", "newsletter"
+  utm_medium: string | null;  // e.g., "cpc", "email"
+  utm_campaign: string | null; // e.g., "spring_2024"
+
   // Event-specific properties (flexible JSON)
   properties: Record<string, unknown>;
 
@@ -54,13 +70,19 @@ export interface TinybirdEvent {
   device_type: string;        // "desktop", "mobile", "tablet"
   browser: string;            // "Chrome", "Firefox", etc.
   os: string;                 // "Windows", "macOS", "iOS", etc.
+  screen_width: number;       // Viewport width
+  screen_height: number;      // Viewport height
 
   // Privacy-safe location
   ip_hash: string;            // SHA-256 hashed IP
-  country?: string;           // Derived from IP (optional)
+  country?: string;           // Derived from IP (optional, server-side)
 
   // Performance
   response_time_ms?: number;  // For timed events
+
+  // Visit context
+  is_new_visitor: boolean;    // First time seeing this visitor_id
+  is_new_session: boolean;    // First event in this session
 }
 ```
 
@@ -74,24 +96,32 @@ SCHEMA >
     `event_id` String,
     `event_name` String,
     `event_category` String,
-    `user_id` Nullable(String),
+    `visitor_id` String,
     `session_id` String,
+    `user_id` Nullable(String),
     `timestamp` DateTime64(3),
     `page_path` String,
     `page_title` String,
     `referrer` Nullable(String),
+    `utm_source` Nullable(String),
+    `utm_medium` Nullable(String),
+    `utm_campaign` Nullable(String),
     `properties` String,  -- JSON string
     `user_agent` String,
     `device_type` String,
     `browser` String,
     `os` String,
+    `screen_width` Int16,
+    `screen_height` Int16,
     `ip_hash` String,
     `country` Nullable(String),
-    `response_time_ms` Nullable(Int32)
+    `response_time_ms` Nullable(Int32),
+    `is_new_visitor` UInt8,
+    `is_new_session` UInt8
 
 ENGINE "MergeTree"
 ENGINE_PARTITION_KEY "toYYYYMM(timestamp)"
-ENGINE_SORTING_KEY "timestamp, event_name, user_id"
+ENGINE_SORTING_KEY "timestamp, event_name, visitor_id"
 ENGINE_TTL "timestamp + toIntervalDay(365)"
 ```
 
@@ -173,14 +203,20 @@ class TinybirdClient {
 export const tinybirdClient = new TinybirdClient();
 ```
 
-### 2.2 Create Event Builder Utilities
+### 2.2 Create Event Builder Utilities (Anonymous-First)
 
 ```typescript
 // src/lib/analytics/event-builder.ts
 
 import { TinybirdEvent } from './types';
 import { v4 as uuidv4 } from 'uuid';
-import { hashIP, parseUserAgent, getSessionId } from './utils';
+import {
+  getVisitorId,
+  getSessionId,
+  getUTMParams,
+  getScreenDimensions,
+  parseUserAgent
+} from './utils';
 
 export function createEvent(
   eventName: string,
@@ -191,23 +227,58 @@ export function createEvent(
   const ua = typeof window !== 'undefined' ? window.navigator.userAgent : '';
   const parsed = parseUserAgent(ua);
 
+  // Get anonymous visitor identifiers
+  const { visitorId, isNew: isNewVisitor } = getVisitorId();
+  const { sessionId, isNewSession } = getSessionId();
+  const utmParams = getUTMParams();
+  const screen = getScreenDimensions();
+
   return {
     event_id: uuidv4(),
     event_name: eventName,
     event_category: category,
+
+    // Anonymous identification (primary)
+    visitor_id: visitorId,
+    session_id: sessionId,
+
+    // Authenticated user (optional - set by provider)
     user_id: context?.user_id || null,
-    session_id: getSessionId(),
+
     timestamp: new Date().toISOString(),
+
+    // Page context
     page_path: typeof window !== 'undefined' ? window.location.pathname : '',
     page_title: typeof document !== 'undefined' ? document.title : '',
-    referrer: typeof document !== 'undefined' ? document.referrer : null,
+    referrer: typeof document !== 'undefined' ? document.referrer || null : null,
+
+    // Marketing attribution
+    utm_source: utmParams.utm_source,
+    utm_medium: utmParams.utm_medium,
+    utm_campaign: utmParams.utm_campaign,
+
+    // Event properties
     properties,
+
+    // Device context
     user_agent: ua,
     device_type: parsed.deviceType,
     browser: parsed.browser,
     os: parsed.os,
+    screen_width: screen.width,
+    screen_height: screen.height,
+
+    // Privacy-safe (set by server for API events)
     ip_hash: context?.ip_hash || '',
+
+    // Performance
     response_time_ms: context?.response_time_ms,
+
+    // Visit context
+    is_new_visitor: isNewVisitor,
+    is_new_session: isNewSession,
+
+    // Allow overrides
     ...context,
   };
 }
@@ -248,24 +319,92 @@ export const Events = {
 };
 ```
 
-### 2.3 Create Utility Functions
+### 2.3 Create Utility Functions (Anonymous Visitor Support)
 
 ```typescript
 // src/lib/analytics/utils.ts
 
 import { createHash } from 'crypto';
 
-const SESSION_KEY = 'ts_session_id';
+const VISITOR_KEY = 'ts_visitor_id';    // Persistent (localStorage)
+const SESSION_KEY = 'ts_session_id';    // Per-session (sessionStorage)
+const UTM_KEY = 'ts_utm_params';        // Persist UTM for session
 
-export function getSessionId(): string {
-  if (typeof window === 'undefined') return '';
+// Visitor ID - persists across sessions (localStorage)
+export function getVisitorId(): { visitorId: string; isNew: boolean } {
+  if (typeof window === 'undefined') return { visitorId: '', isNew: false };
+
+  let visitorId = localStorage.getItem(VISITOR_KEY);
+  const isNew = !visitorId;
+
+  if (!visitorId) {
+    visitorId = crypto.randomUUID();
+    localStorage.setItem(VISITOR_KEY, visitorId);
+  }
+
+  return { visitorId, isNew };
+}
+
+// Session ID - expires when browser closes (sessionStorage)
+export function getSessionId(): { sessionId: string; isNewSession: boolean } {
+  if (typeof window === 'undefined') return { sessionId: '', isNewSession: false };
 
   let sessionId = sessionStorage.getItem(SESSION_KEY);
+  const isNewSession = !sessionId;
+
   if (!sessionId) {
     sessionId = crypto.randomUUID();
     sessionStorage.setItem(SESSION_KEY, sessionId);
   }
-  return sessionId;
+
+  return { sessionId, isNewSession };
+}
+
+// UTM Parameter extraction and persistence
+export interface UTMParams {
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term?: string | null;
+  utm_content?: string | null;
+}
+
+export function getUTMParams(): UTMParams {
+  if (typeof window === 'undefined') {
+    return { utm_source: null, utm_medium: null, utm_campaign: null };
+  }
+
+  // Check if we have stored UTM params from landing
+  const stored = sessionStorage.getItem(UTM_KEY);
+  if (stored) {
+    return JSON.parse(stored);
+  }
+
+  // Extract from current URL (landing page)
+  const params = new URLSearchParams(window.location.search);
+  const utmParams: UTMParams = {
+    utm_source: params.get('utm_source'),
+    utm_medium: params.get('utm_medium'),
+    utm_campaign: params.get('utm_campaign'),
+    utm_term: params.get('utm_term'),
+    utm_content: params.get('utm_content'),
+  };
+
+  // Persist for the session if any UTM params found
+  if (utmParams.utm_source || utmParams.utm_medium || utmParams.utm_campaign) {
+    sessionStorage.setItem(UTM_KEY, JSON.stringify(utmParams));
+  }
+
+  return utmParams;
+}
+
+// Screen dimensions
+export function getScreenDimensions(): { width: number; height: number } {
+  if (typeof window === 'undefined') return { width: 0, height: 0 };
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  };
 }
 
 export function hashIP(ip: string | null): string {
@@ -307,44 +446,70 @@ export function parseUserAgent(ua: string): {
 
 ---
 
-## Phase 3: React Integration Layer
+## Phase 3: React Integration Layer (Anonymous-First)
 
 ### 3.1 Create Analytics Provider & Context
+
+The provider works **without requiring authentication** - it uses visitor_id as the primary identifier and optionally enriches with user_id when available.
 
 ```typescript
 // src/lib/analytics/analytics-provider.tsx
 
 'use client';
 
-import React, { createContext, useContext, useEffect, useCallback } from 'react';
-import { useAuth, useUser } from '@clerk/nextjs';
+import React, { createContext, useContext, useEffect, useCallback, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { tinybirdClient } from './tinybird-client';
 import { createEvent, Events } from './event-builder';
 import { TinybirdEvent } from './types';
 
 interface AnalyticsContextValue {
+  // Core tracking
   track: (eventName: string, category: string, properties?: Record<string, unknown>) => void;
+
+  // Public page events (primary use case)
   trackReportView: (reportId: string, reportTitle: string, source?: string) => void;
   trackReportDownload: (reportId: string, reportTitle: string, format: string) => void;
+  trackReportListView: (filters?: Record<string, string>) => void;
   trackSearch: (query: string, resultCount: number, searchType: 'agent' | 'chat') => void;
+  trackSearchResultClick: (query: string, reportId: string, position: number) => void;
+
+  // Interaction events
   trackClick: (elementId: string, elementText: string, location: string) => void;
+  trackFilter: (filterType: string, filterValue: string) => void;
+  trackSort: (sortField: string, sortDirection: 'asc' | 'desc') => void;
+  trackPagination: (page: number, totalPages: number) => void;
+
+  // Navigation
   trackPageView: () => void;
+
+  // Errors
   trackError: (errorType: string, errorMessage: string, stack?: string) => void;
+
+  // Optional: Set authenticated user (call when user logs in)
+  setUserId: (userId: string | null) => void;
 }
 
 const AnalyticsContext = createContext<AnalyticsContextValue | null>(null);
 
 export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
-  const { userId } = useAuth();
+  const pathname = usePathname();
+  const userIdRef = useRef<string | null>(null);
+  const lastPathRef = useRef<string>('');
+
+  // Optional: Set user ID when authenticated (doesn't block tracking)
+  const setUserId = useCallback((userId: string | null) => {
+    userIdRef.current = userId;
+  }, []);
 
   const enrichAndTrack = useCallback((event: TinybirdEvent) => {
-    // Enrich with user context
+    // Enrich with authenticated user if available (optional)
     const enrichedEvent = {
       ...event,
-      user_id: userId || null,
+      user_id: userIdRef.current,
     };
     tinybirdClient.queue(enrichedEvent);
-  }, [userId]);
+  }, []);
 
   const track = useCallback((
     eventName: string,
@@ -355,7 +520,8 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
     enrichAndTrack(event);
   }, [enrichAndTrack]);
 
-  // Pre-built tracking methods
+  // === PUBLIC PAGE TRACKING (Primary Use Case) ===
+
   const trackReportView = useCallback((reportId: string, reportTitle: string, source?: string) => {
     enrichAndTrack(Events.reportView(reportId, reportTitle, source));
   }, [enrichAndTrack]);
@@ -364,17 +530,44 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
     enrichAndTrack(Events.reportDownload(reportId, reportTitle, format));
   }, [enrichAndTrack]);
 
+  const trackReportListView = useCallback((filters?: Record<string, string>) => {
+    track('report_list_view', 'engagement', { filters: filters || {} });
+  }, [track]);
+
   const trackSearch = useCallback((query: string, resultCount: number, searchType: 'agent' | 'chat') => {
     enrichAndTrack(Events.searchQuery(query, resultCount, searchType));
   }, [enrichAndTrack]);
+
+  const trackSearchResultClick = useCallback((query: string, reportId: string, position: number) => {
+    track('search_result_click', 'engagement', { query, report_id: reportId, position });
+  }, [track]);
+
+  // === INTERACTION TRACKING ===
 
   const trackClick = useCallback((elementId: string, elementText: string, location: string) => {
     enrichAndTrack(Events.buttonClick(elementId, elementText, location));
   }, [enrichAndTrack]);
 
+  const trackFilter = useCallback((filterType: string, filterValue: string) => {
+    track('filter_applied', 'interaction', { filter_type: filterType, filter_value: filterValue });
+  }, [track]);
+
+  const trackSort = useCallback((sortField: string, sortDirection: 'asc' | 'desc') => {
+    track('sort_changed', 'interaction', { sort_field: sortField, sort_direction: sortDirection });
+  }, [track]);
+
+  const trackPagination = useCallback((page: number, totalPages: number) => {
+    track('pagination', 'interaction', { page, total_pages: totalPages });
+  }, [track]);
+
+  // === NAVIGATION ===
+
   const trackPageView = useCallback(() => {
+    if (typeof window === 'undefined') return;
     enrichAndTrack(Events.pageView(window.location.pathname, document.title));
   }, [enrichAndTrack]);
+
+  // === ERROR TRACKING ===
 
   const trackError = useCallback((errorType: string, errorMessage: string, stack?: string) => {
     enrichAndTrack(Events.error(errorType, errorMessage, stack));
@@ -382,17 +575,27 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
 
   // Auto-track page views on route changes
   useEffect(() => {
-    trackPageView();
-  }, [trackPageView]);
+    if (pathname !== lastPathRef.current) {
+      lastPathRef.current = pathname;
+      // Small delay to ensure document.title is updated
+      setTimeout(() => trackPageView(), 100);
+    }
+  }, [pathname, trackPageView]);
 
   const value: AnalyticsContextValue = {
     track,
     trackReportView,
     trackReportDownload,
+    trackReportListView,
     trackSearch,
+    trackSearchResultClick,
     trackClick,
+    trackFilter,
+    trackSort,
+    trackPagination,
     trackPageView,
     trackError,
+    setUserId,
   };
 
   return (
@@ -408,6 +611,18 @@ export function useAnalytics(): AnalyticsContextValue {
     throw new Error('useAnalytics must be used within AnalyticsProvider');
   }
   return context;
+}
+
+// Optional hook to sync Clerk auth with analytics (use in authenticated areas)
+export function useAuthenticatedAnalytics() {
+  const { setUserId } = useAnalytics();
+
+  // Call this with Clerk's userId when available
+  const syncUser = useCallback((userId: string | null) => {
+    setUserId(userId);
+  }, [setUserId]);
+
+  return { syncUser };
 }
 ```
 
@@ -748,7 +963,9 @@ await serverAnalytics.track('search_query', 'engagement', {
 
 ## Phase 6: Layout Integration
 
-### 6.1 Add Provider to Root Layout
+### 6.1 Add Provider to Root Layout (Outside Auth)
+
+The AnalyticsProvider is placed **outside** the Clerk provider so it works for all visitors, authenticated or not.
 
 ```typescript
 // src/app/layout.tsx
@@ -759,43 +976,174 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <ClerkProvider>
-          <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-            <AnalyticsProvider>
+        {/* Analytics works for ALL visitors - no auth required */}
+        <AnalyticsProvider>
+          <ClerkProvider>
+            <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
               {children}
-            </AnalyticsProvider>
-          </ConvexProviderWithClerk>
-        </ClerkProvider>
+            </ConvexProviderWithClerk>
+          </ClerkProvider>
+        </AnalyticsProvider>
       </body>
     </html>
   );
 }
 ```
 
+### 6.2 Optional: Sync Authenticated User
+
+For pages where users are logged in, optionally sync the user ID:
+
+```typescript
+// src/components/auth-analytics-sync.tsx
+'use client';
+
+import { useEffect } from 'react';
+import { useAuth } from '@clerk/nextjs';
+import { useAuthenticatedAnalytics } from '@/lib/analytics/analytics-provider';
+
+export function AuthAnalyticsSync() {
+  const { userId } = useAuth();
+  const { syncUser } = useAuthenticatedAnalytics();
+
+  useEffect(() => {
+    syncUser(userId || null);
+  }, [userId, syncUser]);
+
+  return null;
+}
+
+// Add to authenticated layouts (e.g., admin layout)
+// <AuthAnalyticsSync />
+```
+
 ---
 
-## Phase 7: Implementation Priority
+## Phase 7: Public Page Integration Examples
 
-### High Priority (Week 1)
-1. [ ] Set up Tinybird account and data source
-2. [ ] Create core analytics library (`src/lib/analytics/`)
-3. [ ] Implement `AnalyticsProvider` and context
-4. [ ] Add provider to root layout
-5. [ ] Implement page view tracking
+### 7.1 Reports Browse Page (`/reports`)
 
-### Medium Priority (Week 2)
-6. [ ] Add `trackReportView` to report pages
+```typescript
+// src/app/reports/reports-content.tsx
+'use client';
+
+import { useAnalytics } from '@/lib/analytics';
+import { useEffect } from 'react';
+
+export function ReportsContent() {
+  const { trackReportListView, trackFilter, trackSort, trackPagination } = useAnalytics();
+
+  // Track initial page load with current filters
+  useEffect(() => {
+    trackReportListView({ category: 'all', year: '2024' });
+  }, []);
+
+  const handleFilterChange = (filterType: string, value: string) => {
+    trackFilter(filterType, value);
+    // ... apply filter
+  };
+
+  const handleSortChange = (field: string, direction: 'asc' | 'desc') => {
+    trackSort(field, direction);
+    // ... apply sort
+  };
+
+  const handlePageChange = (page: number, totalPages: number) => {
+    trackPagination(page, totalPages);
+    // ... change page
+  };
+
+  return (/* ... */);
+}
+```
+
+### 7.2 Report Detail Page (`/reports/[id]`)
+
+```typescript
+// src/app/reports/[id]/report-detail.tsx
+'use client';
+
+import { useAnalytics } from '@/lib/analytics';
+import { useEffect } from 'react';
+
+interface Props {
+  report: { id: string; title: string };
+  source?: string; // "search", "browse", "direct"
+}
+
+export function ReportDetail({ report, source }: Props) {
+  const { trackReportView, trackReportDownload } = useAnalytics();
+
+  // Track report view on mount
+  useEffect(() => {
+    trackReportView(report.id, report.title, source);
+  }, [report.id]);
+
+  const handleDownload = (format: 'pdf' | 'csv') => {
+    trackReportDownload(report.id, report.title, format);
+    // ... trigger download
+  };
+
+  return (/* ... */);
+}
+```
+
+### 7.3 Search Page (`/search`)
+
+```typescript
+// src/app/search/search-content.tsx
+'use client';
+
+import { useAnalytics } from '@/lib/analytics';
+
+export function SearchContent() {
+  const { trackSearch, trackSearchResultClick } = useAnalytics();
+
+  const handleSearch = async (query: string) => {
+    const results = await performSearch(query);
+    trackSearch(query, results.length, 'agent');
+    return results;
+  };
+
+  const handleResultClick = (query: string, reportId: string, position: number) => {
+    trackSearchResultClick(query, reportId, position);
+    // ... navigate to report
+  };
+
+  return (/* ... */);
+}
+```
+
+---
+
+## Phase 8: Implementation Priority (Public-First)
+
+### High Priority - Core Infrastructure
+1. [ ] Set up Tinybird account and data source with anonymous-first schema
+2. [ ] Create `src/lib/analytics/` with visitor ID support
+3. [ ] Implement `AnalyticsProvider` (no auth dependency)
+4. [ ] Add provider to root layout (outside ClerkProvider)
+5. [ ] Implement automatic page view tracking
+
+### High Priority - Public Page Events
+6. [ ] Add `trackReportView` to report detail pages
 7. [ ] Add `trackReportDownload` to download buttons
-8. [ ] Integrate with `/api/search` endpoint
-9. [ ] Integrate with `/api/chat` endpoint
-10. [ ] Add filter/sort tracking to reports browse page
+8. [ ] Add `trackReportListView` to reports browse page
+9. [ ] Add filter/sort/pagination tracking to reports browse
+10. [ ] Integrate with `/api/search` endpoint
 
-### Lower Priority (Week 3+)
-11. [ ] Create `TrackedButton` and `TrackedLink` components
-12. [ ] Add upload event tracking
-13. [ ] Add error boundary tracking
-14. [ ] Add export event tracking
-15. [ ] Create Tinybird pipes for analytics queries
+### Medium Priority - Enhanced Tracking
+11. [ ] Add `trackSearchResultClick` for search result interactions
+12. [ ] Add UTM parameter capture on landing
+13. [ ] Add scroll depth tracking for report pages
+14. [ ] Create `TrackedButton` and `TrackedLink` components
+15. [ ] Add homepage event tracking
+
+### Lower Priority - Admin & Authenticated
+16. [ ] Add `AuthAnalyticsSync` component for authenticated areas
+17. [ ] Add admin action tracking (if needed)
+18. [ ] Add error boundary tracking
+19. [ ] Create Tinybird pipes for analytics dashboards
 
 ---
 
@@ -872,11 +1220,44 @@ await serverAnalytics.track('api_call', 'system', {
 
 ## Benefits of This Architecture
 
-1. **Uniform Format**: All events follow the same schema, making analysis consistent
-2. **User-Level Tracking**: Clerk user IDs are automatically attached to authenticated events
-3. **Privacy-First**: IP addresses are hashed, user data is minimal
-4. **Easy Integration**: Drop-in components and hooks for quick implementation
-5. **Batching**: Client-side events are batched to reduce API calls
-6. **Type Safety**: Full TypeScript support throughout
-7. **Server & Client**: Works in both environments seamlessly
-8. **Extensible**: Easy to add new event types via the `Events` object
+1. **Anonymous-First**: Works for all visitors without requiring authentication
+2. **Cross-Session Tracking**: Persistent visitor_id enables return visitor analysis
+3. **Session Analysis**: Session-based tracking for user journey analysis
+4. **Marketing Attribution**: UTM parameter capture for campaign tracking
+5. **Privacy-Compliant**: No cookies required, hashed IPs, GDPR-friendly
+6. **Uniform Format**: All events follow the same schema for consistent analysis
+7. **Easy Integration**: Drop-in hooks and components for public pages
+8. **Batching**: Client-side events are batched to reduce API calls
+9. **Type Safety**: Full TypeScript support throughout
+10. **Optional Auth**: Can enrich with user_id when authenticated (but doesn't require it)
+
+---
+
+## Key Metrics Enabled
+
+With this tracking in place, you can answer:
+
+### Visitor Metrics
+- How many unique visitors per day/week/month?
+- What's the new vs returning visitor ratio?
+- Average sessions per visitor?
+
+### Content Engagement
+- Which reports are most viewed?
+- What's the average time on report pages?
+- Which reports have the highest download rates?
+
+### Search Behavior
+- What are the most common search queries?
+- What's the click-through rate on search results?
+- Which searches lead to downloads?
+
+### Funnel Analysis
+- Browse → Report View → Download conversion rate
+- Search → Click → Download conversion rate
+- Landing page to engagement conversion
+
+### Marketing Attribution
+- Which UTM campaigns drive the most traffic?
+- Which sources have the highest engagement?
+- Campaign to conversion tracking
