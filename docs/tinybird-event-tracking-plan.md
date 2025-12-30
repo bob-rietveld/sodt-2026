@@ -129,49 +129,143 @@ ENGINE_TTL "timestamp + toIntervalDay(365)"
 
 ## Phase 2: Analytics Client Library
 
-### 2.1 Create Analytics Client
+### 2.1 Tinybird Events API Reference
+
+Based on [Tinybird Events API documentation](https://www.tinybird.co/docs/api-reference/events-api):
+
+- **Endpoint**: `POST https://api.tinybird.co/v0/events?name=<datasource_name>`
+- **Format**: NDJSON (Newline-Delimited JSON) - each event on its own line
+- **Auth**: Bearer token with `DATASOURCE:APPEND` scope
+- **Response**: `202 Accepted` (async) or `200 OK` with `?wait=true`
+- **Limit**: 10MB per request
+
+### 2.2 Create Analytics API Route (Server-Side Proxy)
+
+Since we can't expose the Tinybird token in client-side code, we create an API route to proxy events:
+
+```typescript
+// src/app/api/analytics/route.ts
+
+import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
+
+const TINYBIRD_URL = process.env.TINYBIRD_API_URL || 'https://api.tinybird.co';
+const TINYBIRD_TOKEN = process.env.TINYBIRD_INGEST_TOKEN!;
+const DATASOURCE_NAME = 'events';
+
+function hashIP(ip: string | null): string {
+  if (!ip) return '';
+  return createHash('sha256').update(ip).digest('hex').slice(0, 16);
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const events = await request.json();
+    const eventArray = Array.isArray(events) ? events : [events];
+
+    // Enrich with server-side context
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip');
+    const enrichedEvents = eventArray.map(event => ({
+      ...event,
+      ip_hash: hashIP(ip),
+      properties: typeof event.properties === 'string'
+        ? event.properties
+        : JSON.stringify(event.properties),
+    }));
+
+    // Send to Tinybird as NDJSON (newline-delimited JSON)
+    const ndjsonBody = enrichedEvents
+      .map(e => JSON.stringify(e))
+      .join('\n');
+
+    const response = await fetch(
+      `${TINYBIRD_URL}/v0/events?name=${DATASOURCE_NAME}`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${TINYBIRD_TOKEN}`,
+        },
+        body: ndjsonBody,
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Tinybird ingestion failed:', error);
+      return NextResponse.json({ error: 'Ingestion failed' }, { status: 500 });
+    }
+
+    // Tinybird returns 202 for async acceptance
+    return NextResponse.json({ success: true }, { status: 202 });
+  } catch (error) {
+    console.error('Analytics API error:', error);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}
+```
+
+### 2.3 Create Browser Analytics Client
+
+The client sends events to our API route (not directly to Tinybird):
 
 ```typescript
 // src/lib/analytics/tinybird-client.ts
 
 import { TinybirdEvent } from './types';
-import { v4 as uuidv4 } from 'uuid';
 
 class TinybirdClient {
-  private apiUrl: string;
-  private token: string;
   private eventQueue: TinybirdEvent[] = [];
   private flushInterval: number = 1000; // 1 second
   private maxBatchSize: number = 25;
+  private flushTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    this.apiUrl = process.env.TINYBIRD_API_URL || 'https://api.tinybird.co';
-    this.token = process.env.TINYBIRD_INGEST_TOKEN || '';
-
-    // Auto-flush queue periodically
+    // Auto-flush queue periodically (browser only)
     if (typeof window !== 'undefined') {
-      setInterval(() => this.flush(), this.flushInterval);
-      window.addEventListener('beforeunload', () => this.flush());
+      this.flushTimer = setInterval(() => this.flush(), this.flushInterval);
+
+      // Flush on page unload using sendBeacon for reliability
+      window.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          this.flushWithBeacon();
+        }
+      });
+
+      window.addEventListener('beforeunload', () => this.flushWithBeacon());
     }
   }
 
-  async ingest(events: TinybirdEvent | TinybirdEvent[]): Promise<void> {
-    const eventArray = Array.isArray(events) ? events : [events];
-
-    const response = await fetch(`${this.apiUrl}/v0/events?name=events`, {
+  private async sendEvents(events: TinybirdEvent[]): Promise<void> {
+    const response = await fetch('/api/analytics', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.token}`,
-        'Content-Type': 'application/json',
-      },
-      body: eventArray.map(e => JSON.stringify({
-        ...e,
-        properties: JSON.stringify(e.properties),
-      })).join('\n'),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(events),
     });
 
     if (!response.ok) {
-      console.error('Tinybird ingestion failed:', await response.text());
+      throw new Error(`Analytics request failed: ${response.status}`);
+    }
+  }
+
+  // Use sendBeacon for page unload - more reliable
+  private flushWithBeacon(): void {
+    if (this.eventQueue.length === 0) return;
+
+    const events = [...this.eventQueue];
+    this.eventQueue = [];
+
+    // sendBeacon is more reliable for page unload
+    if (navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify(events)], { type: 'application/json' });
+      navigator.sendBeacon('/api/analytics', blob);
+    } else {
+      // Fallback to fetch with keepalive
+      fetch('/api/analytics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(events),
+        keepalive: true,
+      }).catch(() => {});
     }
   }
 
@@ -189,7 +283,7 @@ class TinybirdClient {
     this.eventQueue = [];
 
     try {
-      await this.ingest(events);
+      await this.sendEvents(events);
     } catch (error) {
       console.error('Failed to flush events:', error);
       // Re-queue failed events (with limit to prevent infinite growth)
@@ -203,7 +297,7 @@ class TinybirdClient {
 export const tinybirdClient = new TinybirdClient();
 ```
 
-### 2.2 Create Event Builder Utilities (Anonymous-First)
+### 2.4 Create Event Builder Utilities (Anonymous-First)
 
 ```typescript
 // src/lib/analytics/event-builder.ts
@@ -319,7 +413,7 @@ export const Events = {
 };
 ```
 
-### 2.3 Create Utility Functions (Anonymous Visitor Support)
+### 2.5 Create Utility Functions (Anonymous Visitor Support)
 
 ```typescript
 // src/lib/analytics/utils.ts
