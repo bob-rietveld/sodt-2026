@@ -31,17 +31,6 @@ function LoadingIndicator() {
   );
 }
 
-function SourceBadge({ index, source }: { index: number; source: Source }) {
-  return (
-    <span
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded border border-primary/20 cursor-help"
-      title={`${source.title} - Page ${source.pageNumber}`}
-    >
-      <span className="font-medium">[{index}]</span>
-    </span>
-  );
-}
-
 function SourcesList({ sources }: { sources: Source[] }) {
   if (!sources || sources.length === 0) return null;
 
@@ -114,6 +103,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -122,6 +112,11 @@ export default function ChatPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Focus input on mount
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,7 +218,14 @@ export default function ChatPage() {
       });
     } finally {
       setIsLoading(false);
+      // Refocus input after response
+      inputRef.current?.focus();
     }
+  };
+
+  const handleReset = () => {
+    setMessages([]);
+    inputRef.current?.focus();
   };
 
   return (
@@ -232,6 +234,7 @@ export default function ChatPage() {
 
       {/* Chat Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 flex flex-col">
+        {/* Header with title and reset button */}
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <h1 className="text-2xl sm:text-3xl font-semibold">
             Chat with Documents
@@ -239,7 +242,7 @@ export default function ChatPage() {
           {messages.length > 0 && (
             <button
               type="button"
-              onClick={() => setMessages([])}
+              onClick={handleReset}
               disabled={isLoading}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-foreground/60 hover:text-foreground hover:bg-foreground/5 rounded-lg transition-colors disabled:opacity-50"
             >
@@ -262,8 +265,28 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto space-y-4 sm:space-y-6 mb-4 sm:mb-6">
+        {/* Input at the top */}
+        <form onSubmit={handleSubmit} className="flex gap-2 sm:gap-4 mb-6">
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask a question about the State of Dutch Tech..."
+            disabled={isLoading}
+            className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg border border-foreground/20 bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 text-sm sm:text-base"
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !input.trim()}
+            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm sm:text-base flex-shrink-0"
+          >
+            {isLoading ? "..." : "Send"}
+          </button>
+        </form>
+
+        {/* Messages below input */}
+        <div className="flex-1 overflow-y-auto space-y-4 sm:space-y-6">
           {messages.length === 0 ? (
             <div className="text-center py-8 sm:py-12 text-foreground/50">
               <p className="text-base sm:text-lg mb-2">
@@ -305,25 +328,6 @@ export default function ChatPage() {
           )}
           <div ref={messagesEndRef} />
         </div>
-
-        {/* Input */}
-        <form onSubmit={handleSubmit} className="flex gap-2 sm:gap-4">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question..."
-            disabled={isLoading}
-            className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg border border-foreground/20 bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 text-sm sm:text-base"
-          />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm sm:text-base flex-shrink-0"
-          >
-            {isLoading ? "..." : "Send"}
-          </button>
-        </form>
       </main>
     </div>
   );
