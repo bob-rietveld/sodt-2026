@@ -198,8 +198,8 @@ const FAQ_SECTIONS: FaqSection[] = [
         answer: "Metadata Extraction uses AI to automatically extract title, company name, summary, industry, and other information from uploaded PDFs. This can be disabled in Settings if you prefer to enter metadata manually."
       },
       {
-        question: "What are Embedding Providers?",
-        answer: "Embedding providers convert document text into vectors for semantic search. Choose between Voyage AI (recommended) or Unstructured.io based on your setup. This affects how accurately documents are found in searches."
+        question: "How does search work?",
+        answer: "Documents are indexed in Pinecone Assistant, which handles both document processing and semantic search. When you upload a PDF, it's sent to Pinecone for indexing. Chat queries are processed by Pinecone Assistant to find relevant documents and generate answers with citations."
       }
     ]
   },

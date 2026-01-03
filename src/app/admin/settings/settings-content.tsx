@@ -58,8 +58,6 @@ export default function SettingsContent() {
   // Unstructured settings
   const [workflowId, setWorkflowId] = useState("");
 
-  // Embedding provider settings
-  const [embeddingProvider, setEmbeddingProvider] = useState<"unstructured" | "voyage">("voyage");
 
   // Google Drive settings
   const [googleClientId, setGoogleClientId] = useState("");
@@ -85,7 +83,6 @@ export default function SettingsContent() {
       setProcessingEnabled(settings.processing_enabled !== "false"); // Default to true
       setMetadataExtractionEnabled(settings.metadata_extraction_enabled !== "false"); // Default to true
       setWorkflowId(settings.unstructured_workflow_id || "");
-      setEmbeddingProvider((settings.embedding_provider as "unstructured" | "voyage") || "voyage");
       setGoogleClientId(settings.google_client_id || "");
       setGoogleClientSecret(settings.google_client_secret || "");
       setSelectedFolderId(settings.google_drive_folder_id || "");
@@ -218,27 +215,6 @@ export default function SettingsContent() {
         value: workflowId.trim(),
       });
       setSaveMessage({ type: "success", text: "Workflow settings saved!" });
-    } catch (error) {
-      setSaveMessage({
-        type: "error",
-        text: error instanceof Error ? error.message : "Failed to save",
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleSaveEmbeddingProvider = async (provider: "unstructured" | "voyage") => {
-    setEmbeddingProvider(provider);
-    setIsSaving(true);
-    setSaveMessage(null);
-
-    try {
-      await setSetting({
-        key: "embedding_provider",
-        value: provider,
-      });
-      setSaveMessage({ type: "success", text: `Embedding provider set to ${provider === "voyage" ? "Voyage AI" : "Unstructured.io"}!` });
     } catch (error) {
       setSaveMessage({
         type: "error",
@@ -751,73 +727,6 @@ export default function SettingsContent() {
             </div>
           </div>
 
-          {/* Embedding Provider Settings */}
-          <div className="bg-white rounded-xl border border-foreground/10 p-6 max-w-2xl">
-            <h2 className="text-xl font-semibold mb-6">Embedding Provider</h2>
-            <p className="text-foreground/70 mb-4">
-              Choose which service to use for generating vector embeddings from your documents.
-            </p>
-
-            <div className="space-y-3">
-              <label
-                className={`flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                  embeddingProvider === "voyage"
-                    ? "border-primary bg-primary/5"
-                    : "border-foreground/10 hover:border-foreground/20"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="embeddingProvider"
-                  value="voyage"
-                  checked={embeddingProvider === "voyage"}
-                  onChange={() => handleSaveEmbeddingProvider("voyage")}
-                  className="mt-1"
-                />
-                <div>
-                  <div className="font-medium">Voyage AI</div>
-                  <div className="text-sm text-foreground/60">
-                    High-quality embeddings optimized for retrieval. Requires <code className="bg-foreground/10 px-1 rounded">VOYAGE_API_KEY</code> environment variable.
-                  </div>
-                </div>
-              </label>
-
-              <label
-                className={`flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                  embeddingProvider === "unstructured"
-                    ? "border-primary bg-primary/5"
-                    : "border-foreground/10 hover:border-foreground/20"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="embeddingProvider"
-                  value="unstructured"
-                  checked={embeddingProvider === "unstructured"}
-                  onChange={() => handleSaveEmbeddingProvider("unstructured")}
-                  className="mt-1"
-                />
-                <div>
-                  <div className="font-medium">Unstructured.io</div>
-                  <div className="text-sm text-foreground/60">
-                    Built-in embeddings from the Unstructured workflow. Uses the configured workflow for both extraction and embedding.
-                  </div>
-                </div>
-              </label>
-            </div>
-
-            <div className="mt-4 flex items-center gap-2 text-sm">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  embeddingProvider === "voyage" ? "bg-success" : "bg-info"
-                }`}
-              />
-              <span className="text-foreground/60">
-                Currently using: <span className="font-medium">{embeddingProvider === "voyage" ? "Voyage AI" : "Unstructured.io"}</span>
-              </span>
-            </div>
-          </div>
-
           {/* Unstructured Workflow Settings */}
           <div className="bg-white rounded-xl border border-foreground/10 p-6 max-w-2xl">
             <h2 className="text-xl font-semibold mb-6">Unstructured Workflow</h2>
@@ -868,17 +777,9 @@ export default function SettingsContent() {
             </p>
             <div className="bg-foreground/5 rounded-lg p-4 font-mono text-sm space-y-2">
               <div>
-                <span className="text-primary">UNSTRUCTURED_API_URL</span>=
-                <span className="text-foreground/50">your-api-url</span>
-              </div>
-              <div>
-                <span className="text-primary">UNSTRUCTURED_API_KEY</span>=
-                <span className="text-foreground/50">your-api-key</span>
-              </div>
-              <div>
-                <span className="text-primary">VOYAGE_API_KEY</span>=
-                <span className="text-foreground/50">your-voyage-key</span>
-                <span className="text-foreground/40 text-xs ml-2">(if using Voyage AI)</span>
+                <span className="text-primary">PINECONE_API_KEY</span>=
+                <span className="text-foreground/50">your-pinecone-key</span>
+                <span className="text-foreground/40 text-xs ml-2">(for document indexing & chat)</span>
               </div>
               <div>
                 <span className="text-primary">FIRECRAWL_API_KEY</span>=
@@ -888,7 +789,7 @@ export default function SettingsContent() {
               <div>
                 <span className="text-primary">ANTHROPIC_API_KEY</span>=
                 <span className="text-foreground/50">your-anthropic-key</span>
-                <span className="text-foreground/40 text-xs ml-2">(for chat & extraction)</span>
+                <span className="text-foreground/40 text-xs ml-2">(for metadata extraction)</span>
               </div>
             </div>
             <p className="mt-4 text-sm text-foreground/50">
