@@ -32,6 +32,7 @@ export default function StatusContent() {
   // Pinecone indexing state
   const [pineconeFilter, setPineconeFilter] = useState<PineconeFilter>("not_indexed");
   const [isIndexingPinecone, setIsIndexingPinecone] = useState(false);
+  const [isSyncingStatus, setIsSyncingStatus] = useState(false);
   const [selectedPineconeDocs, setSelectedPineconeDocs] = useState<Set<string>>(new Set());
 
   // Queries
@@ -155,6 +156,28 @@ export default function StatusContent() {
     }
   };
 
+  const handleSyncPineconeStatus = async () => {
+    setIsSyncingStatus(true);
+    try {
+      const response = await fetch("/api/pinecone/sync-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        alert(`Synced status for ${result.updated} document(s).`);
+      } else {
+        alert(result.error || "Failed to sync status");
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to sync status");
+    } finally {
+      setIsSyncingStatus(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl">
       {/* Header */}
@@ -203,16 +226,27 @@ export default function StatusContent() {
 
           {/* Pinecone Status Card */}
           <div className="bg-white rounded-xl border border-foreground/10 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg">Pinecone Indexing</h3>
+                  <p className="text-sm text-foreground/60">Index documents for AI-powered search</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold text-lg">Pinecone Indexing</h3>
-                <p className="text-sm text-foreground/60">Index documents for AI-powered search</p>
-              </div>
+              {overview.pinecone.processing > 0 && (
+                <button
+                  onClick={handleSyncPineconeStatus}
+                  disabled={isSyncingStatus}
+                  className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50"
+                >
+                  {isSyncingStatus ? "Syncing..." : "Sync Status"}
+                </button>
+              )}
             </div>
             <div className="grid grid-cols-4 gap-3">
               <div className="text-center p-3 bg-green-50 rounded-lg">
