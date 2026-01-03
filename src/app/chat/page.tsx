@@ -123,7 +123,7 @@ function MarkdownContent({ content }: { content: string }) {
   );
 }
 
-function FilterSidebar({
+function FilterPanel({
   filters,
   setFilters,
   options,
@@ -150,7 +150,7 @@ function FilterSidebar({
     (filters.keywords && filters.keywords.length > 0);
 
   return (
-    <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden h-fit sticky top-6">
+    <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-foreground/10 bg-foreground/[0.02]">
         <h2 className="font-semibold text-lg">Filters</h2>
@@ -296,9 +296,8 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [filters, setFilters] = useState<ChatFilters>({});
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetch filter options from Convex
@@ -312,6 +311,13 @@ export default function ChatPage() {
     technologyAreas: filters.technologyAreas,
     keywords: filters.keywords,
   });
+
+  const hasActiveFilters =
+    filters.continent ||
+    filters.industry ||
+    filters.year ||
+    (filters.technologyAreas && filters.technologyAreas.length > 0) ||
+    (filters.keywords && filters.keywords.length > 0);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -439,91 +445,22 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <Header showAdmin={false} />
+    <div className="min-h-screen bg-background">
+      <Header />
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar - Desktop */}
-        <aside className="hidden lg:block w-72 flex-shrink-0 p-6 overflow-y-auto border-r border-foreground/10">
-          <FilterSidebar
-            filters={filters}
-            setFilters={setFilters}
-            options={filterOptions}
-            documentCount={filteredFiles?.count}
-            isLoading={isLoading}
-          />
-        </aside>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {/* Page Header */}
+        <div className="flex items-center justify-between mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-semibold">Chat with Documents</h1>
 
-        {/* Mobile Filter Toggle */}
-        <div className="lg:hidden fixed bottom-24 left-4 z-40">
-          <button
-            onClick={() => setShowMobileFilters(!showMobileFilters)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-foreground/20 rounded-full shadow-lg hover:bg-foreground/5 transition-colors"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-            </svg>
-            <span className="text-sm font-medium">Filters</span>
-            {filteredFiles?.count !== undefined && (
-              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                {filteredFiles.count}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Mobile Filter Panel */}
-        {showMobileFilters && (
-          <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setShowMobileFilters(false)}>
-            <div
-              className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-background p-4 overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-lg">Filters</h2>
-                <button
-                  onClick={() => setShowMobileFilters(false)}
-                  className="p-2 hover:bg-foreground/5 rounded-lg"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <FilterSidebar
-                filters={filters}
-                setFilters={setFilters}
-                options={filterOptions}
-                documentCount={filteredFiles?.count}
-                isLoading={isLoading}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Main Chat Area */}
-        <main className="flex-1 flex flex-col min-w-0">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4 border-b border-foreground/10 bg-white">
-            <h1 className="text-xl sm:text-2xl font-semibold">
-              Chat with Documents
-            </h1>
+          <div className="flex items-center gap-3">
+            {/* Reset Button */}
             {messages.length > 0 && (
               <button
                 type="button"
                 onClick={handleReset}
                 disabled={isLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-foreground/60 hover:text-foreground hover:bg-foreground/5 rounded-lg transition-colors disabled:opacity-50"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-sm text-foreground/60 hover:text-foreground hover:bg-foreground/5 rounded-lg transition-colors disabled:opacity-50"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -542,93 +479,175 @@ export default function ChatPage() {
                 New chat
               </button>
             )}
-          </div>
 
-          {/* Messages Area - Scrollable */}
-          <div
-            ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6"
-          >
-            <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
-              {messages.length === 0 ? (
-                <div className="text-center py-12 sm:py-20 text-foreground/50">
-                  <svg
-                    className="w-12 h-12 mx-auto mb-4 text-foreground/20"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                    />
-                  </svg>
-                  <p className="text-base sm:text-lg mb-2">
-                    Ask a question about the State of Dutch Tech
-                  </p>
-                  <p className="text-sm max-w-md mx-auto">
-                    I&apos;ll search through the documents and provide answers with
-                    source references. Use the filters to narrow down your search.
-                  </p>
-                </div>
-              ) : (
-                messages.map((message, index) => (
-                  <div
-                    key={index}
-                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-[90%] sm:max-w-[85%] p-3 sm:p-4 rounded-2xl ${
-                        message.role === "user"
-                          ? "bg-primary text-white"
-                          : "bg-white border border-foreground/10 shadow-sm"
-                      }`}
-                    >
-                      {message.role === "assistant" && message.isLoading ? (
-                        <LoadingIndicator />
-                      ) : message.role === "assistant" ? (
-                        <>
-                          <MarkdownContent content={message.content} />
-                          <SourcesList sources={message.sources || []} />
-                        </>
-                      ) : (
-                        <p className="whitespace-pre-wrap text-sm sm:text-base">
-                          {message.content}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))
+            {/* Mobile Filter Toggle */}
+            <button
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
+              className="lg:hidden flex items-center gap-2 px-4 py-2 bg-white border border-foreground/20 rounded-lg text-sm font-medium hover:bg-foreground/5 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              Filters
+              {hasActiveFilters && (
+                <span className="w-2 h-2 bg-primary rounded-full"></span>
               )}
-              <div ref={messagesEndRef} />
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Filter Panel */}
+        {isFilterOpen && (
+          <div className="lg:hidden mb-6">
+            {filterOptions ? (
+              <FilterPanel
+                filters={filters}
+                setFilters={setFilters}
+                options={filterOptions}
+                documentCount={filteredFiles?.count}
+                isLoading={isLoading}
+              />
+            ) : (
+              <div className="bg-white p-6 rounded-xl border border-foreground/10">
+                <div className="animate-pulse space-y-4">
+                  <div className="h-6 bg-foreground/10 rounded w-20"></div>
+                  <div className="h-10 bg-foreground/10 rounded"></div>
+                  <div className="h-10 bg-foreground/10 rounded"></div>
+                  <div className="h-10 bg-foreground/10 rounded"></div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Main Content */}
+        <div className="flex gap-6 lg:gap-8">
+          {/* Desktop Filter Sidebar */}
+          <aside className="hidden lg:block w-72 flex-shrink-0">
+            {filterOptions ? (
+              <div className="sticky top-24">
+                <FilterPanel
+                  filters={filters}
+                  setFilters={setFilters}
+                  options={filterOptions}
+                  documentCount={filteredFiles?.count}
+                  isLoading={isLoading}
+                />
+              </div>
+            ) : (
+              <div className="bg-white p-6 rounded-xl border border-foreground/10">
+                <div className="animate-pulse space-y-4">
+                  <div className="h-6 bg-foreground/10 rounded w-20"></div>
+                  <div className="h-10 bg-foreground/10 rounded"></div>
+                  <div className="h-10 bg-foreground/10 rounded"></div>
+                  <div className="h-10 bg-foreground/10 rounded"></div>
+                </div>
+              </div>
+            )}
+          </aside>
+
+          {/* Chat Content Area */}
+          <div className="flex-1 min-w-0">
+            {/* Chat Container */}
+            <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden flex flex-col" style={{ minHeight: "calc(100vh - 220px)" }}>
+              {/* Messages Area */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                {messages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center py-12 text-foreground/50">
+                    <svg
+                      className="w-12 h-12 mb-4 text-foreground/20"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                      />
+                    </svg>
+                    <p className="text-base sm:text-lg mb-2">
+                      Ask a question about the State of Dutch Tech
+                    </p>
+                    <p className="text-sm max-w-md">
+                      I&apos;ll search through the documents and provide answers with
+                      source references. Use the filters to narrow down your search.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {messages.map((message, index) => (
+                      <div
+                        key={index}
+                        className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                      >
+                        <div
+                          className={`max-w-[85%] p-4 rounded-2xl ${
+                            message.role === "user"
+                              ? "bg-primary text-white"
+                              : "bg-foreground/[0.03] border border-foreground/10"
+                          }`}
+                        >
+                          {message.role === "assistant" && message.isLoading ? (
+                            <LoadingIndicator />
+                          ) : message.role === "assistant" ? (
+                            <>
+                              <MarkdownContent content={message.content} />
+                              <SourcesList sources={message.sources || []} />
+                            </>
+                          ) : (
+                            <p className="whitespace-pre-wrap text-sm sm:text-base">
+                              {message.content}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
+              </div>
+
+              {/* Input Area */}
+              <div className="border-t border-foreground/10 bg-foreground/[0.02] p-4">
+                <form onSubmit={handleSubmit} className="flex gap-3">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Ask a question about the State of Dutch Tech..."
+                    disabled={isLoading}
+                    className="flex-1 px-4 py-3 rounded-xl border border-foreground/20 bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 text-sm sm:text-base"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isLoading || !input.trim()}
+                    className="px-6 py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm sm:text-base flex-shrink-0"
+                  >
+                    {isLoading ? "..." : "Send"}
+                  </button>
+                </form>
+
+                {/* Mobile Reset Button */}
+                {messages.length > 0 && (
+                  <div className="sm:hidden mt-3 text-center">
+                    <button
+                      type="button"
+                      onClick={handleReset}
+                      disabled={isLoading}
+                      className="text-sm text-foreground/50 hover:text-foreground transition-colors disabled:opacity-50"
+                    >
+                      Start new chat
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-
-          {/* Input Area - Fixed at Bottom */}
-          <div className="border-t border-foreground/10 bg-white px-4 sm:px-6 lg:px-8 py-4">
-            <form onSubmit={handleSubmit} className="max-w-3xl mx-auto flex gap-2 sm:gap-4">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask a question about the State of Dutch Tech..."
-                disabled={isLoading}
-                className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg border border-foreground/20 bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 text-sm sm:text-base"
-              />
-              <button
-                type="submit"
-                disabled={isLoading || !input.trim()}
-                className="px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm sm:text-base flex-shrink-0"
-              >
-                {isLoading ? "..." : "Send"}
-              </button>
-            </form>
-          </div>
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
