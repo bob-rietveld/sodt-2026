@@ -99,15 +99,22 @@ export function MultiSelectDropdown({
                 className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-md"
               >
                 <span className="truncate max-w-[100px]">{value}</span>
-                <button
-                  type="button"
+                <span
+                  role="button"
+                  tabIndex={0}
                   onClick={(e) => removeOption(value, e)}
-                  className="hover:text-primary/70 flex-shrink-0"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      removeOption(value, e as unknown as React.MouseEvent);
+                    }
+                  }}
+                  className="hover:text-primary/70 flex-shrink-0 cursor-pointer"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
-                </button>
+                </span>
               </span>
             ))
           )}
@@ -119,15 +126,22 @@ export function MultiSelectDropdown({
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           {selected.length > 0 && (
-            <button
-              type="button"
+            <span
+              role="button"
+              tabIndex={0}
               onClick={clearAll}
-              className="p-0.5 hover:bg-foreground/10 rounded"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  clearAll(e as unknown as React.MouseEvent);
+                }
+              }}
+              className="p-0.5 hover:bg-foreground/10 rounded cursor-pointer"
             >
               <svg className="w-4 h-4 text-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
-            </button>
+            </span>
           )}
           <svg
             className={`w-4 h-4 text-foreground/40 transition-transform ${isOpen ? "rotate-180" : ""}`}
