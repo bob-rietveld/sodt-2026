@@ -5,7 +5,7 @@ import {
 } from "@pinecone-database/pinecone";
 
 const PINECONE_ASSISTANT_NAME = "sodt";
-const PINECONE_MODEL = "gpt-4.1";
+const PINECONE_MODEL = "gpt-4o";
 
 let pineconeClient: Pinecone | null = null;
 
