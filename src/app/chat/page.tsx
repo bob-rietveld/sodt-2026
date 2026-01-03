@@ -8,10 +8,13 @@ import ReactMarkdown from "react-markdown";
 import { api } from "../../../convex/_generated/api";
 
 interface Source {
-  position: number;
-  title: string;
-  filename: string;
-  pageNumbers: number[];
+  index: number;
+  references: Array<{
+    fileId: string;
+    title: string;
+    filename: string;
+    pageNumbers: number[];
+  }>;
 }
 
 interface Message {
@@ -75,17 +78,22 @@ function SourcesList({ sources }: { sources: Source[] }) {
       <div className="space-y-1.5">
         {sources.map((source) => (
           <div
-            key={source.position}
+            key={source.index}
+            id={`source-${source.index}`}
             className="text-xs text-foreground/70 flex items-start gap-2 p-2 bg-foreground/[0.02] rounded-lg"
           >
             <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium flex-shrink-0">
-              [{source.position}]
+              [{source.index}]
             </span>
             <div className="flex-1 min-w-0">
-              <span className="font-medium block break-words">{source.title}</span>
-              {source.pageNumbers.length > 0 && (
-                <span className="text-foreground/50">{formatPages(source.pageNumbers)}</span>
-              )}
+              {source.references.map((ref) => (
+                <div key={`${source.index}:${ref.fileId}`} className="mb-1 last:mb-0">
+                  <span className="font-medium block break-words">{ref.title}</span>
+                  {ref.pageNumbers.length > 0 && (
+                    <span className="text-foreground/50">{formatPages(ref.pageNumbers)}</span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         ))}
@@ -94,7 +102,18 @@ function SourcesList({ sources }: { sources: Source[] }) {
   );
 }
 
-function MarkdownContent({ content }: { content: string }) {
+function linkifyInlineCitations(content: string, sources: Source[]) {
+  if (!sources || sources.length === 0) return content;
+  const valid = new Set(sources.map((s) => String(s.index)));
+  // Replace `[n]` with `[[n]](#source-n)` unless it's already `[[n]]...`.
+  return content.replace(/(^|[^\[])\[(\d+)\]/g, (match, prefix, n) => {
+    if (!valid.has(String(n))) return match;
+    return `${prefix}[[${n}]](#source-${n})`;
+  });
+}
+
+function MarkdownContent({ content, sources }: { content: string; sources: Source[] }) {
+  const linked = linkifyInlineCitations(content, sources);
   return (
     <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-blockquote:my-2 prose-pre:my-2">
       <ReactMarkdown
@@ -126,7 +145,7 @@ function MarkdownContent({ content }: { content: string }) {
           ),
         }}
       >
-        {content}
+        {linked}
       </ReactMarkdown>
     </div>
   );
@@ -392,7 +411,21 @@ export default function ChatPage() {
             try {
               const data = JSON.parse(line.slice(6));
 
-              if (data.type === "sources") {
+              if (data.type === "final") {
+                assistantMessage = data.content ?? assistantMessage;
+                sources = data.sources ?? sources;
+                setMessages((prev) => {
+                  const newMessages = [...prev];
+                  const lastMessage = newMessages[newMessages.length - 1];
+                  if (lastMessage.role === "assistant") {
+                    lastMessage.isLoading = false;
+                    lastMessage.content = assistantMessage;
+                    lastMessage.sources = sources;
+                  }
+                  return newMessages;
+                });
+              } else if (data.type === "sources") {
+                // Back-compat if the API sends sources separately.
                 sources = data.sources;
                 setMessages((prev) => {
                   const newMessages = [...prev];
@@ -603,7 +636,7 @@ export default function ChatPage() {
                             <LoadingIndicator />
                           ) : message.role === "assistant" ? (
                             <>
-                              <MarkdownContent content={message.content} />
+                              <MarkdownContent content={message.content} sources={message.sources || []} />
                               <SourcesList sources={message.sources || []} />
                             </>
                           ) : (
