@@ -1,10 +1,11 @@
 import { ConvexHttpClient } from "convex/browser";
 import { createHash } from "crypto";
+import { writeFile, unlink, mkdir } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { extractPdfFromUrl, extractPdfFromBuffer, combineChunks } from "../unstructured/client";
-import { embedDocuments } from "../voyage/client";
-import { insertChunks, deleteByConvexId, PDFChunk } from "../weaviate/client";
+import { uploadFile, deleteFile, describeFile } from "../pinecone/client";
 import { downloadFile, getFile } from "../google/drive";
 
 // Calculate SHA-256 hash of buffer
@@ -25,11 +26,56 @@ function getConvexClient(): ConvexHttpClient {
   return convexClient;
 }
 
+// Helper to write buffer to temp file
+async function writeTempFile(buffer: Buffer, filename: string): Promise<string> {
+  const tempDir = join(tmpdir(), "pinecone-uploads");
+  await mkdir(tempDir, { recursive: true });
+  const tempPath = join(tempDir, `${Date.now()}-${filename}`);
+  await writeFile(tempPath, buffer);
+  return tempPath;
+}
+
+// Helper to clean up temp file
+async function cleanupTempFile(path: string): Promise<void> {
+  try {
+    await unlink(path);
+  } catch {
+    // Ignore cleanup errors
+  }
+}
+
+// Poll for file processing completion
+async function waitForFileProcessing(
+  fileId: string,
+  maxWaitMs: number = 300000
+): Promise<boolean> {
+  const startTime = Date.now();
+  const pollInterval = 5000; // 5 seconds
+
+  while (Date.now() - startTime < maxWaitMs) {
+    const fileInfo = await describeFile(fileId);
+
+    if (fileInfo.status === "Available") {
+      return true;
+    }
+
+    if (fileInfo.status === "ProcessingFailed") {
+      throw new Error(
+        `File processing failed: ${fileInfo.errorMessage || "Unknown error"}`
+      );
+    }
+
+    // Wait before next poll
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+
+  throw new Error("File processing timed out");
+}
+
 export interface ProcessingResult {
   success: boolean;
   error?: string;
-  chunksProcessed?: number;
-  weaviateIds?: string[];
+  pineconeFileId?: string;
 }
 
 export async function processPdfFromUpload(
@@ -39,6 +85,7 @@ export async function processPdfFromUpload(
   title: string
 ): Promise<ProcessingResult> {
   let jobId: Id<"processingJobs"> | null = null;
+  let tempFilePath: string | null = null;
 
   try {
     const convex = getConvexClient();
@@ -55,58 +102,54 @@ export async function processPdfFromUpload(
       status: "processing",
     });
 
-    // Stage 1: Extract text from PDF
-    console.log(`Extracting PDF: ${filename}`);
-    const extraction = await extractPdfFromUrl(fileUrl, filename);
-    const combinedChunks = combineChunks(extraction.chunks);
+    // Stage 1: Download PDF
+    console.log(`Downloading PDF: ${filename}`);
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download PDF: ${response.status}`);
+    }
+    const pdfBuffer = Buffer.from(await response.arrayBuffer());
 
     await convex.mutation(api.processing.updateJob, {
       jobId,
       stage: "embedding",
-      metadata: { chunksExtracted: combinedChunks.length },
     });
 
-    // Stage 2: Generate embeddings
-    console.log(`Generating embeddings for ${combinedChunks.length} chunks`);
-    const texts = combinedChunks.map((c) => c.text);
-    const embeddings = await embedDocuments(texts);
+    // Stage 2: Write to temp file and upload to Pinecone
+    console.log(`Uploading to Pinecone Assistant: ${filename}`);
+    tempFilePath = await writeTempFile(pdfBuffer, filename);
+
+    const uploadResult = await uploadFile(tempFilePath, {
+      convexId: pdfId,
+      title,
+      filename,
+    });
 
     await convex.mutation(api.processing.updateJob, {
       jobId,
       stage: "storing",
     });
 
-    // Stage 3: Store in Weaviate
-    console.log("Storing chunks in Weaviate");
-    const weaviateChunks: PDFChunk[] = combinedChunks.map((chunk, index) => ({
-      content: chunk.text,
-      chunkIndex: index,
-      pageNumber: chunk.pageNumber,
-      convexId: pdfId,
-      filename,
-      title,
-    }));
-
-    const weaviateIds = await insertChunks(weaviateChunks, embeddings);
+    // Stage 3: Wait for processing to complete
+    console.log(`Waiting for Pinecone to process file: ${uploadResult.id}`);
+    await waitForFileProcessing(uploadResult.id);
 
     // Update job and PDF status
     await convex.mutation(api.processing.updateJob, {
       jobId,
       stage: "completed",
-      metadata: { chunksStored: weaviateIds.length },
+      metadata: { pineconeFileId: uploadResult.id },
     });
 
     await convex.mutation(api.pdfs.updateStatus, {
       id: pdfId,
       status: "completed",
-      weaviateId: weaviateIds[0], // Store first chunk ID as reference
-      pageCount: extraction.metadata.pageCount,
+      pineconeFileId: uploadResult.id,
     });
 
     return {
       success: true,
-      chunksProcessed: weaviateIds.length,
-      weaviateIds,
+      pineconeFileId: uploadResult.id,
     };
   } catch (error) {
     const convex = getConvexClient();
@@ -131,12 +174,19 @@ export async function processPdfFromUpload(
       success: false,
       error: errorMessage,
     };
+  } finally {
+    // Clean up temp file
+    if (tempFilePath) {
+      await cleanupTempFile(tempFilePath);
+    }
   }
 }
 
 export async function processPdfFromDrive(
   driveFileId: string
 ): Promise<ProcessingResult> {
+  let tempFilePath: string | null = null;
+
   try {
     const convex = getConvexClient();
 
@@ -152,7 +202,7 @@ export async function processPdfFromDrive(
     });
     if (existingByDriveId) {
       console.log(`File already processed (by Drive ID): ${driveFileId}`);
-      return { success: true, chunksProcessed: 0 };
+      return { success: true };
     }
 
     // Download the file first to check for content-based duplicates
@@ -163,9 +213,13 @@ export async function processPdfFromDrive(
     const fileHash = calculateBufferHash(fileBuffer);
     console.log(`Calculated file hash: ${fileHash.substring(0, 16)}...`);
 
-    const duplicateCheck = await convex.query(api.pdfs.checkDuplicate, { fileHash });
+    const duplicateCheck = await convex.query(api.pdfs.checkDuplicate, {
+      fileHash,
+    });
     if (duplicateCheck.isDuplicate) {
-      console.log(`Duplicate content found: ${fileInfo.name} matches "${duplicateCheck.existingPdf?.title}"`);
+      console.log(
+        `Duplicate content found: ${fileInfo.name} matches "${duplicateCheck.existingPdf?.title}"`
+      );
       return {
         success: false,
         error: `Duplicate file: This PDF has already been uploaded as "${duplicateCheck.existingPdf?.title}"`,
@@ -192,59 +246,52 @@ export async function processPdfFromDrive(
       status: "processing",
     });
 
-    // Extract text from already downloaded buffer
-    const extraction = await extractPdfFromBuffer(fileBuffer, fileInfo.name);
-    const combinedChunks = combineChunks(extraction.chunks);
+    // Write to temp file and upload to Pinecone
+    console.log(`Uploading to Pinecone Assistant: ${fileInfo.name}`);
+    tempFilePath = await writeTempFile(fileBuffer, fileInfo.name);
 
-    await convex.mutation(api.processing.updateJob, {
-      jobId,
-      stage: "embedding",
+    const uploadResult = await uploadFile(tempFilePath, {
+      convexId: pdfId,
+      title: fileInfo.name.replace(".pdf", ""),
+      filename: fileInfo.name,
+      driveFileId,
     });
-
-    // Generate embeddings
-    console.log(`Generating embeddings for ${combinedChunks.length} chunks`);
-    const texts = combinedChunks.map((c) => c.text);
-    const embeddings = await embedDocuments(texts);
 
     await convex.mutation(api.processing.updateJob, {
       jobId,
       stage: "storing",
     });
 
-    // Store in Weaviate
-    const weaviateChunks: PDFChunk[] = combinedChunks.map((chunk, index) => ({
-      content: chunk.text,
-      chunkIndex: index,
-      pageNumber: chunk.pageNumber,
-      convexId: pdfId,
-      filename: fileInfo.name,
-      title: fileInfo.name.replace(".pdf", ""),
-    }));
-
-    const weaviateIds = await insertChunks(weaviateChunks, embeddings);
+    // Wait for processing to complete
+    console.log(`Waiting for Pinecone to process file: ${uploadResult.id}`);
+    await waitForFileProcessing(uploadResult.id);
 
     // Finalize
     await convex.mutation(api.processing.updateJob, {
       jobId,
       stage: "completed",
+      metadata: { pineconeFileId: uploadResult.id },
     });
 
     await convex.mutation(api.pdfs.updateStatus, {
       id: pdfId,
       status: "completed",
-      weaviateId: weaviateIds[0],
-      pageCount: extraction.metadata.pageCount,
+      pineconeFileId: uploadResult.id,
     });
 
     return {
       success: true,
-      chunksProcessed: weaviateIds.length,
-      weaviateIds,
+      pineconeFileId: uploadResult.id,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error(`Drive processing failed:`, errorMessage);
     return { success: false, error: errorMessage };
+  } finally {
+    // Clean up temp file
+    if (tempFilePath) {
+      await cleanupTempFile(tempFilePath);
+    }
   }
 }
 
@@ -255,8 +302,15 @@ export async function reprocessPdf(pdfId: Id<"pdfs">): Promise<ProcessingResult>
     return { success: false, error: "PDF not found" };
   }
 
-  // Delete existing Weaviate data
-  await deleteByConvexId(pdfId);
+  // Delete existing Pinecone file if it exists
+  if (pdf.pineconeFileId) {
+    try {
+      await deleteFile(pdf.pineconeFileId);
+    } catch (error) {
+      console.warn(`Failed to delete Pinecone file: ${error}`);
+      // Continue anyway - file might not exist
+    }
+  }
 
   // Re-process based on source
   if (pdf.source === "drive" && pdf.driveFileId) {
@@ -265,7 +319,7 @@ export async function reprocessPdf(pdfId: Id<"pdfs">): Promise<ProcessingResult>
       id: pdfId,
       status: "pending",
       processingError: undefined,
-      weaviateId: undefined,
+      pineconeFileId: undefined,
     });
 
     return processPdfFromDrive(pdf.driveFileId);

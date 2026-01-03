@@ -371,7 +371,7 @@ export const updateStatus = mutation({
       v.literal("failed")
     ),
     processingError: v.optional(v.string()),
-    weaviateId: v.optional(v.string()),
+    pineconeFileId: v.optional(v.string()),
     pageCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {

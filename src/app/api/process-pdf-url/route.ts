@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { createHash } from "crypto";
+import { writeFile, unlink, mkdir } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 import { api } from "../../../../convex/_generated/api";
-import { extractPdfFromBuffer, combineChunks } from "@/lib/unstructured/client";
-import { embedDocuments } from "@/lib/voyage/client";
-import { insertChunks, PDFChunk } from "@/lib/weaviate/client";
+import { uploadFile, describeFile } from "@/lib/pinecone/client";
 import { runWorkflow } from "@/lib/unstructured/workflow";
 import { extractPDFMetadataFromUrl } from "@/lib/pdf/extractor";
 import { tryGenerateThumbnail } from "@/lib/pdf/thumbnail";
@@ -22,18 +23,65 @@ function getConvexClient(): ConvexHttpClient {
   return new ConvexHttpClient(url);
 }
 
+// Helper to write buffer to temp file
+async function writeTempFile(
+  buffer: Buffer,
+  filename: string
+): Promise<string> {
+  const tempDir = join(tmpdir(), "pinecone-uploads");
+  await mkdir(tempDir, { recursive: true });
+  const tempPath = join(tempDir, `${Date.now()}-${filename}`);
+  await writeFile(tempPath, buffer);
+  return tempPath;
+}
+
+// Helper to clean up temp file
+async function cleanupTempFile(path: string): Promise<void> {
+  try {
+    await unlink(path);
+  } catch {
+    // Ignore cleanup errors
+  }
+}
+
+// Poll for file processing completion
+async function waitForFileProcessing(
+  fileId: string,
+  maxWaitMs: number = 300000
+): Promise<boolean> {
+  const startTime = Date.now();
+  const pollInterval = 5000; // 5 seconds
+
+  while (Date.now() - startTime < maxWaitMs) {
+    const fileInfo = await describeFile(fileId);
+
+    if (fileInfo.status === "Available") {
+      return true;
+    }
+
+    if (fileInfo.status === "ProcessingFailed") {
+      throw new Error(
+        `File processing failed: ${fileInfo.errorMessage || "Unknown error"}`
+      );
+    }
+
+    // Wait before next poll
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+
+  throw new Error("File processing timed out");
+}
+
 export async function POST(request: NextRequest) {
   const convex = getConvexClient();
+  let tempFilePath: string | null = null;
 
   try {
     const body = await request.json();
     const { url, workflowId } = body;
 
     if (!url) {
-      return NextResponse.json(
-        { error: "URL is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
     // Validate URL
@@ -66,11 +114,17 @@ export async function POST(request: NextRequest) {
     });
 
     if (!pdfResponse.ok) {
-      throw new Error(`Failed to fetch PDF: ${pdfResponse.status} ${pdfResponse.statusText}`);
+      throw new Error(
+        `Failed to fetch PDF: ${pdfResponse.status} ${pdfResponse.statusText}`
+      );
     }
 
     const contentType = pdfResponse.headers.get("content-type");
-    if (contentType && !contentType.includes("pdf") && !contentType.includes("octet-stream")) {
+    if (
+      contentType &&
+      !contentType.includes("pdf") &&
+      !contentType.includes("octet-stream")
+    ) {
       console.warn(`Unexpected content type: ${contentType}, proceeding anyway`);
     }
 
@@ -80,7 +134,9 @@ export async function POST(request: NextRequest) {
     const fileHash = calculateBufferHash(pdfBuffer);
     console.log(`Calculated file hash: ${fileHash.substring(0, 16)}...`);
 
-    const duplicateCheck = await convex.query(api.pdfs.checkDuplicate, { fileHash });
+    const duplicateCheck = await convex.query(api.pdfs.checkDuplicate, {
+      fileHash,
+    });
     if (duplicateCheck.isDuplicate) {
       return NextResponse.json(
         {
@@ -108,7 +164,9 @@ export async function POST(request: NextRequest) {
 
     // If processing is disabled, mark as completed but still extract metadata if enabled
     if (processingEnabled === "false") {
-      console.log("Processing disabled via settings, marking PDF as completed without indexing");
+      console.log(
+        "Processing disabled via settings, marking PDF as completed without indexing"
+      );
 
       await convex.mutation(api.pdfs.updateStatus, {
         id: pdfId,
@@ -128,7 +186,10 @@ export async function POST(request: NextRequest) {
 
           // Extract metadata using local extraction (no Firecrawl)
           const extractResult = await extractPDFMetadataFromUrl(url);
-          console.log("process-pdf-url: Extract result:", JSON.stringify(extractResult.data, null, 2));
+          console.log(
+            "process-pdf-url: Extract result:",
+            JSON.stringify(extractResult.data, null, 2)
+          );
           if (extractResult.success && extractResult.data) {
             console.log("process-pdf-url: Saving metadata with fields:", {
               documentType: extractResult.data.documentType,
@@ -188,7 +249,12 @@ export async function POST(request: NextRequest) {
     if (workflowId) {
       console.log(`Running Unstructured workflow: ${workflowId}`);
       const blob = new Blob([pdfBuffer], { type: "application/pdf" });
-      const workflowResult = await runWorkflow(workflowId, blob, filename, "application/pdf");
+      const workflowResult = await runWorkflow(
+        workflowId,
+        blob,
+        filename,
+        "application/pdf"
+      );
 
       if (workflowResult.success) {
         console.log(`Workflow started: ${workflowResult.workflowRunId}`);
@@ -198,52 +264,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 4: Extract text using Unstructured
-    console.log(`Extracting text from PDF: ${filename}`);
-    const extraction = await extractPdfFromBuffer(pdfBuffer, filename);
-    const combinedChunks = combineChunks(extraction.chunks);
+    // Step 4: Write to temp file and upload to Pinecone Assistant
+    console.log(`Uploading to Pinecone Assistant: ${filename}`);
+    tempFilePath = await writeTempFile(pdfBuffer, filename);
 
-    await convex.mutation(api.processing.updateJob, {
-      jobId,
-      stage: "embedding",
-      metadata: { chunksExtracted: combinedChunks.length },
+    const uploadResult = await uploadFile(tempFilePath, {
+      convexId: pdfId,
+      title,
+      filename,
+      sourceUrl: url,
     });
-
-    // Step 5: Generate embeddings
-    console.log(`Generating embeddings for ${combinedChunks.length} chunks`);
-    const texts = combinedChunks.map((c) => c.text);
-    const embeddings = await embedDocuments(texts);
 
     await convex.mutation(api.processing.updateJob, {
       jobId,
       stage: "storing",
+      metadata: { pineconeFileId: uploadResult.id },
     });
 
-    // Step 6: Store in Weaviate
-    console.log("Storing chunks in Weaviate");
-    const weaviateChunks: PDFChunk[] = combinedChunks.map((chunk, index) => ({
-      content: chunk.text,
-      chunkIndex: index,
-      pageNumber: chunk.pageNumber,
-      convexId: pdfId,
-      filename,
-      title,
-    }));
+    // Step 5: Wait for Pinecone to process the file
+    console.log(`Waiting for Pinecone to process file: ${uploadResult.id}`);
+    await waitForFileProcessing(uploadResult.id);
 
-    const weaviateIds = await insertChunks(weaviateChunks, embeddings);
-
-    // Step 7: Update job and PDF status
+    // Step 6: Update job and PDF status
     await convex.mutation(api.processing.updateJob, {
       jobId,
       stage: "completed",
-      metadata: { chunksStored: weaviateIds.length },
+      metadata: { pineconeFileId: uploadResult.id },
     });
 
     await convex.mutation(api.pdfs.updateStatus, {
       id: pdfId,
       status: "completed",
-      weaviateId: weaviateIds[0],
-      pageCount: extraction.metadata.pageCount,
+      pineconeFileId: uploadResult.id,
     });
 
     // Check if metadata extraction is enabled
@@ -298,15 +350,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       pdfId,
-      chunksProcessed: weaviateIds.length,
+      pineconeFileId: uploadResult.id,
     });
   } catch (error) {
     console.error("Process PDF from URL error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  } finally {
+    // Clean up temp file
+    if (tempFilePath) {
+      await cleanupTempFile(tempFilePath);
+    }
   }
 }
