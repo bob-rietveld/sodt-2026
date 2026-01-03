@@ -7,13 +7,13 @@ import {
 const PINECONE_ASSISTANT_NAME = "sodt";
 const PINECONE_MODEL = "gpt-4o";
 
-// System prompt to encourage inline citations
+// System prompt to encourage source-grounded answers (citations are rendered by the UI)
 const SYSTEM_INSTRUCTIONS = `You are a helpful assistant that answers questions about the State of Dutch Tech report and related documents.
 
 When answering questions:
 1. Use markdown formatting for better readability (headers, lists, bold, etc.)
-2. Include inline citation numbers like [1], [2], etc. when referencing specific information from documents
-3. Be specific about which document and page number contains each piece of information
+2. Do NOT include bracketed citation markers like [1], [2] in your text (the UI will render citations separately)
+3. Be specific about which document and page number contains each piece of information when possible
 4. Structure your response clearly with sections if the answer covers multiple topics
 5. If you're unsure or the information isn't in the documents, say so clearly`;
 
@@ -147,7 +147,7 @@ export async function* chatStream(
 ): AsyncGenerator<StreamedChatResponse> {
   const assistant = getAssistant();
 
-  // Prepend system instructions as context for better formatting and citations
+  // Prepend system instructions as context for better formatting and grounded answers
   const messagesWithInstructions: ChatMessage[] = [
     {
       role: "user",
@@ -156,7 +156,7 @@ export async function* chatStream(
     {
       role: "assistant",
       content:
-        "I understand. I will format my responses using markdown and include inline citation numbers [1], [2], etc. to reference specific documents. I'll be clear about sources.",
+        "I understand. I will format my responses using markdown and clearly ground claims in the provided documents.",
     },
     ...messages,
   ];
