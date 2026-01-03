@@ -67,6 +67,11 @@ export default defineSchema({
     ),
     processingError: v.optional(v.string()),
     pineconeFileId: v.optional(v.string()),  // Reference to Pinecone Assistant file
+    pineconeFileStatus: v.optional(v.union(
+      v.literal("Processing"),
+      v.literal("Available"),
+      v.literal("Failed")
+    )),
 
     // Admin workflow
     approved: v.boolean(),
