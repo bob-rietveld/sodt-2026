@@ -46,14 +46,52 @@ export async function POST(request: NextRequest) {
     // Create a ReadableStream for the response
     const encoder = new TextEncoder();
     let fullResponse = "";
-    // Track sources by their citation position (the number in [1], [2], etc.)
-    const sourcesByPosition: Map<number, {
-      position: number;
-      convexId: string;
+    // Track citation groups by their character offset in the message.
+    // Pinecone Assistant citations provide a `position` which is an offset into the generated content.
+    const citationsByOffset: Map<number, Map<string, {
+      fileId: string;
       title: string;
       filename: string;
-      pageNumbers: number[];
-    }> = new Map();
+      pageNumbers: Set<number>;
+    }>> = new Map();
+
+    function upsertCitation(offset: number, fileId: string, filename: string, pages: number[] | undefined) {
+      const clampedOffset = Math.max(0, offset);
+      let refs = citationsByOffset.get(clampedOffset);
+      if (!refs) {
+        refs = new Map();
+        citationsByOffset.set(clampedOffset, refs);
+      }
+
+      const existing = refs.get(fileId);
+      const pageNumbers = existing?.pageNumbers ?? new Set<number>();
+      for (const page of pages ?? []) pageNumbers.add(page);
+
+      refs.set(fileId, {
+        fileId,
+        title: filename.replace(/\.[^/.]+$/, ""),
+        filename,
+        pageNumbers,
+      });
+    }
+
+    function insertCitationLinks(content: string, offsets: Array<{ offset: number; index: number }>) {
+      // If the model already produced inline citations like [1], keep them as-is and
+      // let the client linkify them (prevents double-citations).
+      if (/\[\d+\]/.test(content)) return content;
+
+      let updated = content;
+      // Insert from the end to preserve offsets.
+      const descending = [...offsets].sort((a, b) => b.offset - a.offset);
+      for (const { offset, index } of descending) {
+        const safeOffset = Math.min(Math.max(0, offset), updated.length);
+        updated =
+          updated.slice(0, safeOffset) +
+          ` [[${index}]](#source-${index})` +
+          updated.slice(safeOffset);
+      }
+      return updated;
+    }
 
     const readableStream = new ReadableStream({
       async start(controller) {
@@ -68,53 +106,38 @@ export async function POST(request: NextRequest) {
                 )
               );
             } else if (chunk.type === "citation" && chunk.citation) {
-              // Track citation by its position (the [1], [2], etc. number in the text)
-              const citationPosition = chunk.citation.position ?? 0;
-
-              for (const ref of chunk.citation.references) {
-                if (ref.file) {
-                  const existing = sourcesByPosition.get(citationPosition);
-                  if (existing) {
-                    // Add page numbers if not already included
-                    const newPages = ref.pages || [];
-                    for (const page of newPages) {
-                      if (!existing.pageNumbers.includes(page)) {
-                        existing.pageNumbers.push(page);
-                      }
-                    }
-                  } else {
-                    sourcesByPosition.set(citationPosition, {
-                      position: citationPosition,
-                      convexId: ref.file.id,
-                      title: ref.file.name.replace(/\.[^/.]+$/, ""),
-                      filename: ref.file.name,
-                      pageNumbers: ref.pages || [],
-                    });
-                  }
-                }
+              const offset = chunk.citation.position ?? fullResponse.length;
+              for (const ref of chunk.citation.references ?? []) {
+                if (!ref.file?.id || !ref.file?.name) continue;
+                upsertCitation(offset, ref.file.id, ref.file.name, ref.pages);
               }
             }
           }
 
-          // Convert sources map to sorted array by position
-          const sources = Array.from(sourcesByPosition.values())
-            .sort((a, b) => a.position - b.position)
-            .map((s) => ({
-              position: s.position,
-              convexId: s.convexId,
-              title: s.title,
-              filename: s.filename,
-              pageNumbers: s.pageNumbers.sort((a, b) => a - b),
-            }));
+          // Convert citation offsets to stable citation indices [1..n]
+          const offsetsSorted = Array.from(citationsByOffset.entries()).sort(
+            ([a], [b]) => a - b
+          );
 
-          // Send sources after streaming is complete
-          if (sources.length > 0) {
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ type: "sources", sources })}\n\n`
-              )
-            );
-          }
+          const offsetsWithIndex = offsetsSorted.map(([offset], i) => ({
+            offset,
+            index: i + 1,
+          }));
+
+          const contentWithCitations = insertCitationLinks(fullResponse, offsetsWithIndex);
+
+          const sources = offsetsSorted.map(([offset, refs], i) => ({
+            index: i + 1,
+            offset,
+            references: Array.from(refs.values())
+              .map((r) => ({
+                fileId: r.fileId,
+                title: r.title,
+                filename: r.filename,
+                pageNumbers: Array.from(r.pageNumbers).sort((a, b) => a - b),
+              }))
+              .sort((a, b) => a.title.localeCompare(b.title)),
+          }));
 
           // Log search query to analytics after stream completes
           const responseTimeMs = Date.now() - startTime;
@@ -125,20 +148,29 @@ export async function POST(request: NextRequest) {
               searchType: "chat",
               sessionId,
               responseTimeMs,
-              answer: fullResponse.slice(0, 2000),
-              sources: sources.map((s) => ({
-                convexId: s.convexId,
-                title: s.title,
-                filename: s.filename,
-                pageNumber: s.pageNumbers[0] ?? 0,
-              })),
-              resultCount: sources.length,
+              answer: contentWithCitations.slice(0, 2000),
+              sources: sources.flatMap((s) =>
+                s.references.map((r) => ({
+                  convexId: r.fileId,
+                  title: r.title,
+                  filename: r.filename,
+                  pageNumber: r.pageNumbers[0] ?? 0,
+                }))
+              ),
+              resultCount: sources.reduce((acc, s) => acc + s.references.length, 0),
               userAgent,
               ipHash: hashIP(ip),
             });
           } catch (logError) {
             console.error("Failed to log chat query:", logError);
           }
+
+          // Send a final event with the complete content + structured sources.
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ type: "final", content: contentWithCitations, sources })}\n\n`
+            )
+          );
 
           // Send done event
           controller.enqueue(
