@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
-import { chatStream, type ChatMessage } from "@/lib/pinecone/client";
+import { chatStream, type ChatMessage, type ChatFilter } from "@/lib/pinecone/client";
 import { api } from "../../../../convex/_generated/api";
 import crypto from "crypto";
 
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    const { message, sessionId } = await request.json();
+    const { message, sessionId, fileIds } = await request.json();
 
     if (!message) {
       return new Response(JSON.stringify({ error: "Message is required" }), {
@@ -38,6 +38,11 @@ export async function POST(request: NextRequest) {
     // Prepare messages for Pinecone Assistant
     const messages: ChatMessage[] = [{ role: "user", content: message }];
 
+    // Prepare filter if file IDs are provided
+    const filter: ChatFilter | undefined = fileIds?.length
+      ? { fileIds }
+      : undefined;
+
     // Create a ReadableStream for the response
     const encoder = new TextEncoder();
     let fullResponse = "";
@@ -52,7 +57,7 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         try {
           // Stream the response from Pinecone Assistant
-          for await (const chunk of chatStream(messages)) {
+          for await (const chunk of chatStream(messages, filter)) {
             if (chunk.type === "content_chunk" && chunk.delta?.content) {
               fullResponse += chunk.delta.content;
               controller.enqueue(

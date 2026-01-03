@@ -137,8 +137,13 @@ export async function chat(messages: ChatMessage[]): Promise<ChatResponse> {
 
 export type { StreamedChatResponse as StreamChunk };
 
+export interface ChatFilter {
+  fileIds?: string[];
+}
+
 export async function* chatStream(
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  filter?: ChatFilter
 ): AsyncGenerator<StreamedChatResponse> {
   const assistant = getAssistant();
 
@@ -156,9 +161,15 @@ export async function* chatStream(
     ...messages,
   ];
 
+  // Build filter object if file IDs are provided
+  const chatFilter = filter?.fileIds?.length
+    ? { id: { $in: filter.fileIds } }
+    : undefined;
+
   const stream = await assistant.chatStream({
     messages: messagesWithInstructions,
     model: PINECONE_MODEL,
+    filter: chatFilter,
   });
 
   for await (const chunk of stream) {

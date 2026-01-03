@@ -856,6 +856,49 @@ export const getFilterOptions = query({
   },
 });
 
+// Get Pinecone file IDs based on filters (for chat filtering)
+export const getPineconeFileIdsByFilters = query({
+  args: {
+    continent: v.optional(v.string()),
+    industry: v.optional(v.string()),
+    year: v.optional(v.number()),
+    company: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Get all public (approved + completed) reports with Pinecone file IDs
+    let reports = await ctx.db
+      .query("pdfs")
+      .withIndex("by_public_browse", (q) =>
+        q.eq("approved", true).eq("status", "completed")
+      )
+      .collect();
+
+    // Filter to only those with Pinecone file IDs
+    reports = reports.filter((r) => r.pineconeFileId);
+
+    // Apply filters
+    if (args.continent) {
+      reports = reports.filter((r) => r.continent === args.continent);
+    }
+    if (args.industry) {
+      reports = reports.filter((r) => r.industry === args.industry);
+    }
+    if (args.year) {
+      reports = reports.filter((r) => r.dateOrYear === args.year);
+    }
+    if (args.company) {
+      reports = reports.filter((r) =>
+        r.company?.toLowerCase().includes(args.company!.toLowerCase())
+      );
+    }
+
+    return {
+      fileIds: reports.map((r) => r.pineconeFileId).filter(Boolean) as string[],
+      count: reports.length,
+    };
+  },
+});
+
 // Get statistics for reprocessing dashboard
 export const getReprocessingStats = query({
   handler: async (ctx) => {

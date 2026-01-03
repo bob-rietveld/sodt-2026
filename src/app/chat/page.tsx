@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useQuery } from "convex/react";
 import { Header } from "@/components/ui/header";
 import ReactMarkdown from "react-markdown";
+import { api } from "../../../convex/_generated/api";
 
 interface Source {
   title: string;
@@ -17,6 +19,29 @@ interface Message {
   sources?: Source[];
   isLoading?: boolean;
 }
+
+interface ChatFilters {
+  continent?: string;
+  industry?: string;
+  year?: number;
+}
+
+const continentLabels: Record<string, string> = {
+  us: "United States",
+  eu: "Europe",
+  asia: "Asia",
+  global: "Global",
+  other: "Other",
+};
+
+const industryLabels: Record<string, string> = {
+  semicon: "Semiconductor",
+  deeptech: "Deep Tech",
+  biotech: "Biotech",
+  fintech: "Fintech",
+  cleantech: "Clean Tech",
+  other: "Other",
+};
 
 function LoadingIndicator() {
   return (
@@ -62,7 +87,6 @@ function MarkdownContent({ content }: { content: string }) {
     <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-blockquote:my-2 prose-pre:my-2">
       <ReactMarkdown
         components={{
-          // Style links
           a: ({ children, href }) => (
             <a
               href={href}
@@ -73,7 +97,6 @@ function MarkdownContent({ content }: { content: string }) {
               {children}
             </a>
           ),
-          // Style code blocks
           code: ({ children, className }) => {
             const isInline = !className;
             return isInline ? (
@@ -84,7 +107,6 @@ function MarkdownContent({ content }: { content: string }) {
               <code className={className}>{children}</code>
             );
           },
-          // Style blockquotes
           blockquote: ({ children }) => (
             <blockquote className="border-l-2 border-primary/30 pl-4 italic text-foreground/70">
               {children}
@@ -98,12 +120,138 @@ function MarkdownContent({ content }: { content: string }) {
   );
 }
 
+function FilterBar({
+  filters,
+  setFilters,
+  options,
+  documentCount,
+}: {
+  filters: ChatFilters;
+  setFilters: (filters: ChatFilters) => void;
+  options: {
+    continents: string[];
+    industries: string[];
+    years: number[];
+  } | undefined;
+  documentCount: number | undefined;
+}) {
+  const hasActiveFilters = filters.continent || filters.industry || filters.year;
+
+  return (
+    <div className="bg-white rounded-lg border border-foreground/10 p-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Filter Icon & Label */}
+        <div className="flex items-center gap-2 text-sm text-foreground/60">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+          </svg>
+          <span className="font-medium">Filter documents:</span>
+        </div>
+
+        {/* Region Filter */}
+        <select
+          value={filters.continent ?? ""}
+          onChange={(e) =>
+            setFilters({ ...filters, continent: e.target.value || undefined })
+          }
+          className="px-2.5 py-1.5 text-sm border border-foreground/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white min-w-[120px]"
+        >
+          <option value="">All Regions</option>
+          {options?.continents.map((c) => (
+            <option key={c} value={c}>
+              {continentLabels[c] ?? c}
+            </option>
+          ))}
+        </select>
+
+        {/* Industry Filter */}
+        <select
+          value={filters.industry ?? ""}
+          onChange={(e) =>
+            setFilters({ ...filters, industry: e.target.value || undefined })
+          }
+          className="px-2.5 py-1.5 text-sm border border-foreground/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white min-w-[120px]"
+        >
+          <option value="">All Industries</option>
+          {options?.industries.map((i) => (
+            <option key={i} value={i}>
+              {industryLabels[i] ?? i}
+            </option>
+          ))}
+        </select>
+
+        {/* Year Filter */}
+        <select
+          value={filters.year?.toString() ?? ""}
+          onChange={(e) => {
+            const value = e.target.value;
+            setFilters({
+              ...filters,
+              year: value ? parseInt(value, 10) : undefined,
+            });
+          }}
+          className="px-2.5 py-1.5 text-sm border border-foreground/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white min-w-[100px]"
+        >
+          <option value="">All Years</option>
+          {options?.years.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+
+        {/* Clear Filters */}
+        {hasActiveFilters && (
+          <button
+            onClick={() => setFilters({})}
+            className="text-sm text-primary hover:underline"
+          >
+            Clear
+          </button>
+        )}
+
+        {/* Document Count */}
+        <div className="ml-auto text-xs text-foreground/50">
+          {documentCount !== undefined ? (
+            <span>
+              Searching {documentCount} document{documentCount !== 1 ? "s" : ""}
+            </span>
+          ) : (
+            <span>Loading...</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [filters, setFilters] = useState<ChatFilters>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch filter options from Convex
+  const filterOptions = useQuery(api.pdfs.getFilterOptions);
+
+  // Fetch Pinecone file IDs based on current filters
+  const filteredFiles = useQuery(api.pdfs.getPineconeFileIdsByFilters, {
+    continent: filters.continent,
+    industry: filters.industry,
+    year: filters.year,
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -113,7 +261,6 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -137,7 +284,10 @@ export default function ChatPage() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({
+          message: userMessage,
+          fileIds: filteredFiles?.fileIds,
+        }),
       });
 
       if (!response.ok) throw new Error("Chat request failed");
@@ -176,7 +326,6 @@ export default function ChatPage() {
               } else if (data.type === "text") {
                 if (!receivedFirstChunk) {
                   receivedFirstChunk = true;
-                  // Remove loading state when first content arrives
                   setMessages((prev) => {
                     const newMessages = [...prev];
                     const lastMessage = newMessages[newMessages.length - 1];
@@ -205,7 +354,6 @@ export default function ChatPage() {
     } catch (error) {
       console.error("Chat error:", error);
       setMessages((prev) => {
-        // Remove loading message and add error
         const filtered = prev.filter((m) => !m.isLoading);
         return [
           ...filtered,
@@ -218,7 +366,6 @@ export default function ChatPage() {
       });
     } finally {
       setIsLoading(false);
-      // Refocus input after response
       inputRef.current?.focus();
     }
   };
@@ -232,7 +379,6 @@ export default function ChatPage() {
     <div className="min-h-screen bg-background flex flex-col">
       <Header showAdmin={false} />
 
-      {/* Chat Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 flex flex-col">
         {/* Header with title and reset button */}
         <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -264,6 +410,14 @@ export default function ChatPage() {
             </button>
           )}
         </div>
+
+        {/* Filter Bar */}
+        <FilterBar
+          filters={filters}
+          setFilters={setFilters}
+          options={filterOptions}
+          documentCount={filteredFiles?.count}
+        />
 
         {/* Input at the top */}
         <form onSubmit={handleSubmit} className="flex gap-2 sm:gap-4 mb-6">
