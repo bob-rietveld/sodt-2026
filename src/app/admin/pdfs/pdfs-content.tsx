@@ -48,6 +48,8 @@ export default function PdfsContent() {
   const [isExportingZip, setIsExportingZip] = useState(false);
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
   const [extractingMetadataId, setExtractingMetadataId] = useState<string | null>(null);
+  const [extractingTextId, setExtractingTextId] = useState<string | null>(null);
+  const [runningFullPipelineId, setRunningFullPipelineId] = useState<string | null>(null);
 
   // Search and sort state
   const [searchQuery, setSearchQuery] = useState("");
@@ -731,6 +733,51 @@ export default function PdfsContent() {
     }
   };
 
+  // Extract text for a single PDF
+  const handleExtractText = async (id: Id<"pdfs">) => {
+    setExtractingTextId(id);
+    try {
+      const response = await fetch("/api/extract-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdfId: id }),
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        alert("Text extracted successfully!");
+      } else {
+        alert(`Text extraction failed: ${result.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Extract text error:", error);
+      alert("Failed to extract text. Please try again.");
+    } finally {
+      setExtractingTextId(null);
+    }
+  };
+
+  const handleRunFullPipeline = async (id: Id<"pdfs">) => {
+    setRunningFullPipelineId(id);
+    try {
+      const response = await fetch("/api/full-pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdfId: id }),
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        alert("Full pipeline started/completed successfully!");
+      } else {
+        alert(`Full pipeline failed: ${result.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Full pipeline error:", error);
+      alert("Failed to run full pipeline. Please try again.");
+    } finally {
+      setRunningFullPipelineId(null);
+    }
+  };
+
   // Regenerate thumbnail for a PDF
   const handleRegenerateThumbnail = async (pdf: PDF) => {
     // Get the file URL for this PDF
@@ -1391,6 +1438,56 @@ export default function PdfsContent() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                                 </svg>
                                 Extract Metadata
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleExtractText(pdf._id);
+                              setOpenActionMenu(null);
+                            }}
+                            disabled={extractingTextId === pdf._id}
+                            className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-foreground/5 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {extractingTextId === pdf._id ? (
+                              <>
+                                <svg className="w-4 h-4 text-secondary animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                Extracting...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v16h16V4H4zm4 4h8M8 12h8M8 16h5" />
+                                </svg>
+                                Extract Text
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleRunFullPipeline(pdf._id);
+                              setOpenActionMenu(null);
+                            }}
+                            disabled={runningFullPipelineId === pdf._id}
+                            className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-foreground/5 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {runningFullPipelineId === pdf._id ? (
+                              <>
+                                <svg className="w-4 h-4 text-primary animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                Running...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                                Full Pipeline
                               </>
                             )}
                           </button>

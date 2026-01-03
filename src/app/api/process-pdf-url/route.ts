@@ -7,8 +7,9 @@ import { join } from "path";
 import { api } from "../../../../convex/_generated/api";
 import { uploadFile, describeFile } from "@/lib/pinecone/client";
 import { runWorkflow } from "@/lib/unstructured/workflow";
-import { extractPDFMetadataFromUrl } from "@/lib/pdf/extractor";
+import { extractPDFMetadataLocal, extractTextFromPdf } from "@/lib/pdf/extractor";
 import { tryGenerateThumbnail } from "@/lib/pdf/thumbnail";
+import { indexPdfToPineconeFromExtractedText } from "@/lib/processing/pinecone-index";
 
 // Calculate SHA-256 hash of buffer
 function calculateBufferHash(buffer: Buffer): string {
@@ -162,6 +163,10 @@ export async function POST(request: NextRequest) {
       key: "processing_enabled",
     });
 
+    const textExtractionEnabled = await convex.query(api.settings.get, {
+      key: "text_extraction_enabled",
+    });
+
     // If processing is disabled, mark as completed but still extract metadata if enabled
     if (processingEnabled === "false") {
       console.log(
@@ -172,6 +177,36 @@ export async function POST(request: NextRequest) {
         id: pdfId,
         status: "completed",
       });
+
+      // Still extract text if enabled
+      if (textExtractionEnabled !== "false") {
+        try {
+          const textResult = await extractTextFromPdf(pdfBuffer);
+          if (textResult.success && textResult.text) {
+            const textUploadUrl = await convex.mutation(api.pdfs.generateUploadUrl, {});
+            const textBlob = new Blob([textResult.text], { type: "text/plain" });
+            const uploadResponse = await fetch(textUploadUrl, {
+              method: "POST",
+              headers: { "Content-Type": "text/plain" },
+              body: textBlob,
+            });
+            if (uploadResponse.ok) {
+              const { storageId: extractedTextStorageId } = await uploadResponse.json();
+              await convex.mutation(api.pdfs.updateExtractedTextStorageId, {
+                id: pdfId,
+                extractedTextStorageId,
+              });
+              await convex.mutation(api.pdfs.updateStatus, {
+                id: pdfId,
+                status: "completed",
+                pageCount: textResult.pageCount,
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Text extraction error (processing disabled):", error);
+        }
+      }
 
       // Still extract metadata if enabled
       const metadataExtractionEnabled = await convex.query(api.settings.get, {
@@ -185,7 +220,7 @@ export async function POST(request: NextRequest) {
           const thumbnailDataUrl = await tryGenerateThumbnail(pdfBuffer, 1.5);
 
           // Extract metadata using local extraction (no Firecrawl)
-          const extractResult = await extractPDFMetadataFromUrl(url);
+          const extractResult = await extractPDFMetadataLocal(pdfBuffer);
           console.log(
             "process-pdf-url: Extract result:",
             JSON.stringify(extractResult.data, null, 2)
@@ -243,6 +278,7 @@ export async function POST(request: NextRequest) {
     await convex.mutation(api.pdfs.updateStatus, {
       id: pdfId,
       status: "processing",
+      processingError: undefined,
     });
 
     // Step 3.5: Run Unstructured workflow if configured
@@ -264,39 +300,89 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 4: Write to temp file and upload to Pinecone Assistant
-    console.log(`Uploading to Pinecone Assistant: ${filename}`);
-    tempFilePath = await writeTempFile(pdfBuffer, filename);
+    let pineconeFileId: string | undefined;
+    let pineconeFileStatus: "Available" | "Processing" | "Failed" | undefined;
 
-    const uploadResult = await uploadFile(tempFilePath, {
-      convexId: pdfId,
-      title,
-      filename,
-      sourceUrl: url,
-    });
+    if (textExtractionEnabled !== "false") {
+      const textResult = await extractTextFromPdf(pdfBuffer);
+      if (!textResult.success || !textResult.text) {
+        throw new Error(textResult.error || "Failed to extract text from PDF");
+      }
 
-    await convex.mutation(api.processing.updateJob, {
-      jobId,
-      stage: "storing",
-      metadata: { pineconeFileId: uploadResult.id },
-    });
+      const textUploadUrl = await convex.mutation(api.pdfs.generateUploadUrl, {});
+      const textBlob = new Blob([textResult.text], { type: "text/plain" });
+      const uploadResponse = await fetch(textUploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: textBlob,
+      });
+      if (uploadResponse.ok) {
+        const { storageId: extractedTextStorageId } = await uploadResponse.json();
+        await convex.mutation(api.pdfs.updateExtractedTextStorageId, {
+          id: pdfId,
+          extractedTextStorageId,
+        });
+      }
 
-    // Step 5: Wait for Pinecone to process the file
-    console.log(`Waiting for Pinecone to process file: ${uploadResult.id}`);
-    await waitForFileProcessing(uploadResult.id);
+      const indexResult = await indexPdfToPineconeFromExtractedText(
+        convex,
+        { _id: pdfId, title, filename, source: "url" },
+        textResult.text,
+        { replaceExisting: true }
+      );
+      pineconeFileId = indexResult.pineconeFileId;
+      pineconeFileStatus = indexResult.status;
 
-    // Step 6: Update job and PDF status
-    await convex.mutation(api.processing.updateJob, {
-      jobId,
-      stage: "completed",
-      metadata: { pineconeFileId: uploadResult.id },
-    });
+      await convex.mutation(api.processing.updateJob, {
+        jobId,
+        stage: "completed",
+        metadata: { pineconeFileId },
+      });
 
-    await convex.mutation(api.pdfs.updateStatus, {
-      id: pdfId,
-      status: "completed",
-      pineconeFileId: uploadResult.id,
-    });
+      await convex.mutation(api.pdfs.updateStatus, {
+        id: pdfId,
+        status: "completed",
+        pineconeFileId,
+        pineconeFileStatus,
+        pageCount: textResult.pageCount,
+      });
+    } else {
+      // Fallback: upload the original PDF to Pinecone Assistant
+      console.log(`Uploading to Pinecone Assistant: ${filename}`);
+      tempFilePath = await writeTempFile(pdfBuffer, filename);
+
+      const uploadResult = await uploadFile(tempFilePath, {
+        convexId: pdfId,
+        title,
+        filename,
+        sourceUrl: url,
+      });
+
+      await convex.mutation(api.processing.updateJob, {
+        jobId,
+        stage: "storing",
+        metadata: { pineconeFileId: uploadResult.id },
+      });
+
+      console.log(`Waiting for Pinecone to process file: ${uploadResult.id}`);
+      await waitForFileProcessing(uploadResult.id);
+
+      await convex.mutation(api.processing.updateJob, {
+        jobId,
+        stage: "completed",
+        metadata: { pineconeFileId: uploadResult.id },
+      });
+
+      pineconeFileId = uploadResult.id;
+      pineconeFileStatus = "Available";
+
+      await convex.mutation(api.pdfs.updateStatus, {
+        id: pdfId,
+        status: "completed",
+        pineconeFileId,
+        pineconeFileStatus,
+      });
+    }
 
     // Check if metadata extraction is enabled
     const metadataExtractionEnabled = await convex.query(api.settings.get, {
@@ -314,7 +400,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Extract metadata using local extraction (no Firecrawl)
-        const extractResult = await extractPDFMetadataFromUrl(url);
+        const extractResult = await extractPDFMetadataLocal(pdfBuffer);
         if (extractResult.success && extractResult.data) {
           await convex.mutation(api.pdfs.updateExtractedMetadata, {
             id: pdfId,
@@ -350,7 +436,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       pdfId,
-      pineconeFileId: uploadResult.id,
+      pineconeFileId,
+      pineconeFileStatus,
     });
   } catch (error) {
     console.error("Process PDF from URL error:", error);

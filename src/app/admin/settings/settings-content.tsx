@@ -53,6 +53,7 @@ export default function SettingsContent() {
 
   // Processing pipeline settings
   const [processingEnabled, setProcessingEnabled] = useState(true);
+  const [textExtractionEnabled, setTextExtractionEnabled] = useState(true);
   const [metadataExtractionEnabled, setMetadataExtractionEnabled] = useState(true);
 
   // Unstructured settings
@@ -81,6 +82,7 @@ export default function SettingsContent() {
   useEffect(() => {
     if (settings) {
       setProcessingEnabled(settings.processing_enabled !== "false"); // Default to true
+      setTextExtractionEnabled(settings.text_extraction_enabled !== "false"); // Default to true
       setMetadataExtractionEnabled(settings.metadata_extraction_enabled !== "false"); // Default to true
       setWorkflowId(settings.unstructured_workflow_id || "");
       setGoogleClientId(settings.google_client_id || "");
@@ -200,6 +202,33 @@ export default function SettingsContent() {
         text: error instanceof Error ? error.message : "Failed to save",
       });
       setMetadataExtractionEnabled(!enabled); // Revert on error
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleTextExtraction = async (enabled: boolean) => {
+    setTextExtractionEnabled(enabled);
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      await setSetting({
+        key: "text_extraction_enabled",
+        value: enabled ? "true" : "false",
+      });
+      setSaveMessage({
+        type: "success",
+        text: enabled
+          ? "Text extraction enabled. PDFs will be processed into extracted text for indexing."
+          : "Text extraction disabled. Indexing may fail for PDFs with no extractable text.",
+      });
+    } catch (error) {
+      setSaveMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to save",
+      });
+      setTextExtractionEnabled(!enabled); // Revert on error
     } finally {
       setIsSaving(false);
     }
@@ -447,6 +476,48 @@ export default function SettingsContent() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Text Extraction Settings */}
+          <div className="bg-white rounded-xl border border-foreground/10 p-6 max-w-2xl">
+            <h2 className="text-xl font-semibold mb-4">Text Extraction</h2>
+            <p className="text-foreground/70 mb-4">
+              Control whether the app extracts text from PDFs and stores it for indexing. Pinecone Assistant
+              indexing requires text content; if a PDF has no extractable text, indexing will fail.
+            </p>
+
+            <div className="flex items-center justify-between p-4 rounded-lg border border-foreground/10">
+              <div className="flex items-center gap-3">
+                <span
+                  className={`w-3 h-3 rounded-full ${
+                    textExtractionEnabled ? "bg-success" : "bg-foreground/30"
+                  }`}
+                />
+                <div>
+                  <div className="font-medium">
+                    {textExtractionEnabled ? "Text Extraction Enabled" : "Text Extraction Disabled"}
+                  </div>
+                  <div className="text-sm text-foreground/60">
+                    {textExtractionEnabled
+                      ? "Extracted text is stored and used for Pinecone indexing"
+                      : "PDFs will be sent to Pinecone directly (may fail without text)"}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => handleToggleTextExtraction(!textExtractionEnabled)}
+                disabled={isSaving}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 ${
+                  textExtractionEnabled ? "bg-success" : "bg-foreground/30"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    textExtractionEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           {/* Metadata Extraction Settings */}
