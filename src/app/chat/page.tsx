@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { Header } from "@/components/ui/header";
+import { MultiSelectDropdown, type FilterOption } from "@/components/ui/multi-select-dropdown";
 import ReactMarkdown from "react-markdown";
 import { api } from "../../../convex/_generated/api";
 
@@ -24,6 +25,8 @@ interface ChatFilters {
   continent?: string;
   industry?: string;
   year?: number;
+  technologyAreas?: string[];
+  keywords?: string[];
 }
 
 const continentLabels: Record<string, string> = {
@@ -120,11 +123,12 @@ function MarkdownContent({ content }: { content: string }) {
   );
 }
 
-function FilterBar({
+function FilterSidebar({
   filters,
   setFilters,
   options,
   documentCount,
+  isLoading,
 }: {
   filters: ChatFilters;
   setFilters: (filters: ChatFilters) => void;
@@ -132,16 +136,38 @@ function FilterBar({
     continents: string[];
     industries: string[];
     years: number[];
+    technologyAreas: FilterOption[];
+    keywords: FilterOption[];
   } | undefined;
   documentCount: number | undefined;
+  isLoading: boolean;
 }) {
-  const hasActiveFilters = filters.continent || filters.industry || filters.year;
+  const hasActiveFilters =
+    filters.continent ||
+    filters.industry ||
+    filters.year ||
+    (filters.technologyAreas && filters.technologyAreas.length > 0) ||
+    (filters.keywords && filters.keywords.length > 0);
 
   return (
-    <div className="bg-white rounded-lg border border-foreground/10 p-3 mb-4">
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Filter Icon & Label */}
-        <div className="flex items-center gap-2 text-sm text-foreground/60">
+    <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden h-fit sticky top-6">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-foreground/10 bg-foreground/[0.02]">
+        <h2 className="font-semibold text-lg">Filters</h2>
+        {hasActiveFilters && (
+          <button
+            onClick={() => setFilters({})}
+            disabled={isLoading}
+            className="text-sm text-primary hover:underline disabled:opacity-50"
+          >
+            Clear all
+          </button>
+        )}
+      </div>
+
+      <div className="p-5 space-y-5">
+        {/* Document Count */}
+        <div className="text-sm text-foreground/60 flex items-center gap-2">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="16"
@@ -153,82 +179,112 @@ function FilterBar({
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
           </svg>
-          <span className="font-medium">Filter documents:</span>
-        </div>
-
-        {/* Region Filter */}
-        <select
-          value={filters.continent ?? ""}
-          onChange={(e) =>
-            setFilters({ ...filters, continent: e.target.value || undefined })
-          }
-          className="px-2.5 py-1.5 text-sm border border-foreground/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white min-w-[120px]"
-        >
-          <option value="">All Regions</option>
-          {options?.continents.map((c) => (
-            <option key={c} value={c}>
-              {continentLabels[c] ?? c}
-            </option>
-          ))}
-        </select>
-
-        {/* Industry Filter */}
-        <select
-          value={filters.industry ?? ""}
-          onChange={(e) =>
-            setFilters({ ...filters, industry: e.target.value || undefined })
-          }
-          className="px-2.5 py-1.5 text-sm border border-foreground/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white min-w-[120px]"
-        >
-          <option value="">All Industries</option>
-          {options?.industries.map((i) => (
-            <option key={i} value={i}>
-              {industryLabels[i] ?? i}
-            </option>
-          ))}
-        </select>
-
-        {/* Year Filter */}
-        <select
-          value={filters.year?.toString() ?? ""}
-          onChange={(e) => {
-            const value = e.target.value;
-            setFilters({
-              ...filters,
-              year: value ? parseInt(value, 10) : undefined,
-            });
-          }}
-          className="px-2.5 py-1.5 text-sm border border-foreground/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white min-w-[100px]"
-        >
-          <option value="">All Years</option>
-          {options?.years.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
-
-        {/* Clear Filters */}
-        {hasActiveFilters && (
-          <button
-            onClick={() => setFilters({})}
-            className="text-sm text-primary hover:underline"
-          >
-            Clear
-          </button>
-        )}
-
-        {/* Document Count */}
-        <div className="ml-auto text-xs text-foreground/50">
           {documentCount !== undefined ? (
             <span>
-              Searching {documentCount} document{documentCount !== 1 ? "s" : ""}
+              {documentCount} document{documentCount !== 1 ? "s" : ""} available
             </span>
           ) : (
             <span>Loading...</span>
           )}
+        </div>
+
+        {/* Technology Areas Filter */}
+        {options?.technologyAreas && options.technologyAreas.length > 0 && (
+          <MultiSelectDropdown
+            label="Technology Areas"
+            placeholder="Search technologies..."
+            options={options.technologyAreas}
+            selected={filters.technologyAreas ?? []}
+            onChange={(selected) =>
+              setFilters({ ...filters, technologyAreas: selected.length > 0 ? selected : undefined })
+            }
+          />
+        )}
+
+        {/* Keywords Filter */}
+        {options?.keywords && options.keywords.length > 0 && (
+          <MultiSelectDropdown
+            label="Keywords"
+            placeholder="Search keywords..."
+            options={options.keywords}
+            selected={filters.keywords ?? []}
+            onChange={(selected) =>
+              setFilters({ ...filters, keywords: selected.length > 0 ? selected : undefined })
+            }
+          />
+        )}
+
+        {/* Region Filter */}
+        <div>
+          <label className="block text-sm font-medium text-foreground/70 mb-2">
+            Region
+          </label>
+          <select
+            value={filters.continent ?? ""}
+            onChange={(e) =>
+              setFilters({ ...filters, continent: e.target.value || undefined })
+            }
+            disabled={isLoading}
+            className="w-full px-3 py-2.5 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white disabled:opacity-50"
+          >
+            <option value="">All Regions</option>
+            {options?.continents.map((c) => (
+              <option key={c} value={c}>
+                {continentLabels[c] ?? c}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Industry Filter */}
+        <div>
+          <label className="block text-sm font-medium text-foreground/70 mb-2">
+            Industry
+          </label>
+          <select
+            value={filters.industry ?? ""}
+            onChange={(e) =>
+              setFilters({ ...filters, industry: e.target.value || undefined })
+            }
+            disabled={isLoading}
+            className="w-full px-3 py-2.5 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white disabled:opacity-50"
+          >
+            <option value="">All Industries</option>
+            {options?.industries.map((i) => (
+              <option key={i} value={i}>
+                {industryLabels[i] ?? i}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Year Filter */}
+        <div>
+          <label className="block text-sm font-medium text-foreground/70 mb-2">
+            Year
+          </label>
+          <select
+            value={filters.year?.toString() ?? ""}
+            onChange={(e) => {
+              const value = e.target.value;
+              setFilters({
+                ...filters,
+                year: value ? parseInt(value, 10) : undefined,
+              });
+            }}
+            disabled={isLoading}
+            className="w-full px-3 py-2.5 border border-foreground/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white disabled:opacity-50"
+          >
+            <option value="">All Years</option>
+            {options?.years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
     </div>
@@ -240,7 +296,9 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [filters, setFilters] = useState<ChatFilters>({});
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetch filter options from Convex
@@ -251,6 +309,8 @@ export default function ChatPage() {
     continent: filters.continent,
     industry: filters.industry,
     year: filters.year,
+    technologyAreas: filters.technologyAreas,
+    keywords: filters.keywords,
   });
 
   const scrollToBottom = () => {
@@ -279,6 +339,9 @@ export default function ChatPage() {
       ...prev,
       { role: "assistant", content: "", isLoading: true },
     ]);
+
+    // Scroll to bottom after adding messages
+    setTimeout(scrollToBottom, 100);
 
     try {
       const response = await fetch("/api/chat", {
@@ -379,110 +442,193 @@ export default function ChatPage() {
     <div className="min-h-screen bg-background flex flex-col">
       <Header showAdmin={false} />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 flex flex-col">
-        {/* Header with title and reset button */}
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h1 className="text-2xl sm:text-3xl font-semibold">
-            Chat with Documents
-          </h1>
-          {messages.length > 0 && (
-            <button
-              type="button"
-              onClick={handleReset}
-              disabled={isLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-foreground/60 hover:text-foreground hover:bg-foreground/5 rounded-lg transition-colors disabled:opacity-50"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                <path d="M3 3v5h5" />
-              </svg>
-              New chat
-            </button>
-          )}
-        </div>
-
-        {/* Filter Bar */}
-        <FilterBar
-          filters={filters}
-          setFilters={setFilters}
-          options={filterOptions}
-          documentCount={filteredFiles?.count}
-        />
-
-        {/* Input at the top */}
-        <form onSubmit={handleSubmit} className="flex gap-2 sm:gap-4 mb-6">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question about the State of Dutch Tech..."
-            disabled={isLoading}
-            className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg border border-foreground/20 bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 text-sm sm:text-base"
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar - Desktop */}
+        <aside className="hidden lg:block w-72 flex-shrink-0 p-6 overflow-y-auto border-r border-foreground/10">
+          <FilterSidebar
+            filters={filters}
+            setFilters={setFilters}
+            options={filterOptions}
+            documentCount={filteredFiles?.count}
+            isLoading={isLoading}
           />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm sm:text-base flex-shrink-0"
-          >
-            {isLoading ? "..." : "Send"}
-          </button>
-        </form>
+        </aside>
 
-        {/* Messages below input */}
-        <div className="flex-1 overflow-y-auto space-y-4 sm:space-y-6">
-          {messages.length === 0 ? (
-            <div className="text-center py-8 sm:py-12 text-foreground/50">
-              <p className="text-base sm:text-lg mb-2">
-                Ask a question about the State of Dutch Tech
-              </p>
-              <p className="text-sm">
-                I&apos;ll search through the documents and provide answers with
-                source references.
-              </p>
-            </div>
-          ) : (
-            messages.map((message, index) => (
-              <div
-                key={index}
-                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[90%] sm:max-w-[85%] p-3 sm:p-4 rounded-2xl ${
-                    message.role === "user"
-                      ? "bg-primary text-white"
-                      : "bg-white border border-foreground/10 shadow-sm"
-                  }`}
-                >
-                  {message.role === "assistant" && message.isLoading ? (
-                    <LoadingIndicator />
-                  ) : message.role === "assistant" ? (
-                    <>
-                      <MarkdownContent content={message.content} />
-                      <SourcesList sources={message.sources || []} />
-                    </>
-                  ) : (
-                    <p className="whitespace-pre-wrap text-sm sm:text-base">
-                      {message.content}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
+        {/* Mobile Filter Toggle */}
+        <div className="lg:hidden fixed bottom-24 left-4 z-40">
+          <button
+            onClick={() => setShowMobileFilters(!showMobileFilters)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-foreground/20 rounded-full shadow-lg hover:bg-foreground/5 transition-colors"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            <span className="text-sm font-medium">Filters</span>
+            {filteredFiles?.count !== undefined && (
+              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                {filteredFiles.count}
+              </span>
+            )}
+          </button>
         </div>
-      </main>
+
+        {/* Mobile Filter Panel */}
+        {showMobileFilters && (
+          <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setShowMobileFilters(false)}>
+            <div
+              className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-background p-4 overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-lg">Filters</h2>
+                <button
+                  onClick={() => setShowMobileFilters(false)}
+                  className="p-2 hover:bg-foreground/5 rounded-lg"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <FilterSidebar
+                filters={filters}
+                setFilters={setFilters}
+                options={filterOptions}
+                documentCount={filteredFiles?.count}
+                isLoading={isLoading}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Main Chat Area */}
+        <main className="flex-1 flex flex-col min-w-0">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4 border-b border-foreground/10 bg-white">
+            <h1 className="text-xl sm:text-2xl font-semibold">
+              Chat with Documents
+            </h1>
+            {messages.length > 0 && (
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={isLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-foreground/60 hover:text-foreground hover:bg-foreground/5 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                </svg>
+                New chat
+              </button>
+            )}
+          </div>
+
+          {/* Messages Area - Scrollable */}
+          <div
+            ref={messagesContainerRef}
+            className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6"
+          >
+            <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
+              {messages.length === 0 ? (
+                <div className="text-center py-12 sm:py-20 text-foreground/50">
+                  <svg
+                    className="w-12 h-12 mx-auto mb-4 text-foreground/20"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                    />
+                  </svg>
+                  <p className="text-base sm:text-lg mb-2">
+                    Ask a question about the State of Dutch Tech
+                  </p>
+                  <p className="text-sm max-w-md mx-auto">
+                    I&apos;ll search through the documents and provide answers with
+                    source references. Use the filters to narrow down your search.
+                  </p>
+                </div>
+              ) : (
+                messages.map((message, index) => (
+                  <div
+                    key={index}
+                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[90%] sm:max-w-[85%] p-3 sm:p-4 rounded-2xl ${
+                        message.role === "user"
+                          ? "bg-primary text-white"
+                          : "bg-white border border-foreground/10 shadow-sm"
+                      }`}
+                    >
+                      {message.role === "assistant" && message.isLoading ? (
+                        <LoadingIndicator />
+                      ) : message.role === "assistant" ? (
+                        <>
+                          <MarkdownContent content={message.content} />
+                          <SourcesList sources={message.sources || []} />
+                        </>
+                      ) : (
+                        <p className="whitespace-pre-wrap text-sm sm:text-base">
+                          {message.content}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+
+          {/* Input Area - Fixed at Bottom */}
+          <div className="border-t border-foreground/10 bg-white px-4 sm:px-6 lg:px-8 py-4">
+            <form onSubmit={handleSubmit} className="max-w-3xl mx-auto flex gap-2 sm:gap-4">
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask a question about the State of Dutch Tech..."
+                disabled={isLoading}
+                className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg border border-foreground/20 bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 text-sm sm:text-base"
+              />
+              <button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                className="px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm sm:text-base flex-shrink-0"
+              >
+                {isLoading ? "..." : "Send"}
+              </button>
+            </form>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

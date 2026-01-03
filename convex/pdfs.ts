@@ -863,6 +863,8 @@ export const getPineconeFileIdsByFilters = query({
     industry: v.optional(v.string()),
     year: v.optional(v.number()),
     company: v.optional(v.string()),
+    technologyAreas: v.optional(v.array(v.string())),
+    keywords: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     // Get all public (approved + completed) reports with Pinecone file IDs
@@ -889,6 +891,18 @@ export const getPineconeFileIdsByFilters = query({
     if (args.company) {
       reports = reports.filter((r) =>
         r.company?.toLowerCase().includes(args.company!.toLowerCase())
+      );
+    }
+    // Technology areas filter - report must have at least one selected area
+    if (args.technologyAreas && args.technologyAreas.length > 0) {
+      reports = reports.filter((r) =>
+        r.technologyAreas?.some((area) => args.technologyAreas!.includes(area))
+      );
+    }
+    // Keywords filter - report must have at least one selected keyword
+    if (args.keywords && args.keywords.length > 0) {
+      reports = reports.filter((r) =>
+        r.keywords?.some((kw) => args.keywords!.includes(kw))
       );
     }
 
