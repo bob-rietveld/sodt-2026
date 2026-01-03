@@ -1301,19 +1301,40 @@ export default function PdfsContent() {
                   )}
                 </td>
                 <td className="px-3 py-3">
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      pdf.status === "completed"
-                        ? "bg-success/10 text-success"
-                        : pdf.status === "failed"
-                          ? "bg-danger/10 text-danger"
-                          : pdf.status === "processing"
-                            ? "bg-info/10 text-info"
-                            : "bg-foreground/10 text-foreground/60"
-                    }`}
-                  >
-                    {pdf.status}
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium inline-block w-fit ${
+                        pdf.status === "completed"
+                          ? "bg-success/10 text-success"
+                          : pdf.status === "failed"
+                            ? "bg-danger/10 text-danger"
+                            : pdf.status === "processing"
+                              ? "bg-info/10 text-info"
+                              : "bg-foreground/10 text-foreground/60"
+                      }`}
+                    >
+                      {pdf.status}
+                    </span>
+                    {/* Pinecone indexing status */}
+                    {pdf.pineconeFileStatus ? (
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium inline-block w-fit ${
+                          pdf.pineconeFileStatus === "Available"
+                            ? "bg-primary/10 text-primary"
+                            : pdf.pineconeFileStatus === "Failed"
+                              ? "bg-danger/10 text-danger"
+                              : "bg-warning/10 text-warning"
+                        }`}
+                        title={pdf.pineconeFileId ? `Pinecone ID: ${pdf.pineconeFileId}` : undefined}
+                      >
+                        {pdf.pineconeFileStatus === "Available" ? "Indexed" : pdf.pineconeFileStatus === "Processing" ? "Indexing..." : "Index Failed"}
+                      </span>
+                    ) : pdf.status === "completed" ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-foreground/5 text-foreground/40 inline-block w-fit">
+                        Not indexed
+                      </span>
+                    ) : null}
+                  </div>
                 </td>
                 <td className="px-3 py-3">
                   {/* Actions Dropdown */}

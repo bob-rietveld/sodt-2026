@@ -641,6 +641,11 @@ export const updateStatus = mutation({
     ),
     processingError: v.optional(v.string()),
     pineconeFileId: v.optional(v.string()),
+    pineconeFileStatus: v.optional(v.union(
+      v.literal("Processing"),
+      v.literal("Available"),
+      v.literal("Failed")
+    )),
     pageCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {

@@ -5,8 +5,55 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { uploadFile, deleteFile, describeFile } from "../pinecone/client";
+import { uploadFile, deleteFile, describeFile, FileMetadata } from "../pinecone/client";
 import { downloadFile, getFile } from "../google/drive";
+
+// Build comprehensive metadata for Pinecone upload
+interface PdfRecord {
+  title?: string;
+  filename?: string;
+  company?: string;
+  dateOrYear?: number | string;
+  continent?: string;
+  industry?: string;
+  documentType?: string;
+  source?: string;
+  author?: string;
+  keywords?: string[];
+  technologyAreas?: string[];
+  summary?: string;
+  keyFindings?: string[];
+}
+
+function buildPineconeMetadata(
+  convexId: string,
+  pdf: PdfRecord,
+  additionalMetadata?: Record<string, string>
+): FileMetadata {
+  const metadata: FileMetadata = {
+    convex_id: convexId,
+    title: pdf.title || "",
+    filename: pdf.filename || "",
+  };
+
+  // Add optional metadata fields
+  if (pdf.company) metadata.company = pdf.company;
+  if (pdf.dateOrYear) metadata.year = String(pdf.dateOrYear);
+  if (pdf.continent) metadata.continent = pdf.continent;
+  if (pdf.industry) metadata.industry = pdf.industry;
+  if (pdf.documentType) metadata.document_type = pdf.documentType;
+  if (pdf.source) metadata.source = pdf.source;
+  if (pdf.author) metadata.author = pdf.author;
+  if (pdf.keywords) metadata.keywords = pdf.keywords.join(", ");
+  if (pdf.technologyAreas) metadata.technology_areas = pdf.technologyAreas.join(", ");
+
+  // Merge additional metadata
+  if (additionalMetadata) {
+    Object.assign(metadata, additionalMetadata);
+  }
+
+  return metadata;
+}
 
 // Calculate SHA-256 hash of buffer
 function calculateBufferHash(buffer: Buffer): string {
@@ -90,6 +137,9 @@ export async function processPdfFromUpload(
   try {
     const convex = getConvexClient();
 
+    // Get full PDF record for metadata
+    const pdf = await convex.query(api.pdfs.get, { id: pdfId });
+
     // Create processing job
     jobId = await convex.mutation(api.processing.createJob, {
       pdfId,
@@ -100,6 +150,7 @@ export async function processPdfFromUpload(
     await convex.mutation(api.pdfs.updateStatus, {
       id: pdfId,
       status: "processing",
+      pineconeFileStatus: "Processing",
     });
 
     // Stage 1: Download PDF
@@ -115,14 +166,21 @@ export async function processPdfFromUpload(
       stage: "embedding",
     });
 
-    // Stage 2: Write to temp file and upload to Pinecone
+    // Stage 2: Write to temp file and upload to Pinecone with comprehensive metadata
     console.log(`Uploading to Pinecone Assistant: ${filename}`);
     tempFilePath = await writeTempFile(pdfBuffer, filename);
 
-    const uploadResult = await uploadFile(tempFilePath, {
-      convexId: pdfId,
-      title,
-      filename,
+    // Build comprehensive metadata from PDF record
+    const metadata = buildPineconeMetadata(pdfId, pdf || { title, filename });
+
+    const uploadResult = await uploadFile(tempFilePath, metadata);
+
+    // Update status to show file is uploaded but still processing
+    await convex.mutation(api.pdfs.updateStatus, {
+      id: pdfId,
+      status: "processing",
+      pineconeFileId: uploadResult.id,
+      pineconeFileStatus: "Processing",
     });
 
     await convex.mutation(api.processing.updateJob, {
@@ -145,6 +203,7 @@ export async function processPdfFromUpload(
       id: pdfId,
       status: "completed",
       pineconeFileId: uploadResult.id,
+      pineconeFileStatus: "Available",
     });
 
     return {
@@ -168,6 +227,7 @@ export async function processPdfFromUpload(
       id: pdfId,
       status: "failed",
       processingError: errorMessage,
+      pineconeFileStatus: "Failed",
     });
 
     return {
@@ -244,17 +304,28 @@ export async function processPdfFromDrive(
     await convex.mutation(api.pdfs.updateStatus, {
       id: pdfId,
       status: "processing",
+      pineconeFileStatus: "Processing",
     });
 
-    // Write to temp file and upload to Pinecone
+    // Write to temp file and upload to Pinecone with metadata
     console.log(`Uploading to Pinecone Assistant: ${fileInfo.name}`);
     tempFilePath = await writeTempFile(fileBuffer, fileInfo.name);
 
-    const uploadResult = await uploadFile(tempFilePath, {
-      convexId: pdfId,
+    // Get the PDF record for metadata
+    const pdf = await convex.query(api.pdfs.get, { id: pdfId });
+    const metadata = buildPineconeMetadata(pdfId, pdf || {
       title: fileInfo.name.replace(".pdf", ""),
       filename: fileInfo.name,
-      driveFileId,
+    }, { driveFileId });
+
+    const uploadResult = await uploadFile(tempFilePath, metadata);
+
+    // Update with Pinecone file ID while processing
+    await convex.mutation(api.pdfs.updateStatus, {
+      id: pdfId,
+      status: "processing",
+      pineconeFileId: uploadResult.id,
+      pineconeFileStatus: "Processing",
     });
 
     await convex.mutation(api.processing.updateJob, {
@@ -277,6 +348,7 @@ export async function processPdfFromDrive(
       id: pdfId,
       status: "completed",
       pineconeFileId: uploadResult.id,
+      pineconeFileStatus: "Available",
     });
 
     return {

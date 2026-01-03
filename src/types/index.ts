@@ -31,7 +31,8 @@ export interface PDF {
   uploadedAt: number;
   status: "pending" | "processing" | "completed" | "failed";
   processingError?: string;
-  weaviateId?: string;
+  pineconeFileId?: string;
+  pineconeFileStatus?: "Processing" | "Available" | "Failed";
   approved: boolean;
   approvedBy?: string;
   approvedAt?: number;
