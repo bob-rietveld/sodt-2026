@@ -350,12 +350,13 @@ export default function ChatPage() {
     setTimeout(scrollToBottom, 100);
 
     try {
+      // Only send fileIds when filters are active - otherwise let Pinecone search all documents
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMessage,
-          fileIds: filteredFiles?.fileIds,
+          fileIds: hasActiveFilters ? filteredFiles?.fileIds : undefined,
         }),
       });
 
