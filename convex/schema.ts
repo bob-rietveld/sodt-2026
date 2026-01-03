@@ -66,7 +66,7 @@ export default defineSchema({
       v.literal("failed")
     ),
     processingError: v.optional(v.string()),
-    weaviateId: v.optional(v.string()),  // Reference to Weaviate object
+    pineconeFileId: v.optional(v.string()),  // Reference to Pinecone Assistant file
 
     // Admin workflow
     approved: v.boolean(),

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
-import { agentSearch } from "@/lib/weaviate/client";
+import { chat, type ChatMessage } from "@/lib/pinecone/client";
 import { api } from "../../../../convex/_generated/api";
 import crypto from "crypto";
 
@@ -17,6 +17,17 @@ function hashIP(ip: string | null): string | undefined {
   return crypto.createHash("sha256").update(ip).digest("hex").slice(0, 16);
 }
 
+export interface SearchResult {
+  answer: string;
+  sources: Array<{
+    content?: string;
+    title: string;
+    filename: string;
+    pageNumber: number;
+    convexId: string;
+  }>;
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
@@ -27,15 +38,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Query is required" }, { status: 400 });
     }
 
-    // Use Weaviate QueryAgent to search and generate answer
-    const result = await agentSearch(query);
+    // Use Pinecone Assistant to search and generate answer
+    const messages: ChatMessage[] = [{ role: "user", content: query }];
+    const response = await chat(messages);
+
+    // Extract sources from citations
+    const sources: SearchResult["sources"] = [];
+    if (response.citations) {
+      for (const citation of response.citations) {
+        for (const ref of citation.references) {
+          sources.push({
+            convexId: ref.file.id,
+            title: ref.file.name.replace(/\.[^/.]+$/, ""),
+            filename: ref.file.name,
+            pageNumber: ref.pages?.[0] ?? 0,
+          });
+        }
+      }
+    }
+
+    const result: SearchResult = {
+      answer: response.content,
+      sources,
+    };
+
     const responseTimeMs = Date.now() - startTime;
 
     // Log search query to analytics (fire and forget)
     try {
       const convex = getConvexClient();
       const userAgent = request.headers.get("user-agent") || undefined;
-      const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip");
+      const ip =
+        request.headers.get("x-forwarded-for") ||
+        request.headers.get("x-real-ip");
 
       await convex.mutation(api.searchAnalytics.logSearch, {
         query,
