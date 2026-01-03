@@ -2,10 +2,43 @@ import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
-import { uploadFile } from "@/lib/pinecone/client";
+import { uploadFile, describeFile } from "@/lib/pinecone/client";
 import { writeFile, unlink, mkdir } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
+
+// Poll Pinecone until file is available or timeout
+async function waitForPineconeAvailable(
+  fileId: string,
+  maxWaitMs: number = 60000,
+  pollIntervalMs: number = 2000
+): Promise<"Available" | "Processing" | "Failed"> {
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      const fileInfo = await describeFile(fileId);
+
+      if (fileInfo.status === "Available") {
+        return "Available";
+      }
+
+      if (fileInfo.status === "Failed" || fileInfo.errorMessage) {
+        return "Failed";
+      }
+
+      // Still processing, wait and retry
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    } catch (error) {
+      console.error("Error polling Pinecone file status:", error);
+      // Continue polling on errors
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    }
+  }
+
+  // Timeout - return current status (likely still Processing)
+  return "Processing";
+}
 
 function getConvexClient(): ConvexHttpClient {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -123,17 +156,26 @@ export async function POST(request: NextRequest) {
     // Upload to Pinecone Assistant
     const uploadResult = await uploadFile(tempFilePath, metadata);
 
-    // Update PDF with Pinecone file ID and status
+    // Update PDF with Pinecone file ID (status still Processing)
     await convex.mutation(api.pdfs.updatePineconeStatus, {
       id: pdfId as Id<"pdfs">,
       pineconeFileId: uploadResult.id,
-      pineconeFileStatus: uploadResult.status === "Available" ? "Available" : "Processing",
+      pineconeFileStatus: "Processing",
+    });
+
+    // Poll Pinecone until the file is available (wait up to 60 seconds)
+    const finalStatus = await waitForPineconeAvailable(uploadResult.id, 60000, 2000);
+
+    // Update Convex with final status
+    await convex.mutation(api.pdfs.updatePineconeStatus, {
+      id: pdfId as Id<"pdfs">,
+      pineconeFileStatus: finalStatus,
     });
 
     return NextResponse.json({
-      success: true,
+      success: finalStatus === "Available",
       pineconeFileId: uploadResult.id,
-      status: uploadResult.status,
+      status: finalStatus,
     });
   } catch (error) {
     console.error("Pinecone index error:", error);
