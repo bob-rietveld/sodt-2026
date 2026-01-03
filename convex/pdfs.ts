@@ -1147,6 +1147,149 @@ export const adminFullTextSearch = query({
   },
 });
 
+// Get document processing status overview for admin
+export const getProcessingOverview = query({
+  handler: async (ctx) => {
+    const pdfs = await ctx.db.query("pdfs").collect();
+
+    // Categorize by metadata status
+    const metadataComplete = pdfs.filter(
+      (p) => p.status === "completed" && p.summary && p.documentType
+    );
+    const metadataMissing = pdfs.filter(
+      (p) => p.status === "completed" && (!p.summary || !p.documentType)
+    );
+    const metadataFailed = pdfs.filter((p) => p.status === "failed");
+    const metadataProcessing = pdfs.filter(
+      (p) => p.status === "processing" || p.status === "pending"
+    );
+
+    // Categorize by Pinecone status
+    const pineconeIndexed = pdfs.filter(
+      (p) => p.pineconeFileStatus === "Available"
+    );
+    const pineconeProcessing = pdfs.filter(
+      (p) => p.pineconeFileStatus === "Processing"
+    );
+    const pineconeFailed = pdfs.filter(
+      (p) => p.pineconeFileStatus === "Failed"
+    );
+    const pineconeNotIndexed = pdfs.filter(
+      (p) => !p.pineconeFileId && p.status === "completed"
+    );
+
+    return {
+      total: pdfs.length,
+      metadata: {
+        complete: metadataComplete.length,
+        missing: metadataMissing.length,
+        failed: metadataFailed.length,
+        processing: metadataProcessing.length,
+      },
+      pinecone: {
+        indexed: pineconeIndexed.length,
+        processing: pineconeProcessing.length,
+        failed: pineconeFailed.length,
+        notIndexed: pineconeNotIndexed.length,
+      },
+    };
+  },
+});
+
+// Get documents that need metadata extraction
+export const getDocumentsNeedingMetadata = query({
+  args: {
+    filter: v.union(
+      v.literal("missing"),
+      v.literal("failed"),
+      v.literal("all")
+    ),
+  },
+  handler: async (ctx, args) => {
+    const pdfs = await ctx.db.query("pdfs").collect();
+
+    let filtered = pdfs;
+    if (args.filter === "missing") {
+      filtered = pdfs.filter(
+        (p) => p.status === "completed" && (!p.summary || !p.documentType)
+      );
+    } else if (args.filter === "failed") {
+      filtered = pdfs.filter((p) => p.status === "failed");
+    } else {
+      // "all" - return all completed documents
+      filtered = pdfs.filter((p) => p.status === "completed");
+    }
+
+    return filtered.map((pdf) => ({
+      _id: pdf._id,
+      title: pdf.title,
+      filename: pdf.filename,
+      status: pdf.status,
+      hasSummary: !!pdf.summary,
+      hasDocumentType: !!pdf.documentType,
+      extractionVersion: pdf.extractionVersion,
+      uploadedAt: pdf.uploadedAt,
+    }));
+  },
+});
+
+// Get documents that need Pinecone indexing
+export const getDocumentsNeedingPinecone = query({
+  args: {
+    filter: v.union(
+      v.literal("not_indexed"),
+      v.literal("failed"),
+      v.literal("all")
+    ),
+  },
+  handler: async (ctx, args) => {
+    const pdfs = await ctx.db.query("pdfs").collect();
+
+    let filtered = pdfs;
+    if (args.filter === "not_indexed") {
+      filtered = pdfs.filter(
+        (p) => p.status === "completed" && !p.pineconeFileId
+      );
+    } else if (args.filter === "failed") {
+      filtered = pdfs.filter((p) => p.pineconeFileStatus === "Failed");
+    } else {
+      // "all" - return all completed documents
+      filtered = pdfs.filter((p) => p.status === "completed");
+    }
+
+    return filtered.map((pdf) => ({
+      _id: pdf._id,
+      title: pdf.title,
+      filename: pdf.filename,
+      pineconeFileId: pdf.pineconeFileId,
+      pineconeFileStatus: pdf.pineconeFileStatus,
+      uploadedAt: pdf.uploadedAt,
+    }));
+  },
+});
+
+// Update Pinecone status for a document
+export const updatePineconeStatus = mutation({
+  args: {
+    id: v.id("pdfs"),
+    pineconeFileId: v.optional(v.string()),
+    pineconeFileStatus: v.optional(
+      v.union(
+        v.literal("Processing"),
+        v.literal("Available"),
+        v.literal("Failed")
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...updates } = args;
+    const filteredUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, v]) => v !== undefined)
+    );
+    await ctx.db.patch(id, filteredUpdates);
+  },
+});
+
 // Get latest uploaded reports for homepage display
 export const getLatestReports = query({
   args: {
