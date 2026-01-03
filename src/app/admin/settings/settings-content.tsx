@@ -430,8 +430,8 @@ export default function SettingsContent() {
                   </div>
                   <div className="text-sm text-foreground/60">
                     {processingEnabled
-                      ? "Uploads will be extracted, embedded, and indexed in Weaviate"
-                      : "Uploads will be stored only (no extraction, embedding, or indexing)"}
+                      ? "Uploads will be extracted and indexed in Pinecone Assistant"
+                      : "Uploads will be stored only (no extraction or indexing)"}
                   </div>
                 </div>
               </div>

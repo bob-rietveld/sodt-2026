@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Process the PDF (text extraction, embedding, Weaviate storage)
+    // Process the PDF and upload to Pinecone Assistant
     const result = await processPdfFromUpload(
       pdfId as Id<"pdfs">,
       resolvedFileUrl,
