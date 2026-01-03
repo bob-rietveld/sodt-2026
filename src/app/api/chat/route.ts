@@ -46,12 +46,14 @@ export async function POST(request: NextRequest) {
     // Create a ReadableStream for the response
     const encoder = new TextEncoder();
     let fullResponse = "";
-    const sources: Array<{
+    // Track sources by their citation position (the number in [1], [2], etc.)
+    const sourcesByPosition: Map<number, {
+      position: number;
       convexId: string;
       title: string;
       filename: string;
-      pageNumber: number;
-    }> = [];
+      pageNumbers: number[];
+    }> = new Map();
 
     const readableStream = new ReadableStream({
       async start(controller) {
@@ -66,19 +68,44 @@ export async function POST(request: NextRequest) {
                 )
               );
             } else if (chunk.type === "citation" && chunk.citation) {
-              // Collect citation info for sources
+              // Track citation by its position (the [1], [2], etc. number in the text)
+              const citationPosition = chunk.citation.position ?? 0;
+
               for (const ref of chunk.citation.references) {
                 if (ref.file) {
-                  sources.push({
-                    convexId: ref.file.id,
-                    title: ref.file.name.replace(/\.[^/.]+$/, ""),
-                    filename: ref.file.name,
-                    pageNumber: ref.pages?.[0] ?? 0,
-                  });
+                  const existing = sourcesByPosition.get(citationPosition);
+                  if (existing) {
+                    // Add page numbers if not already included
+                    const newPages = ref.pages || [];
+                    for (const page of newPages) {
+                      if (!existing.pageNumbers.includes(page)) {
+                        existing.pageNumbers.push(page);
+                      }
+                    }
+                  } else {
+                    sourcesByPosition.set(citationPosition, {
+                      position: citationPosition,
+                      convexId: ref.file.id,
+                      title: ref.file.name.replace(/\.[^/.]+$/, ""),
+                      filename: ref.file.name,
+                      pageNumbers: ref.pages || [],
+                    });
+                  }
                 }
               }
             }
           }
+
+          // Convert sources map to sorted array by position
+          const sources = Array.from(sourcesByPosition.values())
+            .sort((a, b) => a.position - b.position)
+            .map((s) => ({
+              position: s.position,
+              convexId: s.convexId,
+              title: s.title,
+              filename: s.filename,
+              pageNumbers: s.pageNumbers.sort((a, b) => a - b),
+            }));
 
           // Send sources after streaming is complete
           if (sources.length > 0) {
@@ -103,7 +130,7 @@ export async function POST(request: NextRequest) {
                 convexId: s.convexId,
                 title: s.title,
                 filename: s.filename,
-                pageNumber: s.pageNumber,
+                pageNumber: s.pageNumbers[0] ?? 0,
               })),
               resultCount: sources.length,
               userAgent,

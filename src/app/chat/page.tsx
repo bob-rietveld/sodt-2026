@@ -8,10 +8,10 @@ import ReactMarkdown from "react-markdown";
 import { api } from "../../../convex/_generated/api";
 
 interface Source {
+  position: number;
   title: string;
   filename: string;
-  pageNumber: number;
-  score?: number;
+  pageNumbers: number[];
 }
 
 interface Message {
@@ -62,21 +62,30 @@ function LoadingIndicator() {
 function SourcesList({ sources }: { sources: Source[] }) {
   if (!sources || sources.length === 0) return null;
 
+  // Format page numbers (e.g., "Pages 1, 3, 5" or "Page 2")
+  const formatPages = (pageNumbers: number[]) => {
+    if (pageNumbers.length === 0) return null;
+    if (pageNumbers.length === 1) return `Page ${pageNumbers[0]}`;
+    return `Pages ${pageNumbers.join(", ")}`;
+  };
+
   return (
     <div className="mt-4 pt-4 border-t border-foreground/10">
-      <p className="text-xs font-medium text-foreground/50 mb-2">References:</p>
+      <p className="text-xs font-medium text-foreground/50 mb-2">Sources:</p>
       <div className="space-y-1.5">
-        {sources.map((source, i) => (
+        {sources.map((source) => (
           <div
-            key={i}
+            key={source.position}
             className="text-xs text-foreground/70 flex items-start gap-2 p-2 bg-foreground/[0.02] rounded-lg"
           >
             <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium flex-shrink-0">
-              [{i + 1}]
+              [{source.position}]
             </span>
             <div className="flex-1 min-w-0">
               <span className="font-medium block break-words">{source.title}</span>
-              <span className="text-foreground/50">Page {source.pageNumber}</span>
+              {source.pageNumbers.length > 0 && (
+                <span className="text-foreground/50">{formatPages(source.pageNumbers)}</span>
+              )}
             </div>
           </div>
         ))}
