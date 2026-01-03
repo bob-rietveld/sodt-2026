@@ -7,6 +7,16 @@ import {
 const PINECONE_ASSISTANT_NAME = "sodt";
 const PINECONE_MODEL = "gpt-4o";
 
+// System prompt to encourage inline citations
+const SYSTEM_INSTRUCTIONS = `You are a helpful assistant that answers questions about the State of Dutch Tech report and related documents.
+
+When answering questions:
+1. Use markdown formatting for better readability (headers, lists, bold, etc.)
+2. Include inline citation numbers like [1], [2], etc. when referencing specific information from documents
+3. Be specific about which document and page number contains each piece of information
+4. Structure your response clearly with sections if the answer covers multiple topics
+5. If you're unsure or the information isn't in the documents, say so clearly`;
+
 let pineconeClient: Pinecone | null = null;
 
 function getPineconeClient(): Pinecone {
@@ -131,8 +141,23 @@ export async function* chatStream(
   messages: ChatMessage[]
 ): AsyncGenerator<StreamedChatResponse> {
   const assistant = getAssistant();
+
+  // Prepend system instructions as context for better formatting and citations
+  const messagesWithInstructions: ChatMessage[] = [
+    {
+      role: "user",
+      content: `[Instructions: ${SYSTEM_INSTRUCTIONS}]\n\nNow answer the following question:`,
+    },
+    {
+      role: "assistant",
+      content:
+        "I understand. I will format my responses using markdown and include inline citation numbers [1], [2], etc. to reference specific documents. I'll be clear about sources.",
+    },
+    ...messages,
+  ];
+
   const stream = await assistant.chatStream({
-    messages,
+    messages: messagesWithInstructions,
     model: PINECONE_MODEL,
   });
 
