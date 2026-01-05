@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    const { message, sessionId, filters, fileIds } = await request.json();
+    const { message, sessionId, filters, fileIds, history } = await request.json();
 
     if (!message) {
       return new Response(JSON.stringify({ error: "Message is required" }), {
@@ -35,8 +35,19 @@ export async function POST(request: NextRequest) {
     const ip =
       request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip");
 
-    // Prepare messages for Pinecone Assistant
-    const messages: ChatMessage[] = [{ role: "user", content: message }];
+    // Prepare messages for Pinecone Assistant with conversation history
+    // History is an array of previous messages to maintain conversation context
+    const previousMessages: ChatMessage[] = (history || [])
+      .slice(-10) // Limit to last 10 messages to manage token usage
+      .map((m: { role: string; content: string }) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
+
+    const messages: ChatMessage[] = [
+      ...previousMessages,
+      { role: "user", content: message },
+    ];
 
     // Build filter from metadata parameters (preferred) or legacy fileIds
     const filter: ChatFilter | undefined = filters

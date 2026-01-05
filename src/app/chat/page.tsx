@@ -399,6 +399,12 @@ export default function ChatPage() {
     setTimeout(scrollToBottom, 100);
 
     try {
+      // Build conversation history from previous messages (exclude loading states)
+      // This enables multi-turn conversations where the assistant remembers context
+      const conversationHistory = messages
+        .filter((m) => !m.isLoading && m.content)
+        .map((m) => ({ role: m.role, content: m.content }));
+
       // All filters are now sent directly to Pinecone as metadata filters
       // Array fields (keywords, technologyAreas) are stored as arrays in Pinecone
       // and can be filtered with $in queries
@@ -407,6 +413,8 @@ export default function ChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMessage,
+          // Send conversation history for multi-turn context
+          history: conversationHistory,
           // Send all filters directly to Pinecone
           filters: hasActiveFilters
             ? {
