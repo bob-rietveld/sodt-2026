@@ -1,9 +1,6 @@
 import crypto from "crypto";
 import { SearchEvent, SearchSource } from "./types";
 
-const TINYBIRD_URL =
-  process.env.TINYBIRD_API_URL || "https://api.tinybird.co";
-const TINYBIRD_TOKEN = process.env.TINYBIRD_INGEST_TOKEN;
 const DATASOURCE = "events";
 
 export function hashIP(ip: string | null): string | null {
@@ -22,8 +19,12 @@ export async function logSearchEvent(params: {
   userAgent?: string;
   ip?: string;
 }): Promise<void> {
+  // Read env vars at runtime (not module load time) for Render/serverless compatibility
+  const tinybirdUrl = process.env.TINYBIRD_API_URL || "https://api.tinybird.co";
+  const tinybirdToken = process.env.TINYBIRD_INGEST_TOKEN;
+
   // Skip if Tinybird not configured (dev environment without local instance)
-  if (!TINYBIRD_TOKEN) {
+  if (!tinybirdToken) {
     console.warn("TINYBIRD_INGEST_TOKEN not configured, skipping analytics");
     return;
   }
@@ -44,11 +45,11 @@ export async function logSearchEvent(params: {
 
   try {
     const response = await fetch(
-      `${TINYBIRD_URL}/v0/events?name=${DATASOURCE}`,
+      `${tinybirdUrl}/v0/events?name=${DATASOURCE}`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${TINYBIRD_TOKEN}`,
+          Authorization: `Bearer ${tinybirdToken}`,
         },
         body: JSON.stringify(event),
       }
