@@ -159,6 +159,36 @@ export default function About() {
           </div>
         </div>
 
+        {/* Easter Egg Section */}
+        <div className="bg-white rounded-2xl p-6 sm:p-8 lg:p-12 shadow-sm border border-foreground/5 mb-8 sm:mb-12">
+          <h2 className="text-2xl sm:text-3xl font-semibold text-foreground mb-4 sm:mb-6 text-center">
+            About the Homepage Image
+          </h2>
+          <p className="text-foreground/70 text-center max-w-3xl mx-auto mb-4 text-sm sm:text-base">
+            Sharp-eyed visitors may have noticed the illustration on our homepage. It&apos;s a tribute to
+            a legendary moment in Dutch political history: D66 politician Alexander Pechtold demonstrating
+            the power of a stapler during a parliamentary debate.
+          </p>
+          <p className="text-foreground/70 text-center max-w-3xl mx-auto mb-6 text-sm sm:text-base">
+            In 2011, Pechtold used a stapler as a prop to make a point about keeping things together —
+            which perfectly captures our mission of &quot;stapling together&quot; all the important tech
+            ecosystem reports in one place. The clip became an iconic piece of Dutch political culture.
+          </p>
+          <div className="flex justify-center">
+            <a
+              href="https://www.youtube.com/watch?v=Y8GVbHqWroM"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-semibold"
+            >
+              Watch the original clip
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+        </div>
+
         {/* Contact/Links Section */}
         <div className="text-center">
           <h2 className="text-xl sm:text-2xl font-semibold text-foreground mb-3 sm:mb-4">Learn More</h2>
