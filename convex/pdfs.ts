@@ -1670,6 +1670,117 @@ export const updatePineconeStatus = mutation({
   },
 });
 
+// Get aggregated insights data for the public insights page
+// All data is pre-computed for instant client-side filtering
+export const getInsightsData = query({
+  handler: async (ctx) => {
+    const publicReports = await ctx.db
+      .query("pdfs")
+      .withIndex("by_public_browse", (q) =>
+        q.eq("approved", true).eq("status", "completed")
+      )
+      .collect();
+
+    // Aggregate by year
+    const reportsByYear: Record<number, number> = {};
+    // Aggregate by industry
+    const industryDistribution: Record<string, number> = {};
+    // Aggregate by continent
+    const continentDistribution: Record<string, number> = {};
+    // Aggregate by document type
+    const documentTypeDistribution: Record<string, number> = {};
+    // Technology areas with counts
+    const technologyAreaCounts: Record<string, number> = {};
+    // Keywords with counts
+    const keywordCounts: Record<string, number> = {};
+    // Pre-computed matrix for Technology Trends chart: { year: { techArea: count } }
+    const technologyTrendsByYear: Record<number, Record<string, number>> = {};
+
+    // Track unique companies
+    const companies = new Set<string>();
+
+    for (const report of publicReports) {
+      // Year aggregation
+      const year = typeof report.dateOrYear === "number" ? report.dateOrYear : null;
+      if (year) {
+        reportsByYear[year] = (reportsByYear[year] || 0) + 1;
+      }
+
+      // Industry aggregation
+      if (report.industry) {
+        industryDistribution[report.industry] = (industryDistribution[report.industry] || 0) + 1;
+      }
+
+      // Continent aggregation
+      if (report.continent) {
+        continentDistribution[report.continent] = (continentDistribution[report.continent] || 0) + 1;
+      }
+
+      // Document type aggregation
+      if (report.documentType) {
+        documentTypeDistribution[report.documentType] = (documentTypeDistribution[report.documentType] || 0) + 1;
+      }
+
+      // Company tracking
+      if (report.company) {
+        companies.add(report.company);
+      }
+
+      // Technology areas aggregation + trends matrix
+      if (report.technologyAreas) {
+        for (const tech of report.technologyAreas) {
+          technologyAreaCounts[tech] = (technologyAreaCounts[tech] || 0) + 1;
+
+          // Add to trends matrix if we have a year
+          if (year) {
+            if (!technologyTrendsByYear[year]) {
+              technologyTrendsByYear[year] = {};
+            }
+            technologyTrendsByYear[year][tech] = (technologyTrendsByYear[year][tech] || 0) + 1;
+          }
+        }
+      }
+
+      // Keywords aggregation
+      if (report.keywords) {
+        for (const keyword of report.keywords) {
+          keywordCounts[keyword] = (keywordCounts[keyword] || 0) + 1;
+        }
+      }
+    }
+
+    // Convert to sorted arrays for charts
+    const topTechnologyAreas = Object.entries(technologyAreaCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15);
+
+    const topKeywords = Object.entries(keywordCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20);
+
+    // Get year range
+    const years = Object.keys(reportsByYear).map(Number);
+    const minYear = years.length > 0 ? Math.min(...years) : null;
+    const maxYear = years.length > 0 ? Math.max(...years) : null;
+
+    return {
+      totalReports: publicReports.length,
+      uniqueCompanies: companies.size,
+      uniqueTechnologyAreas: Object.keys(technologyAreaCounts).length,
+      yearRange: minYear && maxYear ? { min: minYear, max: maxYear } : null,
+      reportsByYear,
+      industryDistribution,
+      continentDistribution,
+      documentTypeDistribution,
+      topTechnologyAreas,
+      topKeywords,
+      technologyTrendsByYear,
+    };
+  },
+});
+
 // Get latest uploaded reports for homepage display
 // Optimized: Uses DB ordering and early limit instead of collect+sort+slice
 export const getLatestReports = query({

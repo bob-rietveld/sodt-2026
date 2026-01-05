@@ -16,6 +16,7 @@ export function Header({ showAdmin = true }: HeaderProps) {
 
   const navLinks = [
     { href: "/reports", label: "Reports" },
+    { href: "/insights", label: "Insights" },
     { href: "/chat", label: "Chat" },
     { href: "/contribute", label: "Contribute" },
     { href: "/about", label: "About" },
