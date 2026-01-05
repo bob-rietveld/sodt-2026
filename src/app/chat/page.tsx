@@ -65,37 +65,55 @@ function LoadingIndicator() {
 function SourcesList({ sources }: { sources: Source[] }) {
   if (!sources || sources.length === 0) return null;
 
-  // Format page numbers (e.g., "Pages 1, 3, 5" or "Page 2")
+  // Format page numbers (e.g., "p. 1, 3, 5" or "p. 2")
   const formatPages = (pageNumbers: number[]) => {
     if (pageNumbers.length === 0) return null;
-    if (pageNumbers.length === 1) return `Page ${pageNumbers[0]}`;
-    return `Pages ${pageNumbers.join(", ")}`;
+    return `p. ${pageNumbers.join(", ")}`;
   };
 
   return (
-    <div className="mt-4 pt-4 border-t border-foreground/10">
-      <p className="text-xs font-medium text-foreground/50 mb-2">Sources:</p>
-      <div className="space-y-1.5">
+    <div className="mt-5 pt-4 border-t border-foreground/10">
+      <div className="flex items-center gap-2 mb-3">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-foreground/40"
+        >
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+        <span className="text-xs font-semibold text-foreground/50 uppercase tracking-wide">Sources</span>
+      </div>
+      <div className="flex flex-wrap gap-2">
         {sources.map((source) => (
-          <div
+          <a
             key={source.index}
+            href={`#source-${source.index}`}
             id={`source-${source.index}`}
-            className="text-xs text-foreground/70 flex items-start gap-2 p-2 bg-foreground/[0.02] rounded-lg"
+            className="group inline-flex items-center gap-2 px-3 py-2 bg-foreground/[0.03] hover:bg-foreground/[0.06] border border-foreground/10 hover:border-foreground/20 rounded-lg transition-all text-xs"
           >
-            <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium flex-shrink-0">
-              [{source.index}]
+            <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold text-[10px]">
+              {source.index}
             </span>
-            <div className="flex-1 min-w-0">
-              {source.references.map((ref) => (
-                <div key={`${source.index}:${ref.fileId}`} className="mb-1 last:mb-0">
-                  <span className="font-medium block break-words">{ref.title}</span>
+            <div className="flex flex-col">
+              {source.references.map((ref, refIdx) => (
+                <span key={`${source.index}:${ref.fileId}`} className="text-foreground/80 group-hover:text-foreground transition-colors">
+                  {ref.title}
                   {ref.pageNumbers.length > 0 && (
-                    <span className="text-foreground/50">{formatPages(ref.pageNumbers)}</span>
+                    <span className="text-foreground/50 ml-1">({formatPages(ref.pageNumbers)})</span>
                   )}
-                </div>
+                  {refIdx < source.references.length - 1 && ", "}
+                </span>
               ))}
             </div>
-          </div>
+          </a>
         ))}
       </div>
     </div>
@@ -115,7 +133,7 @@ function linkifyInlineCitations(content: string, sources: Source[]) {
 function MarkdownContent({ content, sources }: { content: string; sources: Source[] }) {
   const linked = linkifyInlineCitations(content, sources);
   return (
-    <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-blockquote:my-2 prose-pre:my-2">
+    <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-blockquote:my-2 prose-pre:my-2 prose-hr:my-4 prose-hr:border-foreground/10">
       <ReactMarkdown
         components={{
           a: ({ children, href }) => (
@@ -142,6 +160,9 @@ function MarkdownContent({ content, sources }: { content: string; sources: Sourc
             <blockquote className="border-l-2 border-primary/30 pl-4 italic text-foreground/70">
               {children}
             </blockquote>
+          ),
+          hr: () => (
+            <hr className="my-4 border-t border-foreground/10" />
           ),
         }}
       >
@@ -601,11 +622,11 @@ export default function ChatPage() {
           </aside>
 
           {/* Chat Content Area */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 flex flex-col" style={{ height: "calc(100vh - 180px)" }}>
             {/* Chat Container */}
-            <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden flex flex-col" style={{ minHeight: "calc(100vh - 220px)" }}>
-              {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="bg-white rounded-xl border border-foreground/10 overflow-hidden flex flex-col flex-1">
+              {/* Messages Area - scrollable */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 min-h-0">
                 {messages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center py-12 text-foreground/50">
                     <svg
