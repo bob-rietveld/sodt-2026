@@ -378,13 +378,24 @@ export default function ChatPage() {
     setTimeout(scrollToBottom, 100);
 
     try {
-      // Only send fileIds when filters are active - otherwise let Pinecone search all documents
+      // All filters are now sent directly to Pinecone as metadata filters
+      // Array fields (keywords, technologyAreas) are stored as arrays in Pinecone
+      // and can be filtered with $in queries
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMessage,
-          fileIds: hasActiveFilters ? filteredFiles?.fileIds : undefined,
+          // Send all filters directly to Pinecone
+          filters: hasActiveFilters
+            ? {
+                continent: filters.continent,
+                industry: filters.industry,
+                year: filters.year,
+                keywords: filters.keywords,
+                technologyAreas: filters.technologyAreas,
+              }
+            : undefined,
         }),
       });
 

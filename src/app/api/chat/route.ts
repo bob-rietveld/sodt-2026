@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    const { message, sessionId, fileIds } = await request.json();
+    const { message, sessionId, filters, fileIds } = await request.json();
 
     if (!message) {
       return new Response(JSON.stringify({ error: "Message is required" }), {
@@ -38,10 +38,21 @@ export async function POST(request: NextRequest) {
     // Prepare messages for Pinecone Assistant
     const messages: ChatMessage[] = [{ role: "user", content: message }];
 
-    // Prepare filter if file IDs are provided
-    const filter: ChatFilter | undefined = fileIds?.length
-      ? { fileIds }
-      : undefined;
+    // Build filter from metadata parameters (preferred) or legacy fileIds
+    const filter: ChatFilter | undefined = filters
+      ? {
+          continent: filters.continent,
+          industry: filters.industry,
+          year: filters.year,
+          company: filters.company,
+          keywords: filters.keywords,
+          technologyAreas: filters.technologyAreas,
+          // Legacy fallback for old documents without array metadata
+          fileIds: fileIds?.length ? fileIds : undefined,
+        }
+      : fileIds?.length
+        ? { fileIds }
+        : undefined;
 
     // Create a ReadableStream for the response
     const encoder = new TextEncoder();

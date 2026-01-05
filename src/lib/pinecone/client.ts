@@ -37,7 +37,7 @@ export function getAssistant() {
 }
 
 export interface FileMetadata {
-  [key: string]: string;
+  [key: string]: string | string[];
 }
 
 export interface UploadFileResult {
@@ -54,9 +54,11 @@ export async function uploadFile(
   metadata?: FileMetadata
 ): Promise<UploadFileResult> {
   const assistant = getAssistant();
+  // Cast metadata to satisfy SDK types - Pinecone actually supports string[] for list values
+  // See: https://docs.pinecone.io/guides/assistant/files-overview#supported-metadata-size-and-format
   const result = await assistant.uploadFile({
     path: filePath,
-    metadata,
+    metadata: metadata as Record<string, string> | undefined,
   });
 
   return {
@@ -137,8 +139,61 @@ export async function chat(messages: ChatMessage[]): Promise<ChatResponse> {
 
 export type { StreamedChatResponse as StreamChunk };
 
+/**
+ * Filter parameters for chat - these map directly to Pinecone file metadata
+ */
 export interface ChatFilter {
+  continent?: string;
+  industry?: string;
+  year?: number;
+  company?: string;
+  // Array filters - stored as arrays in Pinecone metadata
+  keywords?: string[];
+  technologyAreas?: string[];
+  // Legacy support for file ID filtering (fallback for old documents)
   fileIds?: string[];
+}
+
+/**
+ * Build a Pinecone metadata filter object from ChatFilter parameters.
+ * Uses MongoDB-style query syntax as documented by Pinecone.
+ */
+function buildMetadataFilter(filter?: ChatFilter): Record<string, unknown> | undefined {
+  if (!filter) return undefined;
+
+  const conditions: Record<string, unknown>[] = [];
+
+  // Simple equality filters for string fields
+  if (filter.continent) {
+    conditions.push({ continent: { $eq: filter.continent } });
+  }
+  if (filter.industry) {
+    conditions.push({ industry: { $eq: filter.industry } });
+  }
+  if (filter.company) {
+    conditions.push({ company: { $eq: filter.company } });
+  }
+  // Year is stored as string in metadata, so convert
+  if (filter.year) {
+    conditions.push({ year: { $eq: String(filter.year) } });
+  }
+
+  // Array filters using $in - matches if any element in metadata array is in filter array
+  if (filter.keywords?.length) {
+    conditions.push({ keywords: { $in: filter.keywords } });
+  }
+  if (filter.technologyAreas?.length) {
+    conditions.push({ technology_areas: { $in: filter.technologyAreas } });
+  }
+
+  // Fallback to file ID filtering if provided and no metadata filters
+  if (conditions.length === 0 && filter.fileIds?.length) {
+    return { id: { $in: filter.fileIds } };
+  }
+
+  if (conditions.length === 0) return undefined;
+  if (conditions.length === 1) return conditions[0];
+  return { $and: conditions };
 }
 
 export async function* chatStream(
@@ -161,10 +216,8 @@ export async function* chatStream(
     ...messages,
   ];
 
-  // Build filter object if file IDs are provided
-  const chatFilter = filter?.fileIds?.length
-    ? { id: { $in: filter.fileIds } }
-    : undefined;
+  // Build metadata filter from filter parameters
+  const chatFilter = buildMetadataFilter(filter);
 
   const stream = await assistant.chatStream({
     messages: messagesWithInstructions,

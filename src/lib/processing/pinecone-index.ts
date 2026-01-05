@@ -81,7 +81,7 @@ export async function indexPdfToPineconeFromExtractedText(
       }
     }
 
-    const metadata: Record<string, string> = {
+    const metadata: Record<string, string | string[]> = {
       convex_id: String(pdf._id),
       title: pdf.title || "",
       filename: pdf.filename || "",
@@ -94,8 +94,9 @@ export async function indexPdfToPineconeFromExtractedText(
     if (pdf.documentType) metadata.document_type = String(pdf.documentType);
     if (pdf.source) metadata.source = pdf.source;
     if (pdf.author) metadata.author = pdf.author;
-    if (pdf.keywords?.length) metadata.keywords = pdf.keywords.join(", ");
-    if (pdf.technologyAreas?.length) metadata.technology_areas = pdf.technologyAreas.join(", ");
+    // Store as arrays for proper $in filtering in Pinecone
+    if (pdf.keywords?.length) metadata.keywords = pdf.keywords;
+    if (pdf.technologyAreas?.length) metadata.technology_areas = pdf.technologyAreas;
 
     let enrichedContent = "";
     if (pdf.summary) enrichedContent += `SUMMARY:\n${pdf.summary}\n\n`;
