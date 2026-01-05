@@ -23,9 +23,16 @@ export async function logSearchEvent(params: {
   const tinybirdUrl = process.env.TINYBIRD_API_URL || "https://api.tinybird.co";
   const tinybirdToken = process.env.TINYBIRD_INGEST_TOKEN;
 
+  console.log("[Tinybird] logSearchEvent called:", {
+    eventName: params.eventName,
+    query: params.query.slice(0, 50),
+    hasToken: !!tinybirdToken,
+    url: tinybirdUrl,
+  });
+
   // Skip if Tinybird not configured (dev environment without local instance)
   if (!tinybirdToken) {
-    console.warn("TINYBIRD_INGEST_TOKEN not configured, skipping analytics");
+    console.warn("[Tinybird] TINYBIRD_INGEST_TOKEN not configured, skipping analytics");
     return;
   }
 
@@ -44,23 +51,25 @@ export async function logSearchEvent(params: {
   };
 
   try {
-    const response = await fetch(
-      `${tinybirdUrl}/v0/events?name=${DATASOURCE}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${tinybirdToken}`,
-        },
-        body: JSON.stringify(event),
-      }
-    );
+    const url = `${tinybirdUrl}/v0/events?name=${DATASOURCE}`;
+    console.log("[Tinybird] Sending event to:", url);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${tinybirdToken}`,
+      },
+      body: JSON.stringify(event),
+    });
 
     if (!response.ok) {
       const error = await response.text();
-      console.error("Tinybird ingestion error:", response.status, error);
+      console.error("[Tinybird] Ingestion error:", response.status, error);
+    } else {
+      console.log("[Tinybird] Event sent successfully:", event.event_id);
     }
   } catch (error) {
     // Fire and forget - don't throw, just log
-    console.error("Tinybird ingestion failed:", error);
+    console.error("[Tinybird] Ingestion failed:", error);
   }
 }
