@@ -79,7 +79,7 @@ export default defineSchema({
     approvedAt: v.optional(v.number()),
 
     // Source tracking
-    source: v.union(v.literal("upload"), v.literal("drive"), v.literal("url")),
+    source: v.union(v.literal("upload"), v.literal("drive"), v.literal("url"), v.literal("user-contributed")),
   })
     .index("by_status", ["status"])
     .index("by_approved", ["approved"])

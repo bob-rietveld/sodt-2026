@@ -575,7 +575,7 @@ export const create = mutation({
     storageId: v.optional(v.id("_storage")),
     driveFileId: v.optional(v.string()),
     sourceUrl: v.optional(v.string()),
-    source: v.union(v.literal("upload"), v.literal("drive"), v.literal("url")),
+    source: v.union(v.literal("upload"), v.literal("drive"), v.literal("url"), v.literal("user-contributed")),
     author: v.optional(v.string()),
     description: v.optional(v.string()),
   },

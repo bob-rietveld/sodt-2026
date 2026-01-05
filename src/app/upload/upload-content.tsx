@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import Link from "next/link";
+import { Header } from "@/components/ui/header";
 
 type UploadStatus = "idle" | "uploading" | "processing" | "completed" | "error";
 
@@ -153,32 +153,10 @@ export default function UploadContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-foreground/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <Link href="/" className="text-2xl font-semibold text-primary flex items-center gap-2">
-            <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 6h16M4 6v12M20 6v12"/>
-              <rect x="7" y="10" width="10" height="6" rx="1" fill="currentColor" opacity="0.2"/>
-            </svg>
-            TechStaple
-          </Link>
-          <nav className="flex items-center gap-6">
-            <Link href="/search" className="text-foreground hover:text-primary transition-colors">
-              Search
-            </Link>
-            <Link href="/chat" className="text-foreground hover:text-primary transition-colors">
-              Chat
-            </Link>
-            <Link href="/upload" className="text-primary font-medium">
-              Upload
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <Header showAdmin={true} />
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 className="text-3xl font-semibold mb-8">Upload PDF</h1>
+        <h1 className="text-3xl font-semibold mb-8">Upload PDF (Admin)</h1>
 
         {/* Drop Zone */}
         <div
