@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { Header } from "@/components/ui/header";
 import { MultiSelectDropdown, type FilterOption } from "@/components/ui/multi-select-dropdown";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api } from "../../../convex/_generated/api";
 
 interface Source {
@@ -63,13 +64,16 @@ function LoadingIndicator() {
 }
 
 function SourcesList({ sources }: { sources: Source[] }) {
-  if (!sources || sources.length === 0) return null;
-
   // Format page numbers (e.g., "p. 1, 3, 5" or "p. 2")
   const formatPages = (pageNumbers: number[]) => {
     if (pageNumbers.length === 0) return null;
     return `p. ${pageNumbers.join(", ")}`;
   };
+
+  // Count unique reports referenced
+  const uniqueReports = new Set<string>();
+  sources?.forEach(s => s.references.forEach(r => uniqueReports.add(r.fileId)));
+  const reportCount = uniqueReports.size;
 
   return (
     <div className="mt-5 pt-4 border-t border-foreground/10">
@@ -84,38 +88,51 @@ function SourcesList({ sources }: { sources: Source[] }) {
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="text-foreground/40"
+          className="text-primary"
         >
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
           <polyline points="14 2 14 8 20 8" />
         </svg>
-        <span className="text-xs font-semibold text-foreground/50 uppercase tracking-wide">Sources</span>
+        <span className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">
+          Sources from 100+ Reports
+        </span>
+        {reportCount > 0 && (
+          <span className="text-xs text-foreground/50">
+            ({reportCount} report{reportCount !== 1 ? "s" : ""} cited)
+          </span>
+        )}
       </div>
-      <div className="flex flex-wrap gap-2">
-        {sources.map((source) => (
-          <a
-            key={source.index}
-            href={`#source-${source.index}`}
-            id={`source-${source.index}`}
-            className="group inline-flex items-center gap-2 px-3 py-2 bg-foreground/[0.03] hover:bg-foreground/[0.06] border border-foreground/10 hover:border-foreground/20 rounded-lg transition-all text-xs"
-          >
-            <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold text-[10px]">
-              {source.index}
-            </span>
-            <div className="flex flex-col">
-              {source.references.map((ref, refIdx) => (
-                <span key={`${source.index}:${ref.fileId}`} className="text-foreground/80 group-hover:text-foreground transition-colors">
-                  {ref.title}
-                  {ref.pageNumbers.length > 0 && (
-                    <span className="text-foreground/50 ml-1">({formatPages(ref.pageNumbers)})</span>
-                  )}
-                  {refIdx < source.references.length - 1 && ", "}
-                </span>
-              ))}
-            </div>
-          </a>
-        ))}
-      </div>
+      {sources && sources.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {sources.map((source) => (
+            <a
+              key={source.index}
+              href={`#source-${source.index}`}
+              id={`source-${source.index}`}
+              className="group inline-flex items-center gap-2 px-3 py-2 bg-primary/5 hover:bg-primary/10 border border-primary/20 hover:border-primary/30 rounded-lg transition-all text-xs"
+            >
+              <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded font-semibold text-[10px]">
+                {source.index}
+              </span>
+              <div className="flex flex-col">
+                {source.references.map((ref, refIdx) => (
+                  <span key={`${source.index}:${ref.fileId}`} className="text-foreground/80 group-hover:text-foreground transition-colors">
+                    {ref.title}
+                    {ref.pageNumbers.length > 0 && (
+                      <span className="text-foreground/50 ml-1">({formatPages(ref.pageNumbers)})</span>
+                    )}
+                    {refIdx < source.references.length - 1 && ", "}
+                  </span>
+                ))}
+              </div>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-foreground/50 italic">
+          No specific sources cited for this response. Try asking a more specific question to see document references.
+        </p>
+      )}
     </div>
   );
 }
@@ -135,6 +152,7 @@ function MarkdownContent({ content, sources }: { content: string; sources: Sourc
   return (
     <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-blockquote:my-2 prose-pre:my-2 prose-hr:my-4 prose-hr:border-foreground/10">
       <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         components={{
           a: ({ children, href }) => (
             <a
@@ -163,6 +181,38 @@ function MarkdownContent({ content, sources }: { content: string; sources: Sourc
           ),
           hr: () => (
             <hr className="my-4 border-t border-foreground/10" />
+          ),
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-4">
+              <table className="min-w-full border-collapse border border-foreground/20 rounded-lg overflow-hidden text-sm">
+                {children}
+              </table>
+            </div>
+          ),
+          thead: ({ children }) => (
+            <thead className="bg-foreground/5">
+              {children}
+            </thead>
+          ),
+          tbody: ({ children }) => (
+            <tbody className="divide-y divide-foreground/10">
+              {children}
+            </tbody>
+          ),
+          tr: ({ children }) => (
+            <tr className="hover:bg-foreground/[0.02] transition-colors">
+              {children}
+            </tr>
+          ),
+          th: ({ children }) => (
+            <th className="px-3 py-2 text-left font-semibold text-foreground/80 border-b border-foreground/20">
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className="px-3 py-2 text-foreground/70 border-b border-foreground/10">
+              {children}
+            </td>
           ),
         }}
       >

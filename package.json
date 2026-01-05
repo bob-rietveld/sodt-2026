@@ -35,6 +35,7 @@
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
     "recharts": "^3.6.0",
+    "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.18",
     "unpdf": "^1.4.0",
     "unstructured-client": "^0.30.2"
