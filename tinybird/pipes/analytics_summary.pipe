@@ -1,0 +1,13 @@
+NODE analytics_summary
+SQL >
+    SELECT
+        count() as totalSearches,
+        countIf(event_name = 'search_query') as agentSearches,
+        countIf(event_name = 'chat_query') as chatSearches,
+        round(avgIf(response_time_ms, response_time_ms IS NOT NULL)) as avgResponseTime,
+        round(avg(result_count), 1) as avgResultCount,
+        countIf(result_count = 0) as noResultSearches
+    FROM events
+    WHERE timestamp >= now() - INTERVAL {{Int32(days_back, 30)}} DAY
+
+TYPE endpoint

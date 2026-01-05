@@ -1,20 +1,53 @@
 "use client";
 
-import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  getAnalyticsSummary,
+  getRecentSearches,
+  getPopularSearchTerms,
+  getPopularSources,
+  getNoResultSearches,
+  type AnalyticsSummary,
+  type RecentSearch,
+  type PopularSearchTerm,
+  type PopularSource,
+  type NoResultSearch,
+} from "@/lib/analytics";
 
 export default function AnalyticsContent() {
   const [daysBack, setDaysBack] = useState(30);
+  const [isLoading, setIsLoading] = useState(true);
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
+  const [popularTerms, setPopularTerms] = useState<PopularSearchTerm[]>([]);
+  const [popularSources, setPopularSources] = useState<PopularSource[]>([]);
+  const [noResultSearches, setNoResultSearches] = useState<NoResultSearch[]>([]);
 
-  // Fetch analytics data
-  const summary = useQuery(api.searchAnalytics.getAnalyticsSummary, { daysBack });
-  const recentSearches = useQuery(api.searchAnalytics.getRecentSearches, { limit: 20 });
-  const popularTerms = useQuery(api.searchAnalytics.getPopularSearchTerms, { limit: 10, daysBack });
-  const popularSources = useQuery(api.searchAnalytics.getPopularSources, { limit: 10, daysBack });
-  const noResultSearches = useQuery(api.searchAnalytics.getNoResultSearches, { limit: 10 });
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [summaryData, recent, terms, sources, noResults] = await Promise.all([
+        getAnalyticsSummary(daysBack),
+        getRecentSearches(20),
+        getPopularSearchTerms(10, daysBack),
+        getPopularSources(10, daysBack),
+        getNoResultSearches(10),
+      ]);
+      setSummary(summaryData);
+      setRecentSearches(recent);
+      setPopularTerms(terms);
+      setPopularSources(sources);
+      setNoResultSearches(noResults);
+    } catch (error) {
+      console.error("Failed to fetch analytics:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [daysBack]);
 
-  const isLoading = !summary || !recentSearches || !popularTerms || !popularSources || !noResultSearches;
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Format timestamp to readable date
   const formatDate = (timestamp: number) => {
@@ -64,7 +97,7 @@ export default function AnalyticsContent() {
           <div className="grid md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white p-6 rounded-xl border border-foreground/10">
               <div className="text-4xl font-semibold text-primary mb-2">
-                {summary.totalSearches}
+                {summary?.totalSearches ?? 0}
               </div>
               <div className="font-medium text-foreground/80">Total Searches</div>
               <div className="text-sm text-foreground/50 mt-1">Last {daysBack} days</div>
@@ -72,7 +105,7 @@ export default function AnalyticsContent() {
 
             <div className="bg-white p-6 rounded-xl border border-foreground/10">
               <div className="text-4xl font-semibold text-info mb-2">
-                {summary.avgResponseTime}ms
+                {summary?.avgResponseTime ?? 0}ms
               </div>
               <div className="font-medium text-foreground/80">Avg Response Time</div>
               <div className="text-sm text-foreground/50 mt-1">Query to answer</div>
@@ -80,7 +113,7 @@ export default function AnalyticsContent() {
 
             <div className="bg-white p-6 rounded-xl border border-foreground/10">
               <div className="text-4xl font-semibold text-success mb-2">
-                {summary.avgResultCount}
+                {summary?.avgResultCount ?? 0}
               </div>
               <div className="font-medium text-foreground/80">Avg Results</div>
               <div className="text-sm text-foreground/50 mt-1">Per search query</div>
@@ -88,7 +121,7 @@ export default function AnalyticsContent() {
 
             <div className="bg-white p-6 rounded-xl border border-foreground/10">
               <div className="text-4xl font-semibold text-warning mb-2">
-                {summary.noResultSearches}
+                {summary?.noResultSearches ?? 0}
               </div>
               <div className="font-medium text-foreground/80">No Results</div>
               <div className="text-sm text-foreground/50 mt-1">Searches with 0 hits</div>
@@ -103,13 +136,13 @@ export default function AnalyticsContent() {
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Agent Search</span>
-                    <span className="text-sm text-foreground/60">{summary.agentSearches}</span>
+                    <span className="text-sm text-foreground/60">{summary?.agentSearches ?? 0}</span>
                   </div>
                   <div className="h-3 bg-foreground/10 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary rounded-full"
                       style={{
-                        width: `${summary.totalSearches > 0 ? (summary.agentSearches / summary.totalSearches) * 100 : 0}%`,
+                        width: `${(summary?.totalSearches ?? 0) > 0 ? ((summary?.agentSearches ?? 0) / (summary?.totalSearches ?? 1)) * 100 : 0}%`,
                       }}
                     />
                   </div>
@@ -117,13 +150,13 @@ export default function AnalyticsContent() {
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Chat Search</span>
-                    <span className="text-sm text-foreground/60">{summary.chatSearches}</span>
+                    <span className="text-sm text-foreground/60">{summary?.chatSearches ?? 0}</span>
                   </div>
                   <div className="h-3 bg-foreground/10 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-info rounded-full"
                       style={{
-                        width: `${summary.totalSearches > 0 ? (summary.chatSearches / summary.totalSearches) * 100 : 0}%`,
+                        width: `${(summary?.totalSearches ?? 0) > 0 ? ((summary?.chatSearches ?? 0) / (summary?.totalSearches ?? 1)) * 100 : 0}%`,
                       }}
                     />
                   </div>
@@ -276,12 +309,12 @@ export default function AnalyticsContent() {
                         <td className="py-3">
                           <span
                             className={`text-xs px-2 py-1 rounded ${
-                              search.searchType === "agent"
+                              search.searchType === "search_query"
                                 ? "bg-primary/10 text-primary"
                                 : "bg-info/10 text-info"
                             }`}
                           >
-                            {search.searchType}
+                            {search.searchType === "search_query" ? "agent" : "chat"}
                           </span>
                         </td>
                         <td className="py-3 text-sm">

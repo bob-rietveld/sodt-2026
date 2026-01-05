@@ -1,0 +1,14 @@
+NODE recent_searches
+SQL >
+    SELECT
+        event_id as _id,
+        query,
+        event_name as searchType,
+        result_count as resultCount,
+        response_time_ms as responseTimeMs,
+        toUnixTimestamp64Milli(timestamp) as timestamp
+    FROM events
+    ORDER BY timestamp DESC
+    LIMIT {{Int32(limit, 50)}}
+
+TYPE endpoint

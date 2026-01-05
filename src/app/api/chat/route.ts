@@ -1,21 +1,6 @@
 import { NextRequest } from "next/server";
-import { ConvexHttpClient } from "convex/browser";
 import { chatStream, type ChatMessage, type ChatFilter } from "@/lib/pinecone/client";
-import { api } from "../../../../convex/_generated/api";
-import crypto from "crypto";
-
-function getConvexClient(): ConvexHttpClient {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!url) {
-    throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
-  }
-  return new ConvexHttpClient(url);
-}
-
-function hashIP(ip: string | null): string | undefined {
-  if (!ip) return undefined;
-  return crypto.createHash("sha256").update(ip).digest("hex").slice(0, 16);
-}
+import { logSearchEvent } from "@/lib/analytics";
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -161,31 +146,26 @@ export async function POST(request: NextRequest) {
               .sort((a, b) => a.title.localeCompare(b.title)),
           }));
 
-          // Log search query to analytics after stream completes
+          // Log search query to Tinybird analytics (fire and forget)
           const responseTimeMs = Date.now() - startTime;
-          try {
-            const convex = getConvexClient();
-            await convex.mutation(api.searchAnalytics.logSearch, {
-              query: message,
-              searchType: "chat",
-              sessionId,
-              responseTimeMs,
-              answer: contentWithCitations.slice(0, 2000),
-              sources: sources.flatMap((s) =>
-                s.references.map((r) => ({
-                  convexId: r.fileId,
-                  title: r.title,
-                  filename: r.filename,
-                  pageNumber: r.pageNumbers[0] ?? 0,
-                }))
-              ),
-              resultCount: sources.reduce((acc, s) => acc + s.references.length, 0),
-              userAgent,
-              ipHash: hashIP(ip),
-            });
-          } catch (logError) {
-            console.error("Failed to log chat query:", logError);
-          }
+          logSearchEvent({
+            eventName: "chat_query",
+            query: message,
+            sessionId,
+            responseTimeMs,
+            answer: contentWithCitations,
+            sources: sources.flatMap((s) =>
+              s.references.map((r) => ({
+                convexId: r.fileId,
+                title: r.title,
+                filename: r.filename,
+                pageNumber: r.pageNumbers[0] ?? 0,
+              }))
+            ),
+            resultCount: sources.reduce((acc, s) => acc + s.references.length, 0),
+            userAgent,
+            ip: ip || undefined,
+          }).catch((err) => console.error("Failed to log chat query:", err));
 
           // Send a final event with the complete content + structured sources.
           controller.enqueue(

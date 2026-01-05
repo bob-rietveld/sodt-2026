@@ -1,0 +1,20 @@
+SCHEMA >
+    `event_id` String,
+    `event_name` LowCardinality(String),
+    `query` String,
+    `session_id` Nullable(String),
+    `timestamp` DateTime64(3),
+    `response_time_ms` Nullable(Int32),
+    `answer` Nullable(String),
+    `sources` String,
+    `result_count` Int32,
+    `user_agent` Nullable(String),
+    `ip_hash` Nullable(String)
+
+ENGINE "MergeTree"
+ENGINE_PARTITION_KEY "toYYYYMM(timestamp)"
+ENGINE_SORTING_KEY "timestamp, event_name"
+ENGINE_TTL "timestamp + toIntervalDay(365)"
+
+TOKEN ingest APPEND
+TOKEN analytics READ

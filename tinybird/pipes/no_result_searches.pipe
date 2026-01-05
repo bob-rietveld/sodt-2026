@@ -1,0 +1,12 @@
+NODE no_result_searches
+SQL >
+    SELECT
+        event_id as _id,
+        query,
+        toUnixTimestamp64Milli(timestamp) as timestamp
+    FROM events
+    WHERE result_count = 0
+    ORDER BY timestamp DESC
+    LIMIT {{Int32(limit, 20)}}
+
+TYPE endpoint

@@ -1,0 +1,11 @@
+NODE searches_by_day
+SQL >
+    SELECT
+        toDate(timestamp) as date,
+        count() as count
+    FROM events
+    WHERE timestamp >= now() - INTERVAL {{Int32(days_back, 30)}} DAY
+    GROUP BY date
+    ORDER BY date
+
+TYPE endpoint

@@ -1,0 +1,17 @@
+NODE popular_sources
+SQL >
+    SELECT
+        JSONExtractString(source, 'convexId') as convexId,
+        JSONExtractString(source, 'title') as title,
+        JSONExtractString(source, 'filename') as filename,
+        count() as count
+    FROM events
+    ARRAY JOIN JSONExtractArrayRaw(sources) as source
+    WHERE
+        timestamp >= now() - INTERVAL {{Int32(days_back, 30)}} DAY
+        AND JSONExtractString(source, 'convexId') != ''
+    GROUP BY convexId, title, filename
+    ORDER BY count DESC
+    LIMIT {{Int32(limit, 20)}}
+
+TYPE endpoint

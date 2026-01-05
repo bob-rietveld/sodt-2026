@@ -1,0 +1,13 @@
+NODE popular_searches
+SQL >
+    SELECT
+        lower(trim(query)) as query,
+        count() as count,
+        round(avg(result_count), 1) as avgResults
+    FROM events
+    WHERE timestamp >= now() - INTERVAL {{Int32(days_back, 30)}} DAY
+    GROUP BY query
+    ORDER BY count DESC
+    LIMIT {{Int32(limit, 20)}}
+
+TYPE endpoint

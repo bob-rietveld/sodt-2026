@@ -1,21 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ConvexHttpClient } from "convex/browser";
 import { chat, type ChatMessage } from "@/lib/pinecone/client";
-import { api } from "../../../../convex/_generated/api";
-import crypto from "crypto";
-
-function getConvexClient(): ConvexHttpClient {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!url) {
-    throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
-  }
-  return new ConvexHttpClient(url);
-}
-
-function hashIP(ip: string | null): string | undefined {
-  if (!ip) return undefined;
-  return crypto.createHash("sha256").update(ip).digest("hex").slice(0, 16);
-}
+import { logSearchEvent } from "@/lib/analytics";
 
 export interface SearchResult {
   answer: string;
@@ -64,33 +49,27 @@ export async function POST(request: NextRequest) {
 
     const responseTimeMs = Date.now() - startTime;
 
-    // Log search query to analytics (fire and forget)
-    try {
-      const convex = getConvexClient();
-      const userAgent = request.headers.get("user-agent") || undefined;
-      const ip =
-        request.headers.get("x-forwarded-for") ||
-        request.headers.get("x-real-ip");
+    // Log search query to Tinybird analytics (fire and forget)
+    const userAgent = request.headers.get("user-agent") || undefined;
+    const ip =
+      request.headers.get("x-forwarded-for") ||
+      request.headers.get("x-real-ip");
 
-      await convex.mutation(api.searchAnalytics.logSearch, {
-        query,
-        searchType: "agent",
-        responseTimeMs,
-        answer: result.answer,
-        sources: result.sources?.map((s) => ({
-          convexId: s.convexId,
-          title: s.title,
-          filename: s.filename,
-          pageNumber: s.pageNumber,
-        })),
-        resultCount: result.sources?.length ?? 0,
-        userAgent,
-        ipHash: hashIP(ip),
-      });
-    } catch (logError) {
-      // Don't fail the search if logging fails
-      console.error("Failed to log search query:", logError);
-    }
+    logSearchEvent({
+      eventName: "search_query",
+      query,
+      responseTimeMs,
+      answer: result.answer,
+      sources: result.sources?.map((s) => ({
+        convexId: s.convexId,
+        title: s.title,
+        filename: s.filename,
+        pageNumber: s.pageNumber,
+      })),
+      resultCount: result.sources?.length ?? 0,
+      userAgent,
+      ip: ip || undefined,
+    }).catch((err) => console.error("Failed to log search query:", err));
 
     return NextResponse.json(result);
   } catch (error) {
