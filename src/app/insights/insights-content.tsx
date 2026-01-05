@@ -18,8 +18,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
   Legend,
   AreaChart,
   Area,
@@ -89,9 +87,12 @@ const documentTypeLabels: Record<string, string> = {
   other: "Other",
 };
 
+type TabType = "overview" | "deep-dive";
+
 function InsightsContentInner() {
-  const { filters, setFilter, hasActiveFilters } = useUrlFilters();
+  const { filters, setFilter, hasActiveFilters, clearFilters } = useUrlFilters();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("overview");
 
   // Fetch data
   const insightsData = useQuery(api.pdfs.getInsightsData);
@@ -105,13 +106,46 @@ function InsightsContentInner() {
     keywords: filters.keywords,
   });
 
+  // Compute filtered stats based on current filters
+  const filteredStats = useMemo(() => {
+    if (!insightsData) return null;
+
+    // If no filters, return the original stats
+    if (!hasActiveFilters) {
+      return {
+        totalReports: insightsData.totalReports,
+        uniqueCompanies: insightsData.uniqueCompanies,
+        uniqueTechnologyAreas: insightsData.uniqueTechnologyAreas,
+        yearRange: insightsData.yearRange,
+      };
+    }
+
+    // When filters are active, use the filteredCount and show filtered context
+    // For companies and tech areas, we'll show the selected count or "filtered"
+    const selectedTechCount = filters.technologyAreas?.length || 0;
+    const hasYearFilter = filters.year !== undefined;
+
+    return {
+      totalReports: filteredCount ?? "...",
+      uniqueCompanies: filters.company ? 1 : "—",
+      uniqueTechnologyAreas: selectedTechCount > 0 ? selectedTechCount : "—",
+      yearRange: hasYearFilter ? filters.year : insightsData.yearRange
+        ? `${insightsData.yearRange.min}-${insightsData.yearRange.max}`
+        : "N/A",
+    };
+  }, [insightsData, hasActiveFilters, filteredCount, filters]);
+
   // Transform data for charts
   const yearChartData = useMemo(() => {
     if (!insightsData?.reportsByYear) return [];
     return Object.entries(insightsData.reportsByYear)
-      .map(([year, count]) => ({ year: parseInt(year), count }))
+      .map(([year, count]) => ({
+        year: parseInt(year),
+        count,
+        isSelected: filters.year === parseInt(year),
+      }))
       .sort((a, b) => a.year - b.year);
-  }, [insightsData?.reportsByYear]);
+  }, [insightsData?.reportsByYear, filters.year]);
 
   const industryChartData = useMemo(() => {
     if (!insightsData?.industryDistribution) return [];
@@ -256,350 +290,461 @@ function InsightsContentInner() {
               <LoadingSkeleton />
             ) : (
               <>
-                {/* Hero Stats */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+                {/* Hero Stats - Now filtered */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                   <StatCard
-                    value={insightsData.totalReports}
-                    label="Total Reports"
+                    value={filteredStats?.totalReports ?? "..."}
+                    label={hasActiveFilters ? "Matching Reports" : "Total Reports"}
                     color="primary"
+                    isFiltered={hasActiveFilters}
                   />
                   <StatCard
-                    value={insightsData.uniqueCompanies}
+                    value={hasActiveFilters ? (filteredStats?.uniqueCompanies ?? "...") : insightsData.uniqueCompanies}
                     label="Companies"
                     color="info"
+                    isFiltered={hasActiveFilters && !!filters.company}
                   />
                   <StatCard
-                    value={insightsData.uniqueTechnologyAreas}
-                    label="Technology Areas"
+                    value={hasActiveFilters && filters.technologyAreas?.length
+                      ? filters.technologyAreas.length
+                      : insightsData.uniqueTechnologyAreas}
+                    label={hasActiveFilters && filters.technologyAreas?.length ? "Selected Tech" : "Technology Areas"}
                     color="success"
+                    isFiltered={hasActiveFilters && !!filters.technologyAreas?.length}
                   />
                   <StatCard
                     value={
-                      insightsData.yearRange
-                        ? `${insightsData.yearRange.min}-${insightsData.yearRange.max}`
-                        : "N/A"
+                      filters.year
+                        ? filters.year
+                        : insightsData.yearRange
+                          ? `${insightsData.yearRange.min}-${insightsData.yearRange.max}`
+                          : "N/A"
                     }
-                    label="Years Covered"
+                    label={filters.year ? "Selected Year" : "Years Covered"}
                     color="warning"
+                    isFiltered={!!filters.year}
                   />
                 </div>
 
-                {/* Charts Grid */}
-                <div className="grid md:grid-cols-2 gap-6 mb-8">
-                  {/* Reports by Year */}
-                  <ChartCard title="Reports by Year">
-                    {yearChartData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={250}>
-                        <BarChart data={yearChartData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis dataKey="year" tick={{ fontSize: 12 }} />
-                          <YAxis tick={{ fontSize: 12 }} />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "white",
-                              border: "1px solid #e5e7eb",
-                              borderRadius: "8px",
-                            }}
-                          />
-                          <Bar
-                            dataKey="count"
-                            fill={COLORS.primary}
-                            radius={[4, 4, 0, 0]}
-                            cursor="pointer"
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            onClick={(data: any) => {
-                              if (data?.year) setFilter("year", data.year);
-                            }}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <EmptyChart message="No year data available" />
-                    )}
-                  </ChartCard>
+                {/* Filter indicator */}
+                {hasActiveFilters && (
+                  <div className="mb-6 flex items-center gap-2 text-sm text-foreground/60">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                    <span>Stats reflect current filter selection</span>
+                    <button
+                      onClick={clearFilters}
+                      className="text-primary hover:underline ml-2"
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                )}
 
-                  {/* Industry Distribution */}
-                  <ChartCard title="Industry Distribution">
-                    {industryChartData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={250}>
-                        <PieChart>
-                          <Pie
-                            data={industryChartData}
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            innerRadius={40}
-                            paddingAngle={2}
-                            dataKey="value"
-                            cursor="pointer"
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            onClick={(data: any) => {
-                              if (data?.key) setFilter("industry", data.key);
-                            }}
-                          >
-                            {industryChartData.map((entry, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={PIE_COLORS[index % PIE_COLORS.length]}
-                                opacity={filters.industry && filters.industry !== entry.key ? 0.3 : 1}
-                              />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "white",
-                              border: "1px solid #e5e7eb",
-                              borderRadius: "8px",
-                            }}
-                          />
-                          <Legend
-                            layout="vertical"
-                            align="right"
-                            verticalAlign="middle"
-                            iconType="circle"
-                            iconSize={8}
-                            formatter={(value) => (
-                              <span className="text-sm text-foreground/80">{value}</span>
-                            )}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <EmptyChart message="No industry data available" />
-                    )}
-                  </ChartCard>
-
-                  {/* Geographic Coverage */}
-                  <ChartCard title="Geographic Coverage">
-                    {continentChartData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={250}>
-                        <BarChart data={continentChartData} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis type="number" tick={{ fontSize: 12 }} />
-                          <YAxis
-                            type="category"
-                            dataKey="name"
-                            tick={{ fontSize: 12 }}
-                            width={100}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "white",
-                              border: "1px solid #e5e7eb",
-                              borderRadius: "8px",
-                            }}
-                          />
-                          <Bar
-                            dataKey="value"
-                            fill={COLORS.info}
-                            radius={[0, 4, 4, 0]}
-                            cursor="pointer"
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            onClick={(data: any) => {
-                              if (data?.key) setFilter("continent", data.key);
-                            }}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <EmptyChart message="No geographic data available" />
-                    )}
-                  </ChartCard>
-
-                  {/* Document Types */}
-                  <ChartCard title="Document Types">
-                    {documentTypeChartData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={250}>
-                        <PieChart>
-                          <Pie
-                            data={documentTypeChartData}
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            innerRadius={40}
-                            paddingAngle={2}
-                            dataKey="value"
-                          >
-                            {documentTypeChartData.map((entry, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={PIE_COLORS[index % PIE_COLORS.length]}
-                              />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "white",
-                              border: "1px solid #e5e7eb",
-                              borderRadius: "8px",
-                            }}
-                          />
-                          <Legend
-                            layout="vertical"
-                            align="right"
-                            verticalAlign="middle"
-                            iconType="circle"
-                            iconSize={8}
-                            formatter={(value) => (
-                              <span className="text-sm text-foreground/80">{value}</span>
-                            )}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <EmptyChart message="No document type data available" />
-                    )}
-                  </ChartCard>
+                {/* Tab Navigation */}
+                <div className="flex gap-1 p-1 bg-foreground/5 rounded-lg mb-6 w-fit">
+                  <button
+                    onClick={() => setActiveTab("overview")}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      activeTab === "overview"
+                        ? "bg-white text-foreground shadow-sm"
+                        : "text-foreground/60 hover:text-foreground"
+                    }`}
+                  >
+                    Overview
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("deep-dive")}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      activeTab === "deep-dive"
+                        ? "bg-white text-foreground shadow-sm"
+                        : "text-foreground/60 hover:text-foreground"
+                    }`}
+                  >
+                    Deep Dive
+                  </button>
                 </div>
 
-                {/* Top Technology Areas */}
-                <ChartCard title="Top Technology Areas" className="mb-8">
-                  {insightsData.topTechnologyAreas.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={400}>
-                      <BarChart
-                        data={insightsData.topTechnologyAreas.slice(0, 12)}
-                        layout="vertical"
-                        margin={{ left: 20 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis type="number" tick={{ fontSize: 12 }} />
-                        <YAxis
-                          type="category"
-                          dataKey="name"
-                          tick={{ fontSize: 11 }}
-                          width={150}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "white",
-                            border: "1px solid #e5e7eb",
-                            borderRadius: "8px",
-                          }}
-                        />
-                        <Bar
-                          dataKey="count"
-                          fill={COLORS.success}
-                          radius={[0, 4, 4, 0]}
-                          cursor="pointer"
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          onClick={(data: any) => {
-                            if (!data?.name) return;
-                            const current = filters.technologyAreas || [];
-                            if (current.includes(data.name)) {
-                              setFilter(
-                                "technologyAreas",
-                                current.filter((t: string) => t !== data.name)
-                              );
-                            } else {
-                              setFilter("technologyAreas", [...current, data.name]);
-                            }
-                          }}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <EmptyChart message="No technology area data available" />
-                  )}
-                </ChartCard>
+                {/* Overview Tab */}
+                {activeTab === "overview" && (
+                  <div className="space-y-6">
+                    {/* Charts Grid */}
+                    <div className="grid md:grid-cols-2 gap-6">
+                      {/* Reports by Year */}
+                      <ChartCard title="Reports by Year" subtitle="Click a bar to filter by year">
+                        {yearChartData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={250}>
+                            <BarChart data={yearChartData}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                              <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+                              <YAxis tick={{ fontSize: 12 }} />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: "white",
+                                  border: "1px solid #e5e7eb",
+                                  borderRadius: "8px",
+                                }}
+                              />
+                              <Bar
+                                dataKey="count"
+                                radius={[4, 4, 0, 0]}
+                                cursor="pointer"
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                onClick={(data: any) => {
+                                  if (data?.year) {
+                                    // Toggle year filter
+                                    if (filters.year === data.year) {
+                                      setFilter("year", undefined);
+                                    } else {
+                                      setFilter("year", data.year);
+                                    }
+                                  }
+                                }}
+                              >
+                                {yearChartData.map((entry, index) => (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={entry.isSelected ? COLORS.warning : COLORS.primary}
+                                    opacity={filters.year && !entry.isSelected ? 0.4 : 1}
+                                  />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <EmptyChart message="No year data available" />
+                        )}
+                      </ChartCard>
 
-                {/* Technology Trends Over Time */}
-                <ChartCard
-                  title="Technology Trends Over Time"
-                  subtitle={
-                    filters.technologyAreas?.length
-                      ? `Showing ${filters.technologyAreas.length} selected technologies`
-                      : "Select technologies from the filter panel to see trends"
-                  }
-                >
-                  {technologyTrendsData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={350}>
-                      <AreaChart data={technologyTrendsData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="year" tick={{ fontSize: 12 }} />
-                        <YAxis tick={{ fontSize: 12 }} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "white",
-                            border: "1px solid #e5e7eb",
-                            borderRadius: "8px",
-                          }}
-                        />
-                        <Legend />
-                        {(filters.technologyAreas || []).map((tech, index) => (
-                          <Area
-                            key={tech}
-                            type="monotone"
-                            dataKey={tech}
-                            stroke={LINE_COLORS[index % LINE_COLORS.length]}
-                            fill={LINE_COLORS[index % LINE_COLORS.length]}
-                            fillOpacity={0.2}
-                            strokeWidth={2}
-                          />
-                        ))}
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-64 text-foreground/50">
-                      <svg
-                        className="w-12 h-12 mb-3 text-foreground/30"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"
-                        />
-                      </svg>
-                      <p className="text-sm">Select technologies to see trends over time</p>
-                      <p className="text-xs mt-1 text-foreground/40">
-                        Use the Technology Areas filter in the sidebar
-                      </p>
+                      {/* Industry Distribution */}
+                      <ChartCard title="Industry Distribution" subtitle="Click a segment to filter">
+                        {industryChartData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={250}>
+                            <PieChart>
+                              <Pie
+                                data={industryChartData}
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={80}
+                                innerRadius={40}
+                                paddingAngle={2}
+                                dataKey="value"
+                                cursor="pointer"
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                onClick={(data: any) => {
+                                  if (data?.key) {
+                                    // Toggle industry filter
+                                    if (filters.industry === data.key) {
+                                      setFilter("industry", undefined);
+                                    } else {
+                                      setFilter("industry", data.key);
+                                    }
+                                  }
+                                }}
+                              >
+                                {industryChartData.map((entry, index) => (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={PIE_COLORS[index % PIE_COLORS.length]}
+                                    opacity={filters.industry && filters.industry !== entry.key ? 0.3 : 1}
+                                    stroke={filters.industry === entry.key ? "#000" : "none"}
+                                    strokeWidth={filters.industry === entry.key ? 2 : 0}
+                                  />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: "white",
+                                  border: "1px solid #e5e7eb",
+                                  borderRadius: "8px",
+                                }}
+                              />
+                              <Legend
+                                layout="vertical"
+                                align="right"
+                                verticalAlign="middle"
+                                iconType="circle"
+                                iconSize={8}
+                                formatter={(value) => (
+                                  <span className="text-sm text-foreground/80">{value}</span>
+                                )}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <EmptyChart message="No industry data available" />
+                        )}
+                      </ChartCard>
+
+                      {/* Geographic Coverage */}
+                      <ChartCard title="Geographic Coverage" subtitle="Click a bar to filter by region">
+                        {continentChartData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={250}>
+                            <BarChart data={continentChartData} layout="vertical">
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                              <XAxis type="number" tick={{ fontSize: 12 }} />
+                              <YAxis
+                                type="category"
+                                dataKey="name"
+                                tick={{ fontSize: 12 }}
+                                width={100}
+                              />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: "white",
+                                  border: "1px solid #e5e7eb",
+                                  borderRadius: "8px",
+                                }}
+                              />
+                              <Bar
+                                dataKey="value"
+                                radius={[0, 4, 4, 0]}
+                                cursor="pointer"
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                onClick={(data: any) => {
+                                  if (data?.key) {
+                                    // Toggle continent filter
+                                    if (filters.continent === data.key) {
+                                      setFilter("continent", undefined);
+                                    } else {
+                                      setFilter("continent", data.key);
+                                    }
+                                  }
+                                }}
+                              >
+                                {continentChartData.map((entry, index) => (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={filters.continent === entry.key ? COLORS.warning : COLORS.info}
+                                    opacity={filters.continent && filters.continent !== entry.key ? 0.4 : 1}
+                                  />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <EmptyChart message="No geographic data available" />
+                        )}
+                      </ChartCard>
+
+                      {/* Document Types */}
+                      <ChartCard title="Document Types">
+                        {documentTypeChartData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={250}>
+                            <PieChart>
+                              <Pie
+                                data={documentTypeChartData}
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={80}
+                                innerRadius={40}
+                                paddingAngle={2}
+                                dataKey="value"
+                              >
+                                {documentTypeChartData.map((_, index) => (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={PIE_COLORS[index % PIE_COLORS.length]}
+                                  />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: "white",
+                                  border: "1px solid #e5e7eb",
+                                  borderRadius: "8px",
+                                }}
+                              />
+                              <Legend
+                                layout="vertical"
+                                align="right"
+                                verticalAlign="middle"
+                                iconType="circle"
+                                iconSize={8}
+                                formatter={(value) => (
+                                  <span className="text-sm text-foreground/80">{value}</span>
+                                )}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <EmptyChart message="No document type data available" />
+                        )}
+                      </ChartCard>
                     </div>
-                  )}
-                </ChartCard>
+                  </div>
+                )}
 
-                {/* Top Keywords */}
-                <ChartCard title="Top Keywords" className="mt-8">
-                  {insightsData.topKeywords.length > 0 ? (
-                    <div className="flex flex-wrap gap-2 py-4">
-                      {insightsData.topKeywords.map((keyword, index) => {
-                        const isSelected = filters.keywords?.includes(keyword.name);
-                        const maxCount = insightsData.topKeywords[0]?.count || 1;
-                        const opacity = 0.4 + (keyword.count / maxCount) * 0.6;
-                        return (
-                          <button
-                            key={keyword.name}
-                            onClick={() => {
-                              const current = filters.keywords || [];
-                              if (isSelected) {
-                                setFilter(
-                                  "keywords",
-                                  current.filter((k) => k !== keyword.name)
-                                );
-                              } else {
-                                setFilter("keywords", [...current, keyword.name]);
-                              }
-                            }}
-                            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                              isSelected
-                                ? "bg-primary text-white"
-                                : "bg-foreground/5 text-foreground/80 hover:bg-foreground/10"
-                            }`}
-                            style={{ opacity: isSelected ? 1 : opacity }}
+                {/* Deep Dive Tab */}
+                {activeTab === "deep-dive" && (
+                  <div className="space-y-6">
+                    {/* Top Technology Areas */}
+                    <ChartCard
+                      title="Top Technology Areas"
+                      subtitle="Click bars to select technologies for the trends chart below"
+                    >
+                      {insightsData.topTechnologyAreas.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={400}>
+                          <BarChart
+                            data={insightsData.topTechnologyAreas.slice(0, 12)}
+                            layout="vertical"
+                            margin={{ left: 20 }}
                           >
-                            {keyword.name}
-                            <span className="ml-1.5 text-xs opacity-70">({keyword.count})</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <EmptyChart message="No keyword data available" />
-                  )}
-                </ChartCard>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                            <XAxis type="number" tick={{ fontSize: 12 }} />
+                            <YAxis
+                              type="category"
+                              dataKey="name"
+                              tick={{ fontSize: 11 }}
+                              width={150}
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "white",
+                                border: "1px solid #e5e7eb",
+                                borderRadius: "8px",
+                              }}
+                            />
+                            <Bar
+                              dataKey="count"
+                              radius={[0, 4, 4, 0]}
+                              cursor="pointer"
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              onClick={(data: any) => {
+                                if (!data?.name) return;
+                                const current = filters.technologyAreas || [];
+                                if (current.includes(data.name)) {
+                                  setFilter(
+                                    "technologyAreas",
+                                    current.filter((t: string) => t !== data.name)
+                                  );
+                                } else {
+                                  setFilter("technologyAreas", [...current, data.name]);
+                                }
+                              }}
+                            >
+                              {insightsData.topTechnologyAreas.slice(0, 12).map((entry, index) => {
+                                const isSelected = filters.technologyAreas?.includes(entry.name);
+                                return (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={isSelected ? LINE_COLORS[filters.technologyAreas!.indexOf(entry.name) % LINE_COLORS.length] : COLORS.success}
+                                    opacity={filters.technologyAreas?.length && !isSelected ? 0.4 : 1}
+                                  />
+                                );
+                              })}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <EmptyChart message="No technology area data available" />
+                      )}
+                    </ChartCard>
+
+                    {/* Technology Trends Over Time */}
+                    <ChartCard
+                      title="Technology Trends Over Time"
+                      subtitle={
+                        filters.technologyAreas?.length
+                          ? `Showing ${filters.technologyAreas.length} selected technolog${filters.technologyAreas.length === 1 ? 'y' : 'ies'}`
+                          : "Select technologies from the chart above to see trends"
+                      }
+                    >
+                      {technologyTrendsData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={350}>
+                          <AreaChart data={technologyTrendsData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                            <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "white",
+                                border: "1px solid #e5e7eb",
+                                borderRadius: "8px",
+                              }}
+                            />
+                            <Legend />
+                            {(filters.technologyAreas || []).map((tech, index) => (
+                              <Area
+                                key={tech}
+                                type="monotone"
+                                dataKey={tech}
+                                stroke={LINE_COLORS[index % LINE_COLORS.length]}
+                                fill={LINE_COLORS[index % LINE_COLORS.length]}
+                                fillOpacity={0.2}
+                                strokeWidth={2}
+                              />
+                            ))}
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-64 text-foreground/50">
+                          <svg
+                            className="w-12 h-12 mb-3 text-foreground/30"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1.5}
+                              d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"
+                            />
+                          </svg>
+                          <p className="text-sm">Select technologies to see trends over time</p>
+                          <p className="text-xs mt-1 text-foreground/40">
+                            Click on bars in the chart above
+                          </p>
+                        </div>
+                      )}
+                    </ChartCard>
+
+                    {/* Top Keywords */}
+                    <ChartCard
+                      title="Top Keywords"
+                      subtitle="Click keywords to add them to your filter"
+                    >
+                      {insightsData.topKeywords.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 py-4">
+                          {insightsData.topKeywords.map((keyword) => {
+                            const isSelected = filters.keywords?.includes(keyword.name);
+                            const maxCount = insightsData.topKeywords[0]?.count || 1;
+                            const opacity = 0.4 + (keyword.count / maxCount) * 0.6;
+                            return (
+                              <button
+                                key={keyword.name}
+                                onClick={() => {
+                                  const current = filters.keywords || [];
+                                  if (isSelected) {
+                                    setFilter(
+                                      "keywords",
+                                      current.filter((k) => k !== keyword.name)
+                                    );
+                                  } else {
+                                    setFilter("keywords", [...current, keyword.name]);
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                                  isSelected
+                                    ? "bg-primary text-white"
+                                    : "bg-foreground/5 text-foreground/80 hover:bg-foreground/10"
+                                }`}
+                                style={{ opacity: isSelected ? 1 : opacity }}
+                              >
+                                {keyword.name}
+                                <span className="ml-1.5 text-xs opacity-70">({keyword.count})</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <EmptyChart message="No keyword data available" />
+                      )}
+                    </ChartCard>
+                  </div>
+                )}
               </>
             )}
 
@@ -629,10 +774,12 @@ function StatCard({
   value,
   label,
   color,
+  isFiltered = false,
 }: {
   value: number | string;
   label: string;
   color: "primary" | "info" | "success" | "warning";
+  isFiltered?: boolean;
 }) {
   const colorClasses = {
     primary: "text-primary",
@@ -642,9 +789,16 @@ function StatCard({
   };
 
   return (
-    <div className="bg-white p-4 sm:p-6 rounded-xl border border-foreground/10">
+    <div className={`bg-white p-4 sm:p-6 rounded-xl border ${isFiltered ? 'border-primary/30 bg-primary/5' : 'border-foreground/10'}`}>
       <p className={`text-2xl sm:text-3xl font-semibold ${colorClasses[color]}`}>{value}</p>
-      <p className="text-foreground/60 mt-1 text-sm">{label}</p>
+      <p className="text-foreground/60 mt-1 text-sm flex items-center gap-1">
+        {label}
+        {isFiltered && (
+          <svg className="w-3 h-3 text-primary" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+          </svg>
+        )}
+      </p>
     </div>
   );
 }
@@ -694,6 +848,9 @@ function LoadingSkeleton() {
           </div>
         ))}
       </div>
+
+      {/* Tab skeleton */}
+      <div className="h-10 bg-foreground/5 rounded-lg w-48"></div>
 
       {/* Charts skeleton */}
       <div className="grid md:grid-cols-2 gap-6">
