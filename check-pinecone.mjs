@@ -10,7 +10,7 @@ async function checkAssistant() {
   const pc = new Pinecone({ apiKey });
   
   try {
-    const assistant = pc.Assistant('sodt');
+    const assistant = pc.Assistant('sodt-2026');
     console.log('Assistant object created');
     
     const files = await assistant.listFiles();

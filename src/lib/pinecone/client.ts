@@ -4,7 +4,7 @@ import {
   type StreamedChatResponse,
 } from "@pinecone-database/pinecone";
 
-const PINECONE_ASSISTANT_NAME = "sodt";
+const PINECONE_ASSISTANT_NAME = "sodt-2026";
 const PINECONE_MODEL = "gpt-4o";
 
 // System prompt to encourage source-grounded answers (citations are rendered by the UI)

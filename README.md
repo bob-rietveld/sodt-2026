@@ -44,7 +44,7 @@ cp .env.example .env.local
 
 1. Create a Pinecone account at [pinecone.io](https://www.pinecone.io/)
 2. Navigate to Assistants in the Pinecone console
-3. Create a new assistant named `sodt`
+3. Create a new assistant named `sodt-2026`
 4. Copy your API key to `PINECONE_API_KEY`
 
 The assistant handles:
