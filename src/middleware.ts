@@ -1,11 +1,11 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { logWebEvent } from "@/lib/analytics";
+import { logWebEvent } from "@/lib/analytics/tinybird-edge";
 import { NextResponse } from "next/server";
-import crypto from "crypto";
 
 const isProtectedRoute = createRouteMatcher(["/admin", "/admin/(.*)"]);
 
 // Generate or get session ID from cookie
+// Uses Web Crypto API for Edge Runtime compatibility
 function getOrCreateSessionId(req: Request): string {
   const cookies = req.headers.get("cookie") || "";
   const sessionMatch = cookies.match(/tb_session_id=([^;]+)/);
@@ -14,8 +14,27 @@ function getOrCreateSessionId(req: Request): string {
     return sessionMatch[1];
   }
   
-  // Generate new session ID
-  return crypto.randomUUID();
+  // Generate new session ID using Web Crypto API (Edge Runtime compatible)
+  // Generate a random UUID v4
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  
+  // Set version (4) and variant bits
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // Version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // Variant 10
+  
+  // Convert to UUID string format
+  const hex = Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join("-");
 }
 
 export default clerkMiddleware(async (auth, req) => {
