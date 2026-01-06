@@ -6,52 +6,25 @@ import type {
   NoResultSearch,
 } from "./types";
 
-const TINYBIRD_URL =
-  process.env.NEXT_PUBLIC_TINYBIRD_API_URL || "https://api.tinybird.co";
-const TINYBIRD_TOKEN = process.env.NEXT_PUBLIC_TINYBIRD_READ_TOKEN;
-
-interface TinybirdResponse<T> {
-  data: T[];
-  meta: Array<{ name: string; type: string }>;
-  rows: number;
-  statistics: {
-    elapsed: number;
-    rows_read: number;
-    bytes_read: number;
-  };
-}
-
 async function queryPipe<T>(
   pipeName: string,
   params: Record<string, string | number> = {}
 ): Promise<T[]> {
-  if (!TINYBIRD_TOKEN) {
-    console.warn("NEXT_PUBLIC_TINYBIRD_READ_TOKEN not configured");
-    return [];
-  }
-
   const searchParams = new URLSearchParams();
+  searchParams.set("pipe", pipeName);
   Object.entries(params).forEach(([key, value]) => {
     searchParams.set(key, String(value));
   });
 
-  const url = `${TINYBIRD_URL}/v0/pipes/${pipeName}.json?${searchParams}`;
-
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${TINYBIRD_TOKEN}`,
-    },
-    // Cache for 30 seconds to avoid hammering the API
-    next: { revalidate: 30 },
-  });
+  const response = await fetch(`/api/admin/analytics?${searchParams}`);
 
   if (!response.ok) {
     const error = await response.text();
-    console.error(`Tinybird query failed for ${pipeName}:`, response.status, error);
-    throw new Error(`Tinybird query failed: ${response.status}`);
+    console.error(`Analytics query failed for ${pipeName}:`, response.status, error);
+    throw new Error(`Analytics query failed: ${response.status}`);
   }
 
-  const json: TinybirdResponse<T> = await response.json();
+  const json: { data: T[] } = await response.json();
   return json.data;
 }
 
