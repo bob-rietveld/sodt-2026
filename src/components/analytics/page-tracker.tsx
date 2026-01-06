@@ -1,21 +1,44 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { trackPageView } from "@/lib/analytics/client";
 
 /**
  * Automatically tracks page views with client-side data
- * Add this component to your root layout
- * Note: We only use usePathname (which doesn't need Suspense)
- * The full URL with search params is captured client-side
+ * Only tracks top-level routes, not dynamic routes like /reports/[id]
+ * Those are tracked via click events instead
  */
 export function PageTracker() {
   const pathname = usePathname();
+  const previousPathname = useRef<string | null>(null);
 
   useEffect(() => {
-    // Track page view when route changes
+    // Track page view when route changes (only for top-level routes)
     if (typeof window === "undefined") return;
+
+    // Skip if pathname hasn't changed
+    if (pathname === previousPathname.current) return;
+    previousPathname.current = pathname;
+
+    // Define top-level routes to track
+    const topLevelRoutes = [
+      "/",
+      "/reports",
+      "/chat",
+      "/search",
+      "/about",
+      "/upload",
+      "/insights",
+      "/contribute",
+    ];
+
+    // Only track top-level routes or admin routes
+    // Skip dynamic routes like /reports/[id] - those are tracked via clicks
+    const isTopLevelRoute =
+      topLevelRoutes.includes(pathname) || pathname.startsWith("/admin");
+
+    if (!isTopLevelRoute) return;
 
     const pageTitle = document.title;
     const loadTime = performance.timing

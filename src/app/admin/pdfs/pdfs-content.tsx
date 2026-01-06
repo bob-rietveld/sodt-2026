@@ -197,6 +197,21 @@ export default function PdfsContent() {
         source: "upload",
       });
 
+      // Track upload event
+      try {
+        const { trackEvent } = await import("@/lib/analytics/client");
+        trackEvent("pdf_upload", {
+          pdfId,
+          filename: file.name,
+          title,
+          fileSize: file.size,
+          source: "admin_pdfs_page",
+        });
+      } catch (err) {
+        // Silently fail - analytics should not break upload
+        console.error("Failed to track upload event:", err);
+      }
+
       // Step 3.5: Upload to Google Drive if configured
       if (driveRefreshToken) {
         setUploadProgress("Uploading to Google Drive...");

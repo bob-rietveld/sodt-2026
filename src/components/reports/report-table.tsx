@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { BrowseReport } from "@/types";
 import { SortOption } from "./sort-selector";
+import { trackEvent } from "@/lib/analytics/client";
 
 interface ReportTableProps {
   reports: BrowseReport[];
@@ -98,6 +99,16 @@ export function ReportTable({ reports, sortBy, onSortChange }: ReportTableProps)
                 <td className="px-4 py-3">
                   <Link
                     href={`/reports/${report._id}`}
+                    onClick={() => {
+                      trackEvent("report_click", {
+                        reportId: report._id,
+                        reportTitle: report.title,
+                        company: report.company || null,
+                        industry: report.industry || null,
+                        continent: report.continent || null,
+                        source: "table_view",
+                      });
+                    }}
                     className="flex items-center gap-3 group"
                   >
                     {/* Small thumbnail */}
@@ -167,6 +178,16 @@ export function ReportTable({ reports, sortBy, onSortChange }: ReportTableProps)
           <Link
             key={report._id}
             href={`/reports/${report._id}`}
+            onClick={() => {
+              trackEvent("report_click", {
+                reportId: report._id,
+                reportTitle: report.title,
+                company: report.company || null,
+                industry: report.industry || null,
+                continent: report.continent || null,
+                source: "mobile_list",
+              });
+            }}
             className="flex items-center gap-3 p-3 hover:bg-foreground/5 transition-colors active:bg-foreground/10"
           >
             {/* Thumbnail */}

@@ -48,15 +48,35 @@ export default clerkMiddleware(async (auth, req) => {
   let sessionId = getOrCreateSessionId(req);
   const hasSessionCookie = cookies.includes("tb_session_id=");
 
-  // Track page views (fire and forget - don't block request)
+  // Track page views ONLY for top-level routes (customer journey tracking)
+  // Skip dynamic routes like /reports/[id] - those are tracked via clicks instead
   const url = new URL(req.url);
   const pathname = url.pathname;
+
+  // Define top-level routes to track as page views
+  const topLevelRoutes = [
+    "/",
+    "/reports",
+    "/chat",
+    "/search",
+    "/about",
+    "/upload",
+    "/insights",
+    "/contribute",
+  ];
+
+  // Check if this is a top-level route (exact match or starts with admin)
+  const isTopLevelRoute =
+    topLevelRoutes.includes(pathname) ||
+    pathname.startsWith("/admin");
 
   // Skip tracking for:
   // - API routes
   // - Static files (already excluded by matcher)
   // - Next.js internals
+  // - Dynamic routes (like /reports/[id]) - track via clicks instead
   if (
+    isTopLevelRoute &&
     !pathname.startsWith("/api") &&
     !pathname.startsWith("/_next") &&
     pathname !== "/favicon.ico"

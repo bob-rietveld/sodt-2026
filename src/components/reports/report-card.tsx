@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { BrowseReport } from "@/types";
+import { trackEvent } from "@/lib/analytics/client";
 
 interface ReportCardProps {
   report: BrowseReport;
@@ -25,9 +26,21 @@ const industryLabels: Record<string, string> = {
 };
 
 export function ReportCard({ report }: ReportCardProps) {
+  const handleClick = () => {
+    // Track report click
+    trackEvent("report_click", {
+      reportId: report._id,
+      reportTitle: report.title,
+      company: report.company || null,
+      industry: report.industry || null,
+      continent: report.continent || null,
+    });
+  };
+
   return (
     <Link
       href={`/reports/${report._id}`}
+      onClick={handleClick}
       className="block bg-white p-4 sm:p-6 rounded-xl border border-foreground/10 hover:border-primary/20 hover:shadow-md transition-all group active:scale-[0.99]"
     >
       <div className="flex gap-3 sm:gap-4">

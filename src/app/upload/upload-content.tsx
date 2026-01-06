@@ -123,6 +123,21 @@ export default function UploadContent() {
         description: description || undefined,
       });
 
+      // Track upload event
+      try {
+        const { trackEvent } = await import("@/lib/analytics/client");
+        trackEvent("pdf_upload", {
+          pdfId,
+          filename: file.name,
+          title,
+          fileSize: file.size,
+          source: "upload_page",
+        });
+      } catch (err) {
+        // Silently fail - analytics should not break upload
+        console.error("Failed to track upload event:", err);
+      }
+
       setStatus("processing");
 
       // Trigger processing

@@ -7,6 +7,7 @@ import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import Link from "next/link";
 import { Header } from "@/components/ui/header";
+import { trackEvent } from "@/lib/analytics/client";
 
 // Validate that a URL is a proper HTTP(S) URL
 function isValidHttpUrl(urlString: string | null | undefined): boolean {
@@ -93,14 +94,25 @@ export default function ReportDetailContent() {
 
   const togglePdfViewer = useCallback(() => {
     setShowPdfViewer((show) => {
-      if (!show) {
+      const willShow = !show;
+      
+      // Track PDF view/open event
+      if (willShow && report) {
+        trackEvent("pdf_view", {
+          reportId: report._id,
+          reportTitle: report.title,
+          company: report.company || null,
+        });
+      }
+      
+      if (willShow) {
         // Reset loading state when opening viewer
         setPdfLoading(true);
         setPdfError(false);
       }
-      return !show;
+      return willShow;
     });
-  }, []);
+  }, [report]);
 
   // Timeout fallback for PDF loading - iframes don't reliably fire onError
   useEffect(() => {

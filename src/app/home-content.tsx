@@ -90,6 +90,21 @@ export function HomeContent() {
               <Link
                 key={report._id}
                 href={`/reports/${report._id}`}
+                onClick={() => {
+                  // Track report click from home page
+                  import("@/lib/analytics/client").then(({ trackEvent }) => {
+                    trackEvent("report_click", {
+                      reportId: report._id,
+                      reportTitle: report.title,
+                      company: report.company || null,
+                      industry: report.industry || null,
+                      continent: report.continent || null,
+                      source: "home_page",
+                    });
+                  }).catch(() => {
+                    // Silently fail
+                  });
+                }}
                 className="group bg-white rounded-xl border border-foreground/10 overflow-hidden hover:border-primary/20 hover:shadow-lg transition-all active:scale-[0.99]"
               >
                 {/* Thumbnail */}
