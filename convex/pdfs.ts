@@ -1812,6 +1812,7 @@ export const getLatestReports = query({
       summary: report.summary,
       dateOrYear: report.dateOrYear,
       industry: report.industry,
+      continent: report.continent,
       technologyAreas: report.technologyAreas,
       thumbnailUrl: report.thumbnailUrl || null,
       uploadedAt: report.uploadedAt,
