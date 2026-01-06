@@ -42,7 +42,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { question, conversationHistory = [] } = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      console.error("Analytics AI error: Failed to parse request body:", error);
+      return Response.json(
+        { error: "Invalid request body. Expected JSON." },
+        { status: 400 }
+      );
+    }
+
+    const { question, conversationHistory = [] } = body;
 
     if (!question || typeof question !== "string") {
       return Response.json({ error: "Question is required" }, { status: 400 });
@@ -256,6 +267,8 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : "Unknown error";
+          console.error("Analytics AI stream error:", error);
+          console.error("Stream error stack:", error instanceof Error ? error.stack : "No stack trace");
           sendEvent({ error: errorMessage, done: true });
           controller.close();
         }
@@ -271,8 +284,19 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Analytics AI error:", error);
+    console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
+    console.error("Error details:", {
+      message: error instanceof Error ? error.message : "Unknown error",
+      name: error instanceof Error ? error.name : "Unknown",
+      cause: error instanceof Error ? error.cause : undefined,
+    });
     return Response.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      {
+        error: error instanceof Error ? error.message : "Unknown error",
+        details: process.env.NODE_ENV === "development" 
+          ? (error instanceof Error ? error.stack : undefined)
+          : undefined,
+      },
       { status: 500 }
     );
   }
