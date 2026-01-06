@@ -13,12 +13,35 @@ import {
   type ConversationMessage,
 } from "@/types/analytics-viz";
 
-const anthropic = new Anthropic();
-
 const MAX_TOOL_RETRIES = 2;
+
+function getAnthropicClient(): Anthropic {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is not configured");
+  }
+  return new Anthropic({ apiKey });
+}
 
 export async function POST(request: NextRequest) {
   try {
+    // Check required environment variables
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error("Analytics AI error: ANTHROPIC_API_KEY is not configured");
+      return Response.json(
+        { error: "ANTHROPIC_API_KEY is not configured" },
+        { status: 500 }
+      );
+    }
+
+    if (!process.env.TINYBIRD_ADMIN_TOKEN) {
+      console.error("Analytics AI error: TINYBIRD_ADMIN_TOKEN is not configured");
+      return Response.json(
+        { error: "TINYBIRD_ADMIN_TOKEN is not configured" },
+        { status: 500 }
+      );
+    }
+
     const { question, conversationHistory = [] } = await request.json();
 
     if (!question || typeof question !== "string") {
@@ -26,8 +49,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Get available Tinybird tools
-    const tinybirdTools = await listTinybirdTools();
+    let tinybirdTools;
+    try {
+      tinybirdTools = await listTinybirdTools();
+    } catch (error) {
+      console.error("Analytics AI error: Failed to list Tinybird tools:", error);
+      return Response.json(
+        {
+          error:
+            error instanceof Error
+              ? `Failed to connect to Tinybird: ${error.message}`
+              : "Failed to connect to Tinybird",
+        },
+        { status: 500 }
+      );
+    }
+
     const anthropicTools = toAnthropicTools(tinybirdTools);
+    const anthropic = getAnthropicClient();
 
     // Build messages array
     const messages: Anthropic.MessageParam[] = [

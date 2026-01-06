@@ -30,9 +30,9 @@ export async function getTinybirdClient(): Promise<Client> {
     return clientInstance;
   }
 
-  const token = process.env.TINYBIRD_ANALYTICS_API_KEY;
+  const token = process.env.TINYBIRD_ADMIN_TOKEN;
   if (!token) {
-    throw new Error("TINYBIRD_ANALYTICS_API_KEY is not configured");
+    throw new Error("TINYBIRD_ADMIN_TOKEN is not configured");
   }
 
   const mcpUrl = `https://mcp.tinybird.co/sse?token=${token}`;
