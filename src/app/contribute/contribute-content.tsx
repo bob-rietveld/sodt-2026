@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Header } from "@/components/ui/header";
+import Link from "next/link";
 
 // Constants
 const MAX_FILE_SIZE_MB = 50;
@@ -26,6 +27,10 @@ export default function ContributeContent() {
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [error, setError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [duplicateReport, setDuplicateReport] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
 
   const generateUploadUrl = useMutation(api.pdfs.generateUploadUrl);
   const createPdf = useMutation(api.pdfs.create);
@@ -120,12 +125,18 @@ export default function ContributeContent() {
       if (duplicateCheckResponse.ok) {
         const duplicateResult = await duplicateCheckResponse.json();
         if (duplicateResult.isDuplicate) {
-          const existingTitle = duplicateResult.existingPdf?.title || "Unknown";
-          setError(`This report already exists: "${existingTitle}"`);
+          const existingPdf = duplicateResult.existingPdf;
+          setDuplicateReport({
+            id: existingPdf?.id || "",
+            title: existingPdf?.title || "Unknown",
+          });
+          setError("duplicate");
           setStatus("error");
           return;
         }
       }
+      // Clear any previous duplicate state
+      setDuplicateReport(null);
 
       // Get upload URL from Convex
       const uploadUrl = await generateUploadUrl();
@@ -154,12 +165,13 @@ export default function ContributeContent() {
       setStatus("processing");
 
       // Trigger processing (same pipeline as admin uploads)
+      // Pass storageId instead of uploadUrl - uploadUrl is a one-time upload URL that expires
       const processResponse = await fetch("/api/process-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pdfId,
-          fileUrl: uploadUrl,
+          storageId,
           filename: file.name,
           title,
         }),
@@ -185,6 +197,7 @@ export default function ContributeContent() {
     setDescription("");
     setStatus("idle");
     setError("");
+    setDuplicateReport(null);
   };
 
   return (
@@ -335,7 +348,32 @@ export default function ContributeContent() {
 
               {error && (
                 <div className="p-4 bg-danger/10 text-danger rounded-lg text-sm sm:text-base">
-                  {error}
+                  {error === "duplicate" && duplicateReport ? (
+                    <div>
+                      <p>This report already exists in our database.</p>
+                      <Link
+                        href={`/reports/${duplicateReport.id}`}
+                        className="inline-flex items-center gap-1 mt-2 text-primary hover:underline font-medium"
+                      >
+                        View &quot;{duplicateReport.title}&quot;
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                          />
+                        </svg>
+                      </Link>
+                    </div>
+                  ) : (
+                    error
+                  )}
                 </div>
               )}
 

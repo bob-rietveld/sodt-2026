@@ -126,12 +126,13 @@ export default function UploadContent() {
       setStatus("processing");
 
       // Trigger processing
+      // Pass storageId instead of uploadUrl - uploadUrl is a one-time upload URL that expires
       const processResponse = await fetch("/api/process-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pdfId,
-          fileUrl: uploadUrl,
+          storageId,
           filename: file.name,
           title,
         }),
