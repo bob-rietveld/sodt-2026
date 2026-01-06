@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const TINYBIRD_URL =
-  process.env.TINYBIRD_API_URL || "https://api.tinybird.co";
+  process.env.TINYBIRD_API_URL || "https://api.europe-west2.gcp.tinybird.co";
 const TINYBIRD_TOKEN = process.env.TINYBIRD_ANALYTICS_API_KEY;
 
 interface TinybirdResponse<T> {
