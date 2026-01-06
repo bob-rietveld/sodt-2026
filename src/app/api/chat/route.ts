@@ -3,10 +3,12 @@ import { chatStream, type ChatMessage, type ChatFilter } from "@/lib/pinecone/cl
 import { logSearchEvent } from "@/lib/analytics";
 
 export async function POST(request: NextRequest) {
+  console.log("[Chat API] POST request received");
   const startTime = Date.now();
 
   try {
     const { message, sessionId, filters, fileIds, history } = await request.json();
+    console.log("[Chat API] Processing message:", message?.slice(0, 50));
 
     if (!message) {
       return new Response(JSON.stringify({ error: "Message is required" }), {
