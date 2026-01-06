@@ -20,7 +20,7 @@ export async function logSearchEvent(params: {
   ip?: string;
 }): Promise<void> {
   // Read env vars at runtime (not module load time) for Render/serverless compatibility
-  const tinybirdUrl = process.env.TINYBIRD_API_URL || "https://api.tinybird.co";
+  const tinybirdUrl = process.env.TINYBIRD_API_URL || "https://api.europe-west2.gcp.tinybird.co";
   const tinybirdToken = process.env.TINYBIRD_INGEST_TOKEN;
 
   console.log("[Tinybird] logSearchEvent called:", {
@@ -36,12 +36,17 @@ export async function logSearchEvent(params: {
     return;
   }
 
+  // Format timestamp as space-separated DateTime64(3) for Tinybird (YYYY-MM-DD HH:MM:SS.SSS)
+  // ClickHouse DateTime64(3) accepts both ISO 8601 and space-separated formats
+  const now = new Date();
+  const timestamp = now.toISOString().replace("T", " ").replace("Z", "");
+
   const event: SearchEvent = {
     event_id: crypto.randomUUID(),
     event_name: params.eventName,
     query: params.query,
     session_id: params.sessionId || null,
-    timestamp: new Date().toISOString(),
+    timestamp: timestamp,
     response_time_ms: params.responseTimeMs ?? null,
     answer: params.answer?.slice(0, 2000) ?? null,
     sources: JSON.stringify(params.sources || []),
@@ -54,12 +59,16 @@ export async function logSearchEvent(params: {
     const url = `${tinybirdUrl}/v0/events?name=${DATASOURCE}&token=${tinybirdToken}`;
     console.log("[Tinybird] Sending event to:", url.replace(/token=[^&]+/, "token=***"));
 
+    // Tinybird Events API expects NDJSON format (newline-delimited JSON)
+    // Each event must be a single JSON object followed by a newline
+    const ndjsonBody = JSON.stringify(event) + "\n";
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/x-ndjson",
       },
-      body: JSON.stringify(event),
+      body: ndjsonBody,
     });
 
     if (!response.ok) {

@@ -1,5 +1,6 @@
-NODE no_result_searches
+NODE no_results
 SQL >
+    %
     SELECT
         event_id as _id,
         query,

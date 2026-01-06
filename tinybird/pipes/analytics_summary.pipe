@@ -1,5 +1,6 @@
-NODE analytics_summary
+NODE analytics_summary_data
 SQL >
+    %
     SELECT
         count() as totalSearches,
         countIf(event_name = 'search_query') as agentSearches,

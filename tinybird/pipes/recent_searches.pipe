@@ -1,5 +1,6 @@
-NODE recent_searches
+NODE recent_searches_data
 SQL >
+    %
     SELECT
         event_id as _id,
         query,

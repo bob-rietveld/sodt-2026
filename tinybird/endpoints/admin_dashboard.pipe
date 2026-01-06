@@ -1,0 +1,33 @@
+DESCRIPTION >
+    Get aggregated metrics for admin dashboard charts and overview
+
+NODE dashboard_metrics
+SQL >
+    %
+    SELECT 
+        date,
+        countMerge(total_events) as total_events,
+        uniqMerge(unique_sessions) as unique_sessions,
+        countMerge(page_views) as page_views,
+        avgMerge(avg_load_time) as avg_load_time,
+        countMerge(bounce_sessions) as bounce_sessions,
+        topKMerge(10)(top_pages) as top_pages,
+        topKMerge(10)(traffic_sources) as traffic_sources,
+        topKMerge(5)(device_types) as device_types,
+        topKMerge(10)(countries) as countries
+    FROM daily_stats
+    WHERE 
+        {%if defined(start_date)%}
+        date >= {{Date(start_date)}}
+        {%else%}
+        date >= today() - interval 30 day
+        {%end%}
+        {%if defined(end_date)%}
+        AND date <= {{Date(end_date)}}
+        {%else%}
+        AND date <= today()
+        {%end%}
+    GROUP BY date
+    ORDER BY date DESC
+
+TYPE endpoint

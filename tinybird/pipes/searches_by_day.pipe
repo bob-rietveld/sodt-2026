@@ -1,5 +1,6 @@
-NODE searches_by_day
+NODE searches_by_day_data
 SQL >
+    %
     SELECT
         toDate(timestamp) as date,
         count() as count

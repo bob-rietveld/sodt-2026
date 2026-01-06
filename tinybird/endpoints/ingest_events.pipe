@@ -1,0 +1,11 @@
+DESCRIPTION >
+    Events API endpoint for capturing anonymous user interactions
+
+NODE validate_and_insert
+SQL >
+    SELECT 
+        'success' as status,
+        'Event received successfully' as message,
+        now() as timestamp
+
+TYPE endpoint

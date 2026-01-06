@@ -1,0 +1,28 @@
+DESCRIPTION >
+    Landing datasource for anonymous web analytics events including page views, clicks, and user interactions
+
+SCHEMA >
+    `timestamp` DateTime `json:$.timestamp`,
+    `session_id` String `json:$.session_id`,
+    `event_type` String `json:$.event_type`,
+    `page_url` String `json:$.page_url`,
+    `page_title` Nullable(String) `json:$.page_title`,
+    `referrer` Nullable(String) `json:$.referrer`,
+    `user_agent` Nullable(String) `json:$.user_agent`,
+    `ip_address` Nullable(String) `json:$.ip_address`,
+    `country` Nullable(String) `json:$.country`,
+    `city` Nullable(String) `json:$.city`,
+    `device_type` Nullable(String) `json:$.device_type`,
+    `browser` Nullable(String) `json:$.browser`,
+    `os` Nullable(String) `json:$.os`,
+    `screen_width` Nullable(UInt16) `json:$.screen_width`,
+    `screen_height` Nullable(UInt16) `json:$.screen_height`,
+    `load_time` Nullable(UInt32) `json:$.load_time`,
+    `utm_source` Nullable(String) `json:$.utm_source`,
+    `utm_medium` Nullable(String) `json:$.utm_medium`,
+    `utm_campaign` Nullable(String) `json:$.utm_campaign`,
+    `custom_data` Nullable(String) `json:$.custom_data`
+
+ENGINE "MergeTree"
+ENGINE_PARTITION_KEY "toYYYYMM(timestamp)"
+ENGINE_SORTING_KEY "timestamp, session_id"

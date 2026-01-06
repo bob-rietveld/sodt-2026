@@ -1,0 +1,15 @@
+DESCRIPTION >
+    Page-level performance metrics and analytics
+
+SCHEMA >
+    `page_url` String,
+    `date` Date,
+    `page_views` AggregateFunction(count, UInt64),
+    `unique_sessions` AggregateFunction(uniq, String),
+    `avg_load_time` AggregateFunction(avg, Nullable(UInt32)),
+    `bounce_rate` AggregateFunction(avg, UInt8),
+    `exit_rate` AggregateFunction(avg, UInt8)
+
+ENGINE "AggregatingMergeTree"
+ENGINE_PARTITION_KEY "toYYYYMM(date)"
+ENGINE_SORTING_KEY "page_url, date"

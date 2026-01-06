@@ -1,0 +1,58 @@
+DESCRIPTION >
+    Search and filter events for admin analysis with pagination
+
+NODE event_search
+SQL >
+    %
+    SELECT 
+        timestamp,
+        session_id,
+        event_type,
+        page_url,
+        page_title,
+        referrer,
+        country,
+        device_type,
+        browser,
+        load_time,
+        utm_source,
+        utm_medium,
+        utm_campaign
+    FROM web_events
+    WHERE 
+        {%if defined(start_date)%}
+        timestamp >= {{DateTime(start_date)}}
+        {%else%}
+        timestamp >= now() - interval 7 day
+        {%end%}
+        {%if defined(end_date)%}
+        AND timestamp <= {{DateTime(end_date)}}
+        {%else%}
+        AND timestamp <= now()
+        {%end%}
+        {% if defined(event_type) %}
+        AND event_type = {{String(event_type)}}
+        {% end %}
+        {% if defined(page_url) %}
+        AND page_url LIKE '%' || {{String(page_url)}} || '%'
+        {% end %}
+        {% if defined(session_id) %}
+        AND session_id = {{String(session_id)}}
+        {% end %}
+        {% if defined(country) %}
+        AND country = {{String(country)}}
+        {% end %}
+        {% if defined(device_type) %}
+        AND device_type = {{String(device_type)}}
+        {% end %}
+    ORDER BY timestamp DESC
+    {% if defined(limit) %}
+    LIMIT {{Int(limit, 1000)}}
+    {% else %}
+    LIMIT 1000
+    {% end %}
+    {% if defined(offset) %}
+    OFFSET {{Int(offset, 0)}}
+    {% end %}
+
+TYPE endpoint

@@ -43,3 +43,9 @@ coverage/
 *.log
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude IDE settings
+.claude_settings.json
+
+.tinyb
+.terraform

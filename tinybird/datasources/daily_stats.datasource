@@ -1,0 +1,18 @@
+DESCRIPTION >
+    Daily aggregated analytics metrics for admin dashboard charts
+
+SCHEMA >
+    `date` Date,
+    `total_events` AggregateFunction(count, UInt64),
+    `unique_sessions` AggregateFunction(uniq, String),
+    `page_views` AggregateFunction(countIf, UInt8),
+    `avg_load_time` AggregateFunction(avg, Nullable(UInt32)),
+    `bounce_sessions` AggregateFunction(countIf, UInt8),
+    `top_pages` AggregateFunction(topK(10), String),
+    `traffic_sources` AggregateFunction(topK(10), Nullable(String)),
+    `device_types` AggregateFunction(topK(5), Nullable(String)),
+    `countries` AggregateFunction(topK(10), Nullable(String))
+
+ENGINE "AggregatingMergeTree"
+ENGINE_PARTITION_KEY "toYYYYMM(date)"
+ENGINE_SORTING_KEY "date"

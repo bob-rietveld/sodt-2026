@@ -1,0 +1,29 @@
+DESCRIPTION >
+    Process events into daily statistics for admin dashboard
+
+NODE daily_aggregation
+SQL >
+    SELECT 
+        toDate(timestamp) as date,
+        countState() as total_events,
+        uniqState(session_id) as unique_sessions,
+        countIfState(event_type = 'page_view') as page_views,
+        avgState(load_time) as avg_load_time,
+        countIfState(event_type = 'page_view' AND 
+            session_id IN (
+                SELECT session_id 
+                FROM web_events 
+                WHERE toDate(timestamp) = toDate(now()) 
+                GROUP BY session_id 
+                HAVING countIf(event_type = 'page_view') = 1
+            )
+        ) as bounce_sessions,
+        topKState(10)(page_url) as top_pages,
+        topKState(10)(utm_source) as traffic_sources,
+        topKState(5)(device_type) as device_types,
+        topKState(10)(country) as countries
+    FROM web_events
+    GROUP BY date
+
+TYPE MATERIALIZED
+DATASOURCE daily_stats

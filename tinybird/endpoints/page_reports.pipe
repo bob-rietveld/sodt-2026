@@ -1,0 +1,38 @@
+DESCRIPTION >
+    Get detailed page analytics for admin view
+
+NODE page_metrics
+SQL >
+    %
+    SELECT 
+        page_url,
+        date,
+        countMerge(page_views) as page_views,
+        uniqMerge(unique_sessions) as unique_sessions,
+        avgMerge(avg_load_time) as avg_load_time,
+        avgMerge(bounce_rate) as bounce_rate,
+        avgMerge(exit_rate) as exit_rate
+    FROM page_performance
+    WHERE 
+        {%if defined(start_date)%}
+        date >= {{Date(start_date)}}
+        {%else%}
+        date >= today() - interval 30 day
+        {%end%}
+        {%if defined(end_date)%}
+        AND date <= {{Date(end_date)}}
+        {%else%}
+        AND date <= today()
+        {%end%}
+        {% if defined(page_url) %}
+        AND page_url = {{String(page_url)}}
+        {% end %}
+    GROUP BY page_url, date
+    ORDER BY page_views DESC, date DESC
+    {% if defined(limit) %}
+    LIMIT {{Int(limit, 100)}}
+    {% else %}
+    LIMIT 100
+    {% end %}
+
+TYPE endpoint

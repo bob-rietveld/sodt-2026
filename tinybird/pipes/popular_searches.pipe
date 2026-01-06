@@ -1,5 +1,6 @@
-NODE popular_searches
+NODE popular_searches_query
 SQL >
+    %
     SELECT
         lower(trim(query)) as query,
         count() as count,

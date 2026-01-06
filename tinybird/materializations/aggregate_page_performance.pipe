@@ -1,0 +1,28 @@
+DESCRIPTION >
+    Process events into page-level performance analytics
+
+NODE page_aggregation
+SQL >
+    SELECT 
+        page_url,
+        toDate(timestamp) as date,
+        countIfState(event_type = 'page_view') as page_views,
+        uniqIfState(session_id, event_type = 'page_view') as unique_sessions,
+        avgState(load_time) as avg_load_time,
+        avgIfState(
+            session_id IN (
+                SELECT session_id 
+                FROM web_events 
+                WHERE toDate(timestamp) = toDate(now()) 
+                GROUP BY session_id 
+                HAVING countIf(event_type = 'page_view') = 1
+            ),
+            event_type = 'page_view'
+        ) as bounce_rate,
+        avgIfState(1, event_type = 'exit') as exit_rate
+    FROM web_events
+    WHERE event_type IN ('page_view', 'exit')
+    GROUP BY page_url, date
+
+TYPE MATERIALIZED
+DATASOURCE page_performance

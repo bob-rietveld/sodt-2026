@@ -1,0 +1,42 @@
+DESCRIPTION >
+    Download analytics data in CSV format for reporting
+
+NODE export_data
+SQL >
+    %
+    SELECT 
+        timestamp,
+        session_id,
+        event_type,
+        page_url,
+        page_title,
+        referrer,
+        country,
+        device_type,
+        browser,
+        os,
+        load_time,
+        utm_source,
+        utm_medium,
+        utm_campaign
+    FROM web_events
+    WHERE 
+        {%if defined(start_date)%}
+        timestamp >= {{DateTime(start_date)}}
+        {%else%}
+        timestamp >= now() - interval 30 day
+        {%end%}
+        {%if defined(end_date)%}
+        AND timestamp <= {{DateTime(end_date)}}
+        {%else%}
+        AND timestamp <= now()
+        {%end%}
+        {% if defined(event_type) %}
+        AND event_type = {{String(event_type)}}
+        {% end %}
+        {% if defined(page_url) %}
+        AND page_url LIKE '%' || {{String(page_url)}} || '%'
+        {% end %}
+    ORDER BY timestamp DESC
+
+TYPE endpoint
