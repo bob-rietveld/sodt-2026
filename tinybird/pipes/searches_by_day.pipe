@@ -1,3 +1,6 @@
+DESCRIPTION >
+    Get daily search volume over time. Returns date and count of searches per day. Perfect for line or area charts showing search trends. Use days_back parameter (default 30) to control the time range.
+
 NODE searches_by_day_data
 SQL >
     %

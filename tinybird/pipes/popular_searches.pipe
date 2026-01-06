@@ -1,3 +1,6 @@
+DESCRIPTION >
+    Get the most popular search queries ranked by frequency. Returns query text, search count, and average results per query. Use days_back to filter time range (default 30 days) and limit for result count (default 20).
+
 NODE popular_searches_query
 SQL >
     %

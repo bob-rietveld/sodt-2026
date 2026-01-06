@@ -1,3 +1,6 @@
+DESCRIPTION >
+    Get search queries that returned zero results. Useful for identifying content gaps and improving document coverage. Returns query text and timestamp, ordered by most recent.
+
 NODE no_results
 SQL >
     %

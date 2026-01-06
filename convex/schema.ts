@@ -188,4 +188,19 @@ export default defineSchema({
     .searchIndex("search_query", {
       searchField: "query",
     }),
+
+  // Saved analytics views for AI-generated charts
+  savedAnalyticsViews: defineTable({
+    name: v.string(),
+    question: v.string(),
+    chartSpec: v.string(),  // JSON stringified ChartSpec
+    toolName: v.optional(v.string()),
+    toolArgs: v.optional(v.string()),  // JSON stringified args
+    createdBy: v.string(),  // Clerk user ID
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    isShared: v.boolean(),
+  })
+    .index("by_user", ["createdBy"])
+    .index("by_shared", ["isShared"]),
 });

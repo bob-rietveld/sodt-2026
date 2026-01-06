@@ -1,3 +1,6 @@
+DESCRIPTION >
+    Get the most recent search queries with full details. Returns query text, search type (search_query or chat_query), result count, response time, and timestamp. Use limit parameter (default 50) to control result count.
+
 NODE recent_searches_data
 SQL >
     %

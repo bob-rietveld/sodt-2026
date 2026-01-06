@@ -16,6 +16,7 @@
     "@convex-dev/workpool": "^0.3.0",
     "@eslint/eslintrc": "^3.3.3",
     "@mendable/firecrawl-js": "^1.21.1",
+    "@modelcontextprotocol/sdk": "^1.25.1",
     "@pinecone-database/pinecone": "^5.0.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^25.0.3",

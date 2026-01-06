@@ -1,3 +1,6 @@
+DESCRIPTION >
+    Search and chat query events from TechStaple platform users. Contains search queries, response times, and result counts. Use this to analyze what users are searching for, search performance, and content gaps.
+
 SCHEMA >
     `event_id` String `json:$.event_id`,
     `event_name` LowCardinality(String) `json:$.event_name`,

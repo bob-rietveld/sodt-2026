@@ -1,3 +1,6 @@
+DESCRIPTION >
+    Get key performance metrics summary for search analytics. Returns total searches, breakdown by type (agent vs chat), average response time in ms, average result count, and count of failed searches. Perfect for metric cards and KPI dashboards.
+
 NODE analytics_summary_data
 SQL >
     %
