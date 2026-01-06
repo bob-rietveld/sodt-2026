@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as analyticsViews from "../analyticsViews.js";
 import type * as chat from "../chat.js";
 import type * as pdfWorkpool from "../pdfWorkpool.js";
 import type * as pdfs from "../pdfs.js";
@@ -22,6 +23,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  analyticsViews: typeof analyticsViews;
   chat: typeof chat;
   pdfWorkpool: typeof pdfWorkpool;
   pdfs: typeof pdfs;
