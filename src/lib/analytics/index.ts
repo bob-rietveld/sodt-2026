@@ -1,4 +1,4 @@
-export { logSearchEvent, hashIP } from "./tinybird";
+export { logSearchEvent, logWebEvent, hashIP } from "./tinybird";
 export {
   getAnalyticsSummary,
   getRecentSearches,
@@ -9,6 +9,7 @@ export {
 export type {
   SearchEvent,
   SearchSource,
+  WebEvent,
   AnalyticsSummary,
   RecentSearch,
   PopularSearchTerm,

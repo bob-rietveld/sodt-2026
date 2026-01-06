@@ -56,3 +56,26 @@ export interface NoResultSearch {
   query: string;
   timestamp: number;
 }
+
+export interface WebEvent {
+  timestamp: string; // DateTime format: YYYY-MM-DD HH:MM:SS
+  session_id: string;
+  event_type: string; // "page_view", "click", "scroll", etc.
+  page_url: string;
+  page_title: string | null;
+  referrer: string | null;
+  user_agent: string | null;
+  ip_address: string | null;
+  country: string | null;
+  city: string | null;
+  device_type: string | null; // "desktop", "mobile", "tablet"
+  browser: string | null;
+  os: string | null;
+  screen_width: number | null;
+  screen_height: number | null;
+  load_time: number | null; // milliseconds
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  custom_data: string | null; // JSON stringified object
+}

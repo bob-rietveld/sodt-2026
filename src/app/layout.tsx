@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@/components/providers/clerk-provider";
 import { ConvexClientProvider } from "@/components/providers/convex-provider";
+import { PageTracker } from "@/components/analytics/page-tracker";
 import "./globals.css";
 
 export const viewport: Viewport = {
@@ -25,6 +26,7 @@ export default function RootLayout({
       <body className="antialiased">
         <ClerkProvider>
           <ConvexClientProvider>
+            <PageTracker />
             {children}
           </ConvexClientProvider>
         </ClerkProvider>
