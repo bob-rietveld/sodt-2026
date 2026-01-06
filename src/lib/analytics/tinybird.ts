@@ -51,13 +51,13 @@ export async function logSearchEvent(params: {
   };
 
   try {
-    const url = `${tinybirdUrl}/v0/events?name=${DATASOURCE}`;
-    console.log("[Tinybird] Sending event to:", url);
+    const url = `${tinybirdUrl}/v0/events?name=${DATASOURCE}&token=${tinybirdToken}`;
+    console.log("[Tinybird] Sending event to:", url.replace(/token=[^&]+/, "token=***"));
 
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${tinybirdToken}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(event),
     });

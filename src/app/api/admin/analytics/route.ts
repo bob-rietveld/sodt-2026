@@ -25,6 +25,7 @@ async function queryPipe<T>(
   }
 
   const searchParams = new URLSearchParams();
+  searchParams.set("token", TINYBIRD_TOKEN);
   Object.entries(params).forEach(([key, value]) => {
     searchParams.set(key, String(value));
   });
@@ -32,9 +33,6 @@ async function queryPipe<T>(
   const url = `${TINYBIRD_URL}/v0/pipes/${pipeName}.json?${searchParams}`;
 
   const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${TINYBIRD_TOKEN}`,
-    },
     next: { revalidate: 30 },
   });
 
