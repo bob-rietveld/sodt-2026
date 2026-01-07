@@ -4,11 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-interface HeaderProps {
-  showAdmin?: boolean;
-}
-
-export function Header({ showAdmin = true }: HeaderProps) {
+export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
 
@@ -48,14 +44,6 @@ export function Header({ showAdmin = true }: HeaderProps) {
               {link.label}
             </Link>
           ))}
-          {showAdmin && (
-            <Link
-              href="/admin"
-              className="bg-secondary text-white px-4 py-2 rounded-lg hover:bg-secondary/90 transition-colors"
-            >
-              Admin
-            </Link>
-          )}
         </nav>
 
         {/* Mobile Menu Button */}
@@ -114,15 +102,6 @@ export function Header({ showAdmin = true }: HeaderProps) {
                 {link.label}
               </Link>
             ))}
-            {showAdmin && (
-              <Link
-                href="/admin"
-                onClick={() => setIsMenuOpen(false)}
-                className="mt-2 bg-secondary text-white px-4 py-3 rounded-lg hover:bg-secondary/90 transition-colors text-center"
-              >
-                Admin
-              </Link>
-            )}
           </nav>
         </div>
       )}
