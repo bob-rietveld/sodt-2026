@@ -36,7 +36,7 @@ export default function Home() {
 
             <p className="text-lg sm:text-xl text-foreground/70 mb-8 sm:mb-10 leading-relaxed">
               TechStaple brings together the essential reports on the Dutch and European tech ecosystem.
-              Search across years of data, analyze trends, and get AI-powered insights from the documents
+              Chat with AI to explore years of data, analyze trends, and get insights from the documents
               that shape policy and investment decisions.
             </p>
 
@@ -51,13 +51,13 @@ export default function Home() {
                 Browse Reports
               </Link>
               <Link
-                href="/search"
+                href="/chat"
                 className="bg-white text-foreground px-8 py-3.5 rounded-lg hover:bg-foreground/5 transition-colors border border-foreground/10 text-center inline-flex items-center justify-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
-                Search Insights
+                Chat with AI
               </Link>
             </div>
 
@@ -121,22 +121,6 @@ export default function Home() {
             </p>
           </Link>
 
-          {/* Search Card */}
-          <Link
-            href="/search"
-            className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-foreground/5 hover:shadow-md hover:border-primary/20 transition-all group"
-          >
-            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/10 rounded-xl flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/20 transition-colors">
-              <svg className="w-7 h-7 sm:w-8 sm:h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <h3 className="text-lg sm:text-xl font-semibold mb-2">Semantic Search</h3>
-            <p className="text-foreground/60 text-sm sm:text-base">
-              Find insights across all reports with AI-powered search
-            </p>
-          </Link>
-
           {/* Chat Card */}
           <Link
             href="/chat"
@@ -147,9 +131,9 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             </div>
-            <h3 className="text-lg sm:text-xl font-semibold mb-2">Ask Questions</h3>
+            <h3 className="text-lg sm:text-xl font-semibold mb-2">Chat with AI</h3>
             <p className="text-foreground/60 text-sm sm:text-base">
-              Chat with AI to get answers from ecosystem reports
+              Ask questions and get AI-powered answers from ecosystem reports
             </p>
           </Link>
         </div>

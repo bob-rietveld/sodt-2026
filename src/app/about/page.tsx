@@ -140,7 +140,7 @@ export default function About() {
           </h2>
           <p className="text-foreground/70 text-center max-w-3xl mx-auto mb-6 sm:mb-8 text-sm sm:text-base">
             This platform serves as a repository for reports and research on the European tech ecosystem.
-            Using AI-powered search and chat capabilities, you can quickly find insights across
+            Using AI-powered chat, you can quickly find insights across
             all our published research, from funding trends to talent analyses.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
@@ -151,10 +151,10 @@ export default function About() {
               Browse Reports
             </Link>
             <Link
-              href="/search"
+              href="/chat"
               className="bg-secondary text-white px-6 sm:px-8 py-3 rounded-lg hover:bg-secondary/90 transition-colors font-semibold text-center"
             >
-              Search Insights
+              Chat with AI
             </Link>
           </div>
         </div>
