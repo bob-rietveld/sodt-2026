@@ -217,7 +217,7 @@ export default function ContributeContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header showAdmin={false} />
+      <Header />
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="text-center mb-8">

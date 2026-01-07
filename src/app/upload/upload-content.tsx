@@ -169,7 +169,7 @@ export default function UploadContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header showAdmin={true} />
+      <Header />
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <h1 className="text-3xl font-semibold mb-8">Upload PDF (Admin)</h1>
