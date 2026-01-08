@@ -8,9 +8,8 @@ const nextConfig: NextConfig = {
   // Configure Turbopack (Next.js 16 default bundler)
   turbopack: {},
 
-  // Externalize problematic server-side packages
+  // Externalize server-side packages with native bindings
   serverExternalPackages: [
-    "pdf-to-img",
     "pdf-parse",
     "@napi-rs/canvas",
     "pdfjs-dist",
