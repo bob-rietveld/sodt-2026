@@ -34,7 +34,7 @@ export function HomeContent() {
             {stats?.uniqueCompanies ?? "..."}
           </p>
           <p className="text-foreground/60 mt-2 text-sm sm:text-base">
-            Companies Covered
+            Report Creators
           </p>
         </div>
         <div className="text-center">
