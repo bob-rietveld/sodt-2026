@@ -6,7 +6,7 @@ SCHEMA >
     `date` Date,
     `page_views` AggregateFunction(count, UInt64),
     `unique_sessions` AggregateFunction(uniq, String),
-    `avg_load_time` AggregateFunction(avg, Nullable(UInt32)),
+    `avg_load_time` AggregateFunction(avg, Nullable(Int32)),
     `bounce_rate` AggregateFunction(avg, UInt8),
     `exit_rate` AggregateFunction(avg, UInt8)
 

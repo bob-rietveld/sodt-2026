@@ -1,0 +1,13 @@
+{
+  "branch_name": "fn-1-iaz",
+  "created_at": "2026-01-14T14:35:40.094340Z",
+  "depends_on_epics": [],
+  "id": "fn-1-iaz",
+  "next_task": 1,
+  "plan_review_status": "unknown",
+  "plan_reviewed_at": null,
+  "spec_path": ".flow/specs/fn-1-iaz.md",
+  "status": "open",
+  "title": "Bug Fixes",
+  "updated_at": "2026-01-14T14:35:40.094451Z"
+}

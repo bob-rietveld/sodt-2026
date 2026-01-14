@@ -1,0 +1,21 @@
+{
+  "assignee": "bob.rietveld@gmail.com",
+  "claim_note": "",
+  "claimed_at": "2026-01-14T14:37:30.174937Z",
+  "created_at": "2026-01-14T14:37:21.740094Z",
+  "depends_on": [],
+  "epic": "fn-1-iaz",
+  "evidence": {
+    "commits": [],
+    "prs": [],
+    "tests": [
+      "npm run build"
+    ]
+  },
+  "id": "fn-1-iaz.1",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-1-iaz.1.md",
+  "status": "done",
+  "title": "Fix Tinybird MCP server error in admin analytics",
+  "updated_at": "2026-01-14T14:40:45.318573Z"
+}

@@ -6,7 +6,7 @@ SCHEMA >
     `total_events` AggregateFunction(count, UInt64),
     `unique_sessions` AggregateFunction(uniq, String),
     `page_views` AggregateFunction(countIf, UInt8),
-    `avg_load_time` AggregateFunction(avg, Nullable(UInt32)),
+    `avg_load_time` AggregateFunction(avg, Nullable(Int32)),
     `bounce_sessions` AggregateFunction(countIf, UInt8),
     `top_pages` AggregateFunction(topK(10), String),
     `traffic_sources` AggregateFunction(topK(10), Nullable(String)),

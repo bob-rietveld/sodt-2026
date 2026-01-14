@@ -15,9 +15,9 @@ SCHEMA >
     `device_type` Nullable(String) `json:$.device_type`,
     `browser` Nullable(String) `json:$.browser`,
     `os` Nullable(String) `json:$.os`,
-    `screen_width` Nullable(UInt16) `json:$.screen_width`,
-    `screen_height` Nullable(UInt16) `json:$.screen_height`,
-    `load_time` Nullable(UInt32) `json:$.load_time`,
+    `screen_width` Nullable(Int32) `json:$.screen_width`,
+    `screen_height` Nullable(Int32) `json:$.screen_height`,
+    `load_time` Nullable(Int32) `json:$.load_time`,
     `utm_source` Nullable(String) `json:$.utm_source`,
     `utm_medium` Nullable(String) `json:$.utm_medium`,
     `utm_campaign` Nullable(String) `json:$.utm_campaign`,
@@ -26,6 +26,9 @@ SCHEMA >
 ENGINE "MergeTree"
 ENGINE_PARTITION_KEY "toYYYYMM(timestamp)"
 ENGINE_SORTING_KEY "timestamp, session_id"
+
+FORWARD_QUERY >
+    SELECT timestamp, session_id, event_type, page_url, page_title, referrer, user_agent, ip_address, country, city, device_type, browser, os, CAST(screen_width, 'Nullable(Int32)') AS screen_width, CAST(screen_height, 'Nullable(Int32)') AS screen_height, CAST(load_time, 'Nullable(Int32)') AS load_time, utm_source, utm_medium, utm_campaign, custom_data
 
 TOKEN ingest APPEND
 TOKEN analytics READ

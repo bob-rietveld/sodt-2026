@@ -1,5 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 export interface TinybirdTool {
   name: string;
@@ -35,9 +35,9 @@ export async function getTinybirdClient(): Promise<Client> {
     throw new Error("TINYBIRD_ADMIN_TOKEN is not configured");
   }
 
-  const mcpUrl = `https://mcp.tinybird.co/sse?token=${token}`;
+  const mcpUrl = `https://mcp.tinybird.co?token=${token}`;
 
-  const transport = new SSEClientTransport(new URL(mcpUrl));
+  const transport = new StreamableHTTPClientTransport(new URL(mcpUrl));
 
   clientInstance = new Client(
     {
