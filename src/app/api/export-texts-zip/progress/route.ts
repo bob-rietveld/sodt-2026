@@ -73,7 +73,17 @@ export async function GET() {
 
         sendEvent({ status: "fetching", message: "Fetching report list..." });
 
-        let pdfs;
+        let pdfs: Array<{
+          _id: string;
+          _creationTime: number;
+          filename: string;
+          title?: string;
+          extractedTextUrl: string | null;
+          documentType?: string;
+          summary?: string;
+          sourceUrl?: string;
+          pageCount?: number;
+        }> | undefined;
         const maxRetries = 3;
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
           try {
@@ -91,6 +101,12 @@ export async function GET() {
             // Wait before retry with exponential backoff
             await new Promise((r) => setTimeout(r, 2000 * attempt));
           }
+        }
+
+        if (!pdfs) {
+          sendEvent({ status: "error", message: "Failed to fetch report list from database. Please try again." });
+          controller.close();
+          return;
         }
 
         const pdfsWithText = pdfs.filter((pdf) => pdf.extractedTextUrl);
