@@ -1,0 +1,13 @@
+{
+  "branch_name": "fn-3-67s",
+  "created_at": "2026-01-14T15:41:05.633095Z",
+  "depends_on_epics": [],
+  "id": "fn-3-67s",
+  "next_task": 1,
+  "plan_review_status": "unknown",
+  "plan_reviewed_at": null,
+  "spec_path": ".flow/specs/fn-3-67s.md",
+  "status": "open",
+  "title": "Fix Export Zip functionality in Admin",
+  "updated_at": "2026-01-14T15:41:05.633209Z"
+}

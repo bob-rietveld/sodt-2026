@@ -1,0 +1,19 @@
+{
+  "assignee": "bob.rietveld@gmail.com",
+  "claim_note": "",
+  "claimed_at": "2026-01-14T15:42:46.103269Z",
+  "created_at": "2026-01-14T15:41:28.806874Z",
+  "depends_on": [],
+  "epic": "fn-3-67s",
+  "evidence": {
+    "commits": [],
+    "prs": [],
+    "tests": []
+  },
+  "id": "fn-3-67s.1",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-3-67s.1.md",
+  "status": "done",
+  "title": "Investigate current export-zip issue and identify root cause",
+  "updated_at": "2026-01-14T15:48:45.304206Z"
+}
