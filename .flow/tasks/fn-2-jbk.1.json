@@ -1,0 +1,21 @@
+{
+  "assignee": "bob.rietveld@gmail.com",
+  "claim_note": "",
+  "claimed_at": "2026-01-14T15:22:40.839153Z",
+  "created_at": "2026-01-14T15:22:31.786793Z",
+  "depends_on": [],
+  "epic": "fn-2-jbk",
+  "evidence": {
+    "commits": [],
+    "prs": [],
+    "tests": [
+      "curl test"
+    ]
+  },
+  "id": "fn-2-jbk.1",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-2-jbk.1.md",
+  "status": "done",
+  "title": "Investigate and fix PDF thumbnail 503 error",
+  "updated_at": "2026-01-14T15:28:29.596374Z"
+}

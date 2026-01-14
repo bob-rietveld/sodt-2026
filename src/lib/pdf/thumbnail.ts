@@ -12,7 +12,8 @@ let pdfJsInitialized = false;
  */
 async function ensurePdfJsInitialized(): Promise<void> {
   if (!pdfJsInitialized) {
-    await definePDFJSModule(() => import("pdfjs-dist"));
+    // Use legacy build for Node.js compatibility (avoids DOMMatrix not defined error)
+    await definePDFJSModule(() => import("pdfjs-dist/legacy/build/pdf.mjs"));
     pdfJsInitialized = true;
   }
 }

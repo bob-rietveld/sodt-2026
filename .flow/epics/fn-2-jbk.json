@@ -1,0 +1,13 @@
+{
+  "branch_name": "fn-2-jbk",
+  "created_at": "2026-01-14T15:22:21.292119Z",
+  "depends_on_epics": [],
+  "id": "fn-2-jbk",
+  "next_task": 1,
+  "plan_review_status": "unknown",
+  "plan_reviewed_at": null,
+  "spec_path": ".flow/specs/fn-2-jbk.md",
+  "status": "open",
+  "title": "Fix PDF thumbnail generation 503 error",
+  "updated_at": "2026-01-14T15:22:21.292240Z"
+}
