@@ -1257,19 +1257,26 @@ export const getAllForExport = query({
   handler: async (ctx) => {
     const pdfs = await ctx.db.query("pdfs").collect();
 
-    // Get extracted text URLs for each PDF that has one
-    const pdfsWithTextUrls = await Promise.all(
-      pdfs.map(async (pdf) => {
-        let extractedTextUrl: string | null = null;
-        if (pdf.extractedTextStorageId) {
-          extractedTextUrl = await ctx.storage.getUrl(pdf.extractedTextStorageId);
-        }
-        return {
-          ...pdf,
-          extractedTextUrl,
-        };
-      })
-    );
+    // Process in batches to avoid overwhelming the connection
+    const BATCH_SIZE = 10;
+    const pdfsWithTextUrls = [];
+
+    for (let i = 0; i < pdfs.length; i += BATCH_SIZE) {
+      const batch = pdfs.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(async (pdf) => {
+          let extractedTextUrl: string | null = null;
+          if (pdf.extractedTextStorageId) {
+            extractedTextUrl = await ctx.storage.getUrl(pdf.extractedTextStorageId);
+          }
+          return {
+            ...pdf,
+            extractedTextUrl,
+          };
+        })
+      );
+      pdfsWithTextUrls.push(...batchResults);
+    }
 
     return pdfsWithTextUrls;
   },

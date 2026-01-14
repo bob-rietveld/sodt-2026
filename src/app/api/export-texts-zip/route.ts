@@ -17,7 +17,64 @@ function sanitizeFilename(name: string): string {
   return name
     .replace(/[<>:"/\\|?*]/g, "_")
     .replace(/\s+/g, "_")
-    .slice(0, 200); // Limit filename length
+    .slice(0, 200);
+}
+
+// Fetch with retry and timeout
+async function fetchWithRetry(
+  url: string,
+  retries = 3,
+  timeout = 30000
+): Promise<string | null> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        return await response.text();
+      }
+    } catch (err) {
+      if (i === retries - 1) {
+        console.error(`Failed to fetch after ${retries} retries:`, err);
+        return null;
+      }
+      // Wait before retry with exponential backoff
+      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+  return null;
+}
+
+// Process files in batches to avoid connection overload
+async function processBatch<T, R>(
+  items: T[],
+  batchSize: number,
+  processor: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(processor));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
+interface ManifestEntry {
+  id: string;
+  filename: string;
+  originalFilename: string;
+  title: string;
+  documentType?: string;
+  summary?: string;
+  createdAt: string;
+  sourceUrl?: string;
+  pageCount?: number;
+  hasExtractedText: boolean;
 }
 
 export async function GET() {
@@ -47,35 +104,73 @@ export async function GET() {
 
     // Create the archive
     const archive = archiver("zip", {
-      zlib: { level: 5 }, // Compression level
+      zlib: { level: 5 },
     });
 
     archive.pipe(passThrough);
 
-    // Add each text file to the archive
-    const textFetchPromises = pdfsWithText.map(async (pdf) => {
-      try {
-        const response = await fetch(pdf.extractedTextUrl!);
-        if (response.ok) {
-          const text = await response.text();
-          const filename = sanitizeFilename(pdf.title || pdf.filename.replace(".pdf", "")) + ".txt";
+    // Build manifest and fetch text files in batches
+    const manifest: ManifestEntry[] = [];
+    const BATCH_SIZE = 5;
+
+    const textFiles = await processBatch(
+      pdfsWithText,
+      BATCH_SIZE,
+      async (pdf) => {
+        const filename =
+          sanitizeFilename(pdf.title || pdf.filename.replace(".pdf", "")) +
+          ".txt";
+
+        // Add to manifest regardless of fetch success
+        manifest.push({
+          id: pdf._id,
+          filename,
+          originalFilename: pdf.filename,
+          title: pdf.title || pdf.filename,
+          documentType: pdf.documentType,
+          summary: pdf.summary,
+          createdAt: pdf._creationTime
+            ? new Date(pdf._creationTime).toISOString()
+            : new Date().toISOString(),
+          sourceUrl: pdf.sourceUrl,
+          pageCount: pdf.pageCount,
+          hasExtractedText: !!pdf.extractedTextUrl,
+        });
+
+        if (!pdf.extractedTextUrl) {
+          return null;
+        }
+
+        const text = await fetchWithRetry(pdf.extractedTextUrl);
+        if (text) {
           return { filename, text };
         }
         return null;
-      } catch (err) {
-        console.error(`Failed to fetch text for ${pdf.title}:`, err);
-        return null;
       }
-    });
+    );
 
-    const textFiles = await Promise.all(textFetchPromises);
-
-    // Add successfully fetched files to the archive
+    // Add text files to archive
+    let addedCount = 0;
     for (const file of textFiles) {
       if (file) {
-        archive.append(file.text, { name: file.filename });
+        archive.append(file.text, { name: `texts/${file.filename}` });
+        addedCount++;
       }
     }
+
+    // Add manifest to archive
+    const manifestJson = JSON.stringify(
+      {
+        exportDate: new Date().toISOString(),
+        totalReports: pdfs.length,
+        reportsWithText: pdfsWithText.length,
+        successfullyExported: addedCount,
+        reports: manifest,
+      },
+      null,
+      2
+    );
+    archive.append(manifestJson, { name: "manifest.json" });
 
     // Finalize the archive
     await archive.finalize();
@@ -90,8 +185,11 @@ export async function GET() {
     const zipBuffer = Buffer.concat(chunks);
 
     // Generate filename with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const filename = `extracted-texts-${timestamp}.zip`;
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .slice(0, 19);
+    const filename = `reports-export-${timestamp}.zip`;
 
     // Return ZIP as downloadable file
     return new NextResponse(zipBuffer, {

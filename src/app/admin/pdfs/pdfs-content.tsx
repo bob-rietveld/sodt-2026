@@ -46,6 +46,7 @@ export default function PdfsContent() {
   const [editingPdf, setEditingPdf] = useState<PDF | null>(null);
   const [isExportingCSV, setIsExportingCSV] = useState(false);
   const [isExportingZip, setIsExportingZip] = useState(false);
+  const [exportZipProgress, setExportZipProgress] = useState<string | null>(null);
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
   const [extractingMetadataId, setExtractingMetadataId] = useState<string | null>(null);
   const [extractingTextId, setExtractingTextId] = useState<string | null>(null);
@@ -876,34 +877,80 @@ export default function PdfsContent() {
     }
   };
 
-  // Export ZIP of all extracted text files
+  // Export ZIP of all extracted text files with progress tracking
   const handleExportZip = async () => {
     setIsExportingZip(true);
+    setExportZipProgress("Starting export...");
+
     try {
-      const response = await fetch("/api/export-texts-zip");
+      const response = await fetch("/api/export-texts-zip/progress");
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to export ZIP");
+        throw new Error("Failed to start export");
       }
 
-      // Get the filename from the Content-Disposition header
-      const contentDisposition = response.headers.get("Content-Disposition");
-      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
-      const filename = filenameMatch ? filenameMatch[1] : "extracted-texts.zip";
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No response body");
+      }
 
-      // Download the file
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            let data;
+            try {
+              data = JSON.parse(line.slice(6));
+            } catch (parseError) {
+              console.error("Failed to parse SSE event:", parseError);
+              continue;
+            }
+
+            if (data.status === "fetching") {
+              setExportZipProgress(data.message);
+            } else if (data.status === "processing") {
+              setExportZipProgress(`Processing ${data.processed} of ${data.total} reports...`);
+            } else if (data.status === "finalizing") {
+              setExportZipProgress(data.message);
+            } else if (data.status === "complete") {
+              setExportZipProgress("Preparing download...");
+
+              // Convert base64 to blob and trigger download
+              const binaryString = atob(data.data);
+              const bytes = new Uint8Array(binaryString.length);
+              for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+              }
+              const blob = new Blob([bytes], { type: "application/zip" });
+
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = data.filename || "reports-export.zip";
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(url);
+              document.body.removeChild(a);
+
+              setExportZipProgress(null);
+            } else if (data.status === "error") {
+              throw new Error(data.message);
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error("ZIP export error:", error);
       alert(`Failed to export ZIP: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setExportZipProgress(null);
     } finally {
       setIsExportingZip(false);
     }
@@ -1078,6 +1125,7 @@ export default function PdfsContent() {
             onClick={handleExportZip}
             disabled={isExportingZip}
             className="px-4 py-2 bg-white border border-foreground/10 text-foreground/70 rounded-lg text-sm font-medium hover:bg-foreground/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            title={exportZipProgress || undefined}
           >
             {isExportingZip ? (
               <>
@@ -1085,7 +1133,7 @@ export default function PdfsContent() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Exporting...
+                <span className="max-w-[150px] truncate">{exportZipProgress || "Exporting..."}</span>
               </>
             ) : (
               <>
