@@ -1,16 +1,6 @@
 import { NextRequest } from "next/server";
 import { chatStream, type ChatMessage, type ChatFilter } from "@/lib/pinecone/client";
 import { logSearchEvent } from "@/lib/analytics";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "../../../../convex/_generated/api";
-
-function getConvexClient(): ConvexHttpClient {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!url) {
-    throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
-  }
-  return new ConvexHttpClient(url);
-}
 
 export async function POST(request: NextRequest) {
   console.log("[Chat API] POST request received");
@@ -72,9 +62,10 @@ export async function POST(request: NextRequest) {
       title: string;
       filename: string;
       pageNumbers: Set<number>;
+      convexId?: string;
     }>> = new Map();
 
-    function upsertCitation(offset: number, fileId: string, filename: string, pages: number[] | undefined) {
+    function upsertCitation(offset: number, fileId: string, filename: string, pages: number[] | undefined, convexId?: string) {
       const clampedOffset = Math.max(0, offset);
       let refs = citationsByOffset.get(clampedOffset);
       if (!refs) {
@@ -88,9 +79,10 @@ export async function POST(request: NextRequest) {
 
       refs.set(fileId, {
         fileId,
-        title: filename.replace(/\.[^/.]+$/, ""),
+        title: filename.replace(/\.[^/.]+$/, "").replace(/^\d+-/, ""), // Remove timestamp prefix
         filename,
         pageNumbers,
+        convexId: convexId || existing?.convexId,
       });
     }
 
@@ -117,6 +109,9 @@ export async function POST(request: NextRequest) {
         try {
           // Stream the response from Pinecone Assistant
           for await (const chunk of chatStream(messages, filter)) {
+            // Debug: log all chunk types
+            console.log("[Chat API] Chunk type:", chunk.type, JSON.stringify(chunk).slice(0, 200));
+
             if (chunk.type === "content_chunk" && chunk.delta?.content) {
               fullResponse += chunk.delta.content;
               controller.enqueue(
@@ -124,14 +119,24 @@ export async function POST(request: NextRequest) {
                   `data: ${JSON.stringify({ type: "text", content: chunk.delta.content })}\n\n`
                 )
               );
-            } else if (chunk.type === "citation" && chunk.citation) {
-              const offset = chunk.citation.position ?? fullResponse.length;
-              for (const ref of chunk.citation.references ?? []) {
-                if (!ref.file?.id || !ref.file?.name) continue;
-                upsertCitation(offset, ref.file.id, ref.file.name, ref.pages);
+            } else if (chunk.type === "citation") {
+              // Citation chunks contain file references with metadata
+              const citation = (chunk as any).citation;
+              if (citation) {
+                console.log("[Chat API] Citation received:", JSON.stringify(citation).slice(0, 300));
+                const offset = citation.position ?? fullResponse.length;
+                for (const ref of citation.references ?? []) {
+                  const file = ref.file;
+                  if (!file?.id || !file?.name) continue;
+                  // Extract convexId from file metadata if available
+                  const convexId = file.metadata?.convexId;
+                  upsertCitation(offset, file.id, file.name, ref.pages, convexId);
+                }
               }
             }
           }
+
+          console.log("[Chat API] Total citations collected:", citationsByOffset.size);
 
           // Convert citation offsets to stable citation indices [1..n]
           const offsetsSorted = Array.from(citationsByOffset.entries()).sort(
@@ -145,44 +150,23 @@ export async function POST(request: NextRequest) {
 
           const contentWithCitations = insertCitationLinks(fullResponse, offsetsWithIndex);
 
-          // Collect all unique Pinecone file IDs to look up Convex document URLs
-          const allPineconeFileIds = new Set<string>();
-          for (const [, refs] of offsetsSorted) {
-            for (const ref of refs.values()) {
-              allPineconeFileIds.add(ref.fileId);
-            }
-          }
-
-          // Look up Convex document IDs for each Pinecone file
-          let documentLookup: Record<string, { convexId: string; title: string; company?: string }> = {};
-          try {
-            const convex = getConvexClient();
-            documentLookup = await convex.query(api.pdfs.getDocumentsByPineconeIds, {
-              pineconeFileIds: Array.from(allPineconeFileIds),
-            });
-          } catch (err) {
-            console.error("Failed to lookup document URLs:", err);
-            // Continue without document URLs
-          }
-
+          // Build sources array - convexId is already in the citation metadata from Pinecone
           const sources = offsetsSorted.map(([offset, refs], i) => ({
             index: i + 1,
             offset,
             references: Array.from(refs.values())
-              .map((r) => {
-                const docInfo = documentLookup[r.fileId];
-                return {
-                  fileId: r.fileId,
-                  title: r.title,
-                  filename: r.filename,
-                  pageNumbers: Array.from(r.pageNumbers).sort((a, b) => a - b),
-                  // Add Convex document ID for linking to report detail page
-                  convexId: docInfo?.convexId,
-                  documentUrl: docInfo?.convexId ? `/reports/${docInfo.convexId}` : undefined,
-                };
-              })
+              .map((r) => ({
+                fileId: r.fileId,
+                title: r.title,
+                filename: r.filename,
+                pageNumbers: Array.from(r.pageNumbers).sort((a, b) => a - b),
+                convexId: r.convexId,
+                documentUrl: r.convexId ? `/reports/${r.convexId}` : undefined,
+              }))
               .sort((a, b) => a.title.localeCompare(b.title)),
           }));
+
+          console.log("[Chat API] Sources built:", JSON.stringify(sources).slice(0, 500));
 
           // Log search query to Tinybird analytics (fire and forget)
           const responseTimeMs = Date.now() - startTime;
