@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       convexId?: string;
     }>> = new Map();
 
-    function upsertCitation(offset: number, fileId: string, filename: string, pages: number[] | undefined, convexId?: string) {
+    function upsertCitation(offset: number, fileId: string, filename: string, title: string | undefined, pages: number[] | undefined, convexId?: string) {
       const clampedOffset = Math.max(0, offset);
       let refs = citationsByOffset.get(clampedOffset);
       if (!refs) {
@@ -77,9 +77,12 @@ export async function POST(request: NextRequest) {
       const pageNumbers = existing?.pageNumbers ?? new Set<number>();
       for (const page of pages ?? []) pageNumbers.add(page);
 
+      // Use title from Pinecone metadata, fall back to cleaned filename
+      const displayTitle = title || existing?.title || filename.replace(/\.[^/.]+$/, "").replace(/^\d+-/, "");
+
       refs.set(fileId, {
         fileId,
-        title: filename.replace(/\.[^/.]+$/, "").replace(/^\d+-/, ""), // Remove timestamp prefix
+        title: displayTitle,
         filename,
         pageNumbers,
         convexId: convexId || existing?.convexId,
@@ -128,9 +131,10 @@ export async function POST(request: NextRequest) {
                 for (const ref of citation.references ?? []) {
                   const file = ref.file;
                   if (!file?.id || !file?.name) continue;
-                  // Extract convexId from file metadata if available
+                  // Extract title and convexId from file metadata if available
+                  const title = file.metadata?.title;
                   const convexId = file.metadata?.convexId;
-                  upsertCitation(offset, file.id, file.name, ref.pages, convexId);
+                  upsertCitation(offset, file.id, file.name, title, ref.pages, convexId);
                 }
               }
             }
