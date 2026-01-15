@@ -37,6 +37,9 @@ export interface MetadataExtractionResult {
  * Extract text content from a PDF buffer using unpdf (serverless-compatible)
  * Note: We avoid using getDocumentProxy as it uses pdfjs-dist workers
  * which fail in serverless environments with "Cannot transfer object" errors
+ *
+ * Page markers are included in the format [Page X] to allow Pinecone to track
+ * which page content came from for citation purposes.
  */
 export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<TextExtractionResult> {
   try {
@@ -46,10 +49,35 @@ export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<TextExtract
     // Convert Buffer to Uint8Array for unpdf
     const uint8Array = new Uint8Array(pdfBuffer);
 
-    // Extract text from all pages - extractText also returns totalPages
-    const result = await extractText(uint8Array, { mergePages: true });
+    // Extract text from each page separately to preserve page boundaries
+    const result = await extractText(uint8Array, { mergePages: false });
 
-    if (!result.text || result.text.trim().length === 0) {
+    if (!result.text || (Array.isArray(result.text) && result.text.length === 0)) {
+      return {
+        success: false,
+        error: "No text content extracted from PDF",
+      };
+    }
+
+    // Build text with page markers
+    let textWithPageMarkers: string;
+    if (Array.isArray(result.text)) {
+      // When mergePages is false, result.text is an array of page texts
+      textWithPageMarkers = result.text
+        .map((pageText, index) => {
+          const pageNum = index + 1;
+          const trimmedText = pageText.trim();
+          if (!trimmedText) return ""; // Skip empty pages
+          return `[Page ${pageNum}]\n${trimmedText}`;
+        })
+        .filter(Boolean)
+        .join("\n\n");
+    } else {
+      // Fallback if text is a single string (shouldn't happen with mergePages: false)
+      textWithPageMarkers = `[Page 1]\n${result.text}`;
+    }
+
+    if (!textWithPageMarkers.trim()) {
       return {
         success: false,
         error: "No text content extracted from PDF",
@@ -58,7 +86,7 @@ export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<TextExtract
 
     return {
       success: true,
-      text: result.text,
+      text: textWithPageMarkers,
       pageCount: result.totalPages,
     };
   } catch (error) {
