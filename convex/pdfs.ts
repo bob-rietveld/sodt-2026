@@ -1788,6 +1788,39 @@ export const getInsightsData = query({
   },
 });
 
+// Batch lookup documents by Pinecone file IDs
+// Returns a map of pineconeFileId -> document info for creating citation links
+export const getDocumentsByPineconeIds = query({
+  args: {
+    pineconeFileIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const results: Record<string, {
+      convexId: string;
+      title: string;
+      company?: string;
+    }> = {};
+
+    // Look up each Pinecone file ID
+    for (const pineconeFileId of args.pineconeFileIds) {
+      const pdf = await ctx.db
+        .query("pdfs")
+        .withIndex("by_pinecone_file", (q) => q.eq("pineconeFileId", pineconeFileId))
+        .first();
+
+      if (pdf) {
+        results[pineconeFileId] = {
+          convexId: pdf._id,
+          title: pdf.title,
+          company: pdf.company,
+        };
+      }
+    }
+
+    return results;
+  },
+});
+
 // Get latest uploaded reports for homepage display
 // Optimized: Uses DB ordering and early limit instead of collect+sort+slice
 export const getLatestReports = query({

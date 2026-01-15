@@ -1,6 +1,16 @@
 import { NextRequest } from "next/server";
 import { chatStream, type ChatMessage, type ChatFilter } from "@/lib/pinecone/client";
 import { logSearchEvent } from "@/lib/analytics";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../../../../convex/_generated/api";
+
+function getConvexClient(): ConvexHttpClient {
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!url) {
+    throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
+  }
+  return new ConvexHttpClient(url);
+}
 
 export async function POST(request: NextRequest) {
   console.log("[Chat API] POST request received");
@@ -135,16 +145,42 @@ export async function POST(request: NextRequest) {
 
           const contentWithCitations = insertCitationLinks(fullResponse, offsetsWithIndex);
 
+          // Collect all unique Pinecone file IDs to look up Convex document URLs
+          const allPineconeFileIds = new Set<string>();
+          for (const [, refs] of offsetsSorted) {
+            for (const ref of refs.values()) {
+              allPineconeFileIds.add(ref.fileId);
+            }
+          }
+
+          // Look up Convex document IDs for each Pinecone file
+          let documentLookup: Record<string, { convexId: string; title: string; company?: string }> = {};
+          try {
+            const convex = getConvexClient();
+            documentLookup = await convex.query(api.pdfs.getDocumentsByPineconeIds, {
+              pineconeFileIds: Array.from(allPineconeFileIds),
+            });
+          } catch (err) {
+            console.error("Failed to lookup document URLs:", err);
+            // Continue without document URLs
+          }
+
           const sources = offsetsSorted.map(([offset, refs], i) => ({
             index: i + 1,
             offset,
             references: Array.from(refs.values())
-              .map((r) => ({
-                fileId: r.fileId,
-                title: r.title,
-                filename: r.filename,
-                pageNumbers: Array.from(r.pageNumbers).sort((a, b) => a - b),
-              }))
+              .map((r) => {
+                const docInfo = documentLookup[r.fileId];
+                return {
+                  fileId: r.fileId,
+                  title: r.title,
+                  filename: r.filename,
+                  pageNumbers: Array.from(r.pageNumbers).sort((a, b) => a - b),
+                  // Add Convex document ID for linking to report detail page
+                  convexId: docInfo?.convexId,
+                  documentUrl: docInfo?.convexId ? `/reports/${docInfo.convexId}` : undefined,
+                };
+              })
               .sort((a, b) => a.title.localeCompare(b.title)),
           }));
 

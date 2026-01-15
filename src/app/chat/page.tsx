@@ -15,6 +15,8 @@ interface Source {
     title: string;
     filename: string;
     pageNumbers: number[];
+    convexId?: string;
+    documentUrl?: string;
   }>;
 }
 
@@ -94,40 +96,75 @@ function SourcesList({ sources }: { sources: Source[] }) {
           <polyline points="14 2 14 8 20 8" />
         </svg>
         <span className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">
-          Sources from 100+ Reports
+          References
         </span>
         {reportCount > 0 && (
           <span className="text-xs text-foreground/50">
-            ({reportCount} report{reportCount !== 1 ? "s" : ""} cited)
+            ({reportCount} source{reportCount !== 1 ? "s" : ""})
           </span>
         )}
       </div>
       {sources && sources.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
+        <ol className="space-y-2 list-none">
           {sources.map((source) => (
-            <a
+            <li
               key={source.index}
-              href={`#source-${source.index}`}
               id={`source-${source.index}`}
-              className="group inline-flex items-center gap-2 px-3 py-2 bg-primary/5 hover:bg-primary/10 border border-primary/20 hover:border-primary/30 rounded-lg transition-all text-xs"
+              className="flex items-start gap-2 text-sm rounded-md px-2 py-1 -mx-2 transition-colors duration-500"
             >
-              <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded font-semibold text-[10px]">
+              <span className="flex-shrink-0 bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold min-w-[20px] text-center">
                 {source.index}
               </span>
-              <div className="flex flex-col">
+              <div className="flex-1">
                 {source.references.map((ref, refIdx) => (
-                  <span key={`${source.index}:${ref.fileId}`} className="text-foreground/80 group-hover:text-foreground transition-colors">
-                    {ref.title}
+                  <span key={`${source.index}:${ref.fileId}`}>
+                    {ref.documentUrl ? (
+                      <a
+                        href={ref.documentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline font-medium"
+                      >
+                        {ref.title}
+                      </a>
+                    ) : (
+                      <span className="text-foreground/80 font-medium">{ref.title}</span>
+                    )}
                     {ref.pageNumbers.length > 0 && (
                       <span className="text-foreground/50 ml-1">({formatPages(ref.pageNumbers)})</span>
                     )}
-                    {refIdx < source.references.length - 1 && ", "}
+                    {ref.documentUrl && (
+                      <a
+                        href={ref.documentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-1.5 inline-flex items-center text-foreground/40 hover:text-primary transition-colors"
+                        title="Open source document"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                          <polyline points="15 3 21 3 21 9" />
+                          <line x1="10" y1="14" x2="21" y2="3" />
+                        </svg>
+                      </a>
+                    )}
+                    {refIdx < source.references.length - 1 && <span className="text-foreground/30 mx-1">•</span>}
                   </span>
                 ))}
               </div>
-            </a>
+            </li>
           ))}
-        </div>
+        </ol>
       ) : (
         <p className="text-xs text-foreground/50 italic">
           No specific sources cited for this response. Try asking a more specific question to see document references.
@@ -154,16 +191,42 @@ function MarkdownContent({ content, sources }: { content: string; sources: Sourc
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ children, href }) => (
-            <a
-              href={href}
-              className="text-primary hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {children}
-            </a>
-          ),
+          a: ({ children, href }) => {
+            // Check if this is an internal citation link (starts with #source-)
+            const isCitationLink = href?.startsWith("#source-");
+
+            if (isCitationLink) {
+              return (
+                <a
+                  href={href}
+                  className="inline-flex items-center justify-center bg-primary/10 text-primary text-xs font-semibold px-1.5 py-0.5 rounded hover:bg-primary/20 transition-colors no-underline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const element = document.querySelector(href!);
+                    if (element) {
+                      element.scrollIntoView({ behavior: "smooth", block: "center" });
+                      // Briefly highlight the reference
+                      element.classList.add("bg-primary/10");
+                      setTimeout(() => element.classList.remove("bg-primary/10"), 2000);
+                    }
+                  }}
+                >
+                  {children}
+                </a>
+              );
+            }
+
+            return (
+              <a
+                href={href}
+                className="text-primary hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {children}
+              </a>
+            );
+          },
           code: ({ children, className }) => {
             const isInline = !className;
             return isInline ? (

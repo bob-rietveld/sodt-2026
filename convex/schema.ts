@@ -87,6 +87,7 @@ export default defineSchema({
     .index("by_file_hash", ["fileHash"])
     .index("by_public_browse", ["approved", "status"])
     .index("by_document_type", ["documentType"])
+    .index("by_pinecone_file", ["pineconeFileId"])
     .searchIndex("search_title", {
       searchField: "title",
       filterFields: ["status", "approved"],
