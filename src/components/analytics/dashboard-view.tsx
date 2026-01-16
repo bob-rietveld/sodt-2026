@@ -4,15 +4,6 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import {
-  LayoutDashboard,
-  Plus,
-  X,
-  RefreshCw,
-  Share2,
-  Edit2,
-  Loader2,
-} from "lucide-react";
 import { DynamicChart } from "./dynamic-chart";
 import { CreateDashboardModal } from "./create-dashboard-modal";
 
@@ -106,7 +97,10 @@ export function DashboardView({
   if (!dashboardData) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-foreground/20" />
+        <svg className="h-8 w-8 animate-spin text-foreground/20" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
       </div>
     );
   }
@@ -122,13 +116,17 @@ export function DashboardView({
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3">
-                <LayoutDashboard className="h-6 w-6 text-primary" />
+                <svg className="h-6 w-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
                 <h1 className="text-2xl font-semibold">
                   {dashboardData.name}
                 </h1>
                 {dashboardData.isShared && (
                   <span className="flex items-center gap-1 px-2 py-1 bg-foreground/5 rounded text-xs text-foreground/60">
-                    <Share2 className="h-3 w-3" />
+                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
                     Shared
                   </span>
                 )}
@@ -146,21 +144,27 @@ export function DashboardView({
                   onClick={() => setEditingDashboard(true)}
                   className="flex items-center gap-2 px-3 py-2 text-sm border border-foreground/20 rounded-lg hover:bg-foreground/5 transition-colors"
                 >
-                  <Edit2 className="h-4 w-4" />
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
                   Edit
                 </button>
                 <button
                   onClick={handleToggleShare}
                   className="flex items-center gap-2 px-3 py-2 text-sm border border-foreground/20 rounded-lg hover:bg-foreground/5 transition-colors"
                 >
-                  <Share2 className="h-4 w-4" />
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
                   {dashboardData.isShared ? "Unshare" : "Share"}
                 </button>
                 <button
                   onClick={onAddChart}
                   className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
                 >
-                  <Plus className="h-4 w-4" />
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
                   Add Chart
                 </button>
               </div>
@@ -173,7 +177,9 @@ export function DashboardView({
       <div className="flex-1 overflow-auto bg-gray-50/50 p-6">
         {!hasCharts ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <LayoutDashboard className="h-16 w-16 text-foreground/20 mb-4" />
+            <svg className="h-16 w-16 text-foreground/20 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
             <h3 className="text-lg font-medium text-foreground/60 mb-2">
               No charts yet
             </h3>
@@ -185,7 +191,9 @@ export function DashboardView({
                 onClick={onAddChart}
                 className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
               >
-                <Plus className="h-4 w-4" />
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
                 Add Chart
               </button>
             )}
@@ -230,9 +238,9 @@ export function DashboardView({
                           className="p-1.5 hover:bg-foreground/5 rounded transition-colors disabled:opacity-50"
                           title="Refresh chart data"
                         >
-                          <RefreshCw
-                            className={`h-4 w-4 text-foreground/60 ${isRefreshing ? "animate-spin" : ""}`}
-                          />
+                          <svg className={`h-4 w-4 text-foreground/60 ${isRefreshing ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
                         </button>
                       )}
                       {isOwner && (
@@ -241,7 +249,9 @@ export function DashboardView({
                           className="p-1.5 hover:bg-red-50 rounded transition-colors group"
                           title="Remove from dashboard"
                         >
-                          <X className="h-4 w-4 text-foreground/40 group-hover:text-red-600" />
+                          <svg className="h-4 w-4 text-foreground/40 group-hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
                         </button>
                       )}
                     </div>
@@ -251,7 +261,10 @@ export function DashboardView({
                   <div className="relative">
                     {isRefreshing && (
                       <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10 rounded">
-                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        <svg className="h-6 w-6 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
                       </div>
                     )}
                     <div className="h-[300px]">
