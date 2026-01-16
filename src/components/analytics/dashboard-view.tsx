@@ -267,7 +267,7 @@ export function DashboardView({
                         </svg>
                       </div>
                     )}
-                    <div className="h-[300px]">
+                    <div className="h-[400px]">
                       <DynamicChart spec={chartSpec} />
                     </div>
                   </div>
