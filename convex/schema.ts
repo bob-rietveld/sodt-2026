@@ -201,7 +201,25 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     isShared: v.boolean(),
+    folderId: v.optional(v.id("savedAnalyticsFolders")),  // null = root level
   })
     .index("by_user", ["createdBy"])
-    .index("by_shared", ["isShared"]),
+    .index("by_shared", ["isShared"])
+    .index("by_folder", ["folderId"])
+    .index("by_user_and_folder", ["createdBy", "folderId"]),
+
+  // Folders for organizing analytics views
+  savedAnalyticsFolders: defineTable({
+    name: v.string(),
+    createdBy: v.string(),  // Clerk user ID
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    parentId: v.optional(v.id("savedAnalyticsFolders")),  // For nested folders
+    isShared: v.boolean(),
+    color: v.optional(v.string()),  // Optional folder color (hex)
+  })
+    .index("by_user", ["createdBy"])
+    .index("by_shared", ["isShared"])
+    .index("by_parent", ["parentId"])
+    .index("by_user_and_parent", ["createdBy", "parentId"]),
 });

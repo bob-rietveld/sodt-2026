@@ -12,6 +12,7 @@ export const saveView = mutation({
     toolName: v.optional(v.string()),
     toolArgs: v.optional(v.string()),
     isShared: v.optional(v.boolean()),
+    folderId: v.optional(v.id("savedAnalyticsFolders")),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -30,6 +31,7 @@ export const saveView = mutation({
       createdAt: now,
       updatedAt: now,
       isShared: args.isShared ?? false,
+      folderId: args.folderId,
     });
 
     return viewId;
@@ -168,5 +170,52 @@ export const deleteView = mutation({
     await ctx.db.delete(args.viewId);
 
     return true;
+  },
+});
+
+/**
+ * Move a view to a folder (or root if folderId is null)
+ */
+export const moveViewToFolder = mutation({
+  args: {
+    viewId: v.id("savedAnalyticsViews"),
+    folderId: v.optional(v.id("savedAnalyticsFolders")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const view = await ctx.db.get(args.viewId);
+    if (!view) {
+      throw new Error("View not found");
+    }
+
+    // Only owner can move
+    if (view.createdBy !== identity.subject) {
+      throw new Error("Not authorized to move this view");
+    }
+
+    // Validate folder exists if provided
+    if (args.folderId) {
+      const folder = await ctx.db.get(args.folderId);
+      if (!folder) {
+        throw new Error("Folder not found");
+      }
+      if (
+        folder.createdBy !== identity.subject &&
+        !folder.isShared
+      ) {
+        throw new Error("Not authorized to move view to this folder");
+      }
+    }
+
+    await ctx.db.patch(args.viewId, {
+      folderId: args.folderId,
+      updatedAt: Date.now(),
+    });
+
+    return args.viewId;
   },
 });
