@@ -222,4 +222,27 @@ export default defineSchema({
     .index("by_shared", ["isShared"])
     .index("by_parent", ["parentId"])
     .index("by_user_and_parent", ["createdBy", "parentId"]),
+
+  // Dashboards - collections of analytics charts
+  analyticsDashboards: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    createdBy: v.string(),  // Clerk user ID
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    isShared: v.boolean(),
+  })
+    .index("by_user", ["createdBy"])
+    .index("by_shared", ["isShared"]),
+
+  // Junction table for dashboard-chart relationships
+  dashboardCharts: defineTable({
+    dashboardId: v.id("analyticsDashboards"),
+    viewId: v.id("savedAnalyticsViews"),
+    position: v.number(),  // For ordering charts in the dashboard
+    addedAt: v.number(),
+  })
+    .index("by_dashboard", ["dashboardId"])
+    .index("by_view", ["viewId"])
+    .index("by_dashboard_and_position", ["dashboardId", "position"]),
 });

@@ -1,9 +1,15 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { AnalyticsChat } from "@/components/analytics/analytics-chat";
 import { SavedViews } from "@/components/analytics/saved-views";
 import { DynamicChart } from "@/components/analytics/dynamic-chart";
+import { DashboardsList } from "@/components/analytics/dashboards-list";
+import { DashboardView } from "@/components/analytics/dashboard-view";
+import { SelectChartsModal } from "@/components/analytics/select-charts-modal";
 import type { ChartSpec } from "@/types/analytics-viz";
 
 export default function AnalyticsContent() {
@@ -16,6 +22,14 @@ export default function AnalyticsContent() {
   } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [selectedDashboardId, setSelectedDashboardId] = useState<Id<
+    "analyticsDashboards"
+  > | null>(null);
+  const [isSelectChartsModalOpen, setIsSelectChartsModalOpen] = useState(false);
+
+  const addChartToDashboard = useMutation(
+    api.analyticsDashboards.addChartToDashboard
+  );
 
   const handleLoadView = useCallback(
     (view: {
@@ -33,6 +47,7 @@ export default function AnalyticsContent() {
         refreshedAt: view.isRefreshing === false ? Date.now() : undefined,
       });
       setIsRefreshing(view.isRefreshing ?? false);
+      setSelectedDashboardId(null); // Clear dashboard selection when loading a view
     },
     []
   );
@@ -76,6 +91,36 @@ export default function AnalyticsContent() {
 
   const handleClearLoaded = () => {
     setLoadedView(null);
+    setSelectedDashboardId(null); // Also clear any selected dashboard
+  };
+
+  const handleSelectDashboard = (
+    dashboardId: Id<"analyticsDashboards"> | null
+  ) => {
+    setSelectedDashboardId(dashboardId);
+    setLoadedView(null); // Clear any loaded view
+  };
+
+  const handleAddCharts = () => {
+    setIsSelectChartsModalOpen(true);
+  };
+
+  const handleConfirmAddCharts = async (
+    viewIds: Id<"savedAnalyticsViews">[]
+  ) => {
+    if (!selectedDashboardId) return;
+
+    for (const viewId of viewIds) {
+      try {
+        await addChartToDashboard({
+          dashboardId: selectedDashboardId,
+          viewId,
+        });
+      } catch (error) {
+        console.error("Failed to add chart to dashboard:", error);
+        // Continue with other charts even if one fails
+      }
+    }
   };
 
   return (
@@ -111,13 +156,18 @@ export default function AnalyticsContent() {
 
       {/* Main content */}
       <div className="flex-1 flex gap-6 min-h-0">
-        {/* Chat area */}
+        {/* Main area - Chat, Dashboard, or Single Chart View */}
         <div
           className={`flex-1 flex flex-col bg-white rounded-xl border border-foreground/10 overflow-hidden ${
             sidebarOpen ? "" : "max-w-full"
           }`}
         >
-          {loadedView ? (
+          {selectedDashboardId ? (
+            <DashboardView
+              dashboardId={selectedDashboardId}
+              onAddChart={handleAddCharts}
+            />
+          ) : loadedView ? (
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Loaded view header */}
               <div className="flex items-center justify-between p-4 border-b border-foreground/10">
@@ -243,13 +293,34 @@ export default function AnalyticsContent() {
           )}
         </div>
 
-        {/* Saved views sidebar */}
+        {/* Sidebar with Dashboards and Saved views */}
         {sidebarOpen && (
-          <div className="w-80 flex-shrink-0 bg-white rounded-xl border border-foreground/10 overflow-hidden">
-            <SavedViews onLoadView={handleLoadView} />
+          <div className="w-80 flex-shrink-0 bg-white rounded-xl border border-foreground/10 overflow-hidden flex flex-col">
+            {/* Dashboards Section */}
+            <div className="p-4 border-b border-foreground/10">
+              <DashboardsList
+                onSelectDashboard={handleSelectDashboard}
+                selectedDashboardId={selectedDashboardId}
+              />
+            </div>
+
+            {/* Saved Views Section */}
+            <div className="flex-1 overflow-hidden">
+              <SavedViews onLoadView={handleLoadView} />
+            </div>
           </div>
         )}
       </div>
+
+      {/* Select Charts Modal */}
+      {selectedDashboardId && (
+        <SelectChartsModal
+          isOpen={isSelectChartsModalOpen}
+          onClose={() => setIsSelectChartsModalOpen(false)}
+          onConfirm={handleConfirmAddCharts}
+          dashboardId={selectedDashboardId}
+        />
+      )}
     </div>
   );
 }

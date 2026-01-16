@@ -7,6 +7,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import type { ChartSpec } from "@/types/analytics-viz";
 import { FolderTree } from "./folder-tree";
 import { CreateFolderModal } from "./create-folder-modal";
+import { AddToDashboardModal } from "./add-to-dashboard-modal";
 
 interface SavedView {
   _id: Id<"savedAnalyticsViews">;
@@ -54,8 +55,14 @@ export function SavedViews({ onLoadView }: SavedViewsProps) {
   const createFolder = useMutation(api.analyticsFolders.createFolder);
   const deleteFolder = useMutation(api.analyticsFolders.deleteFolder);
   const updateFolder = useMutation(api.analyticsFolders.updateFolder);
+  const addChartToDashboard = useMutation(
+    api.analyticsDashboards.addChartToDashboard
+  );
 
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+  const [addingToDashboardViewId, setAddingToDashboardViewId] = useState<
+    Id<"savedAnalyticsViews"> | null
+  >(null);
 
   if (!viewsData || !foldersData) {
     return (
@@ -198,6 +205,28 @@ export function SavedViews({ onLoadView }: SavedViewsProps) {
     await updateFolder({ folderId, isShared });
   };
 
+  const handleAddToDashboard = (viewId: Id<"savedAnalyticsViews">) => {
+    setAddingToDashboardViewId(viewId);
+  };
+
+  const handleConfirmAddToDashboard = async (
+    dashboardIds: Id<"analyticsDashboards">[]
+  ) => {
+    if (!addingToDashboardViewId) return;
+
+    for (const dashboardId of dashboardIds) {
+      try {
+        await addChartToDashboard({
+          dashboardId,
+          viewId: addingToDashboardViewId,
+        });
+      } catch (error) {
+        console.error("Failed to add chart to dashboard:", error);
+        // Continue with other dashboards even if one fails
+      }
+    }
+  };
+
   const hasContent =
     userViews.length > 0 ||
     sharedViews.length > 0 ||
@@ -253,6 +282,7 @@ export function SavedViews({ onLoadView }: SavedViewsProps) {
               onToggleShareView={handleToggleShareView}
               onToggleShareFolder={handleToggleShareFolder}
               onMoveView={handleMoveView}
+              onAddToDashboard={handleAddToDashboard}
             />
           </div>
         )}
@@ -307,6 +337,13 @@ export function SavedViews({ onLoadView }: SavedViewsProps) {
         isOpen={isCreateFolderOpen}
         onClose={() => setIsCreateFolderOpen(false)}
         onConfirm={handleCreateFolder}
+      />
+
+      <AddToDashboardModal
+        isOpen={!!addingToDashboardViewId}
+        onClose={() => setAddingToDashboardViewId(null)}
+        onConfirm={handleConfirmAddToDashboard}
+        viewId={addingToDashboardViewId!}
       />
     </div>
   );
