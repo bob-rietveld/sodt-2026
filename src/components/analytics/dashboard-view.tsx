@@ -219,67 +219,15 @@ export function DashboardView({
                   key={chart.associationId}
                   className="bg-white border border-foreground/10 rounded-xl p-4 hover:shadow-md transition-shadow"
                 >
-                  {/* Chart Header */}
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-medium text-sm flex-1 line-clamp-2">
-                      {chartSpec.title}
-                    </h3>
-                    <div className="flex items-center gap-1 ml-2">
-                      {canRefresh && (
-                        <button
-                          onClick={() =>
-                            handleRefreshChart(
-                              chart.view._id,
-                              chart.view.toolName,
-                              chart.view.toolArgs
-                            )
-                          }
-                          disabled={isRefreshing}
-                          className="p-1.5 hover:bg-foreground/5 rounded transition-colors disabled:opacity-50"
-                          title="Refresh chart data"
-                        >
-                          <svg className={`h-4 w-4 text-foreground/60 ${isRefreshing ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                        </button>
-                      )}
-                      {isOwner && (
-                        <button
-                          onClick={() => handleRemoveChart(chart.view._id)}
-                          className="p-1.5 hover:bg-red-50 rounded transition-colors group"
-                          title="Remove from dashboard"
-                        >
-                          <svg className="h-4 w-4 text-foreground/40 group-hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  {/* Chart Title */}
+                  <h3 className="font-medium text-sm mb-3 line-clamp-2">
+                    {chartSpec.title}
+                  </h3>
 
                   {/* Chart Visualization */}
-                  <div className="relative">
-                    {isRefreshing && (
-                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10 rounded">
-                        <svg className="h-6 w-6 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                      </div>
-                    )}
-                    <div className="h-[400px]">
-                      <DynamicChart spec={chartSpec} />
-                    </div>
+                  <div className="h-[400px]">
+                    <DynamicChart spec={chartSpec} />
                   </div>
-
-                  {/* Chart Footer */}
-                  {chart.view.question && (
-                    <div className="mt-3 pt-3 border-t border-foreground/10">
-                      <p className="text-xs text-foreground/60 line-clamp-2">
-                        {chart.view.question}
-                      </p>
-                    </div>
-                  )}
                 </div>
               );
             })}
