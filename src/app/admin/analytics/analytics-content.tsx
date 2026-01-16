@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { AnalyticsChat } from "@/components/analytics/analytics-chat";
 import { SavedViews } from "@/components/analytics/saved-views";
 import { DynamicChart } from "@/components/analytics/dynamic-chart";
