@@ -180,12 +180,25 @@ export function AnalyticsChat({ onChartGenerated }: AnalyticsChatProps) {
     }
   };
 
-  const handleSaveChart = async (chart: ChartSpec, question: string) => {
+  const handleSaveChart = async (
+    chart: ChartSpec,
+    question: string,
+    toolCalls?: ToolCallInfo[]
+  ) => {
     try {
+      // Find the first successful tool call (has result, no error)
+      const successfulToolCall = toolCalls?.find(
+        (tc) => tc.result && !tc.error
+      );
+
       await saveView({
         name: chart.title,
         question,
         chartSpec: JSON.stringify(chart),
+        toolName: successfulToolCall?.tool,
+        toolArgs: successfulToolCall?.args
+          ? JSON.stringify(successfulToolCall.args)
+          : undefined,
       });
     } catch (error) {
       console.error("Failed to save view:", error);
@@ -286,7 +299,8 @@ export function AnalyticsChat({ onChartGenerated }: AnalyticsChatProps) {
                       onClick={() =>
                         handleSaveChart(
                           message.chart!,
-                          messages[index - 1]?.content || ""
+                          messages[index - 1]?.content || "",
+                          message.toolCalls
                         )
                       }
                       className="text-sm text-primary hover:text-primary/80 flex items-center gap-1"

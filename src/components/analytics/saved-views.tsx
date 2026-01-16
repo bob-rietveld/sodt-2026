@@ -25,6 +25,7 @@ interface SavedViewsProps {
     chartSpec: ChartSpec;
     toolName?: string;
     toolArgs?: Record<string, unknown>;
+    isRefreshing?: boolean;
   }) => void;
 }
 
@@ -51,19 +52,73 @@ export function SavedViews({ onLoadView }: SavedViewsProps) {
     sharedViews: SavedView[];
   };
 
-  const handleLoad = (view: SavedView) => {
+  const handleLoad = async (view: SavedView) => {
     try {
       const chartSpec = JSON.parse(view.chartSpec) as ChartSpec;
       const toolArgs = view.toolArgs
         ? (JSON.parse(view.toolArgs) as Record<string, unknown>)
         : undefined;
 
+      // Immediately show cached data
       onLoadView({
         question: view.question,
         chartSpec,
         toolName: view.toolName,
         toolArgs,
+        isRefreshing: !!view.toolName && !!toolArgs,
       });
+
+      // If we have tool info, refresh the data in the background
+      if (view.toolName && toolArgs) {
+        try {
+          const response = await fetch("/api/analytics/refresh-view", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              toolName: view.toolName,
+              toolArgs,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (result.error) {
+            console.error("Failed to refresh view data:", result.error);
+            // Notify parent with error but keep cached data
+            onLoadView({
+              question: view.question,
+              chartSpec,
+              toolName: view.toolName,
+              toolArgs,
+              isRefreshing: false,
+            });
+          } else if (result.data) {
+            // Update chart with fresh data
+            const refreshedChartSpec = {
+              ...chartSpec,
+              data: result.data,
+            };
+
+            onLoadView({
+              question: view.question,
+              chartSpec: refreshedChartSpec,
+              toolName: view.toolName,
+              toolArgs,
+              isRefreshing: false,
+            });
+          }
+        } catch (error) {
+          console.error("Failed to refresh view:", error);
+          // Keep showing cached data on error
+          onLoadView({
+            question: view.question,
+            chartSpec,
+            toolName: view.toolName,
+            toolArgs,
+            isRefreshing: false,
+          });
+        }
+      }
     } catch (error) {
       console.error("Failed to parse view:", error);
     }
@@ -267,7 +322,7 @@ export function SavedViews({ onLoadView }: SavedViewsProps) {
       <div className="p-4 border-b border-foreground/10">
         <h2 className="font-semibold">Saved Views</h2>
         <p className="text-xs text-foreground/50 mt-1">
-          Click to load and refresh with current data
+          Click to load with live data automatically refreshed
         </p>
       </div>
 
