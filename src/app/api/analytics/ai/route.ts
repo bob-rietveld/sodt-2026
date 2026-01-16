@@ -13,7 +13,7 @@ import {
   type ConversationMessage,
 } from "@/types/analytics-viz";
 
-const MAX_TOOL_RETRIES = 2;
+const MAX_CONVERSATION_TURNS = 3; // Max turns to fix tool errors
 
 function getAnthropicClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -108,148 +108,166 @@ export async function POST(request: NextRequest) {
         };
 
         try {
-          // Initial LLM call with tools
-          let response = await anthropic.messages.create({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 4096,
-            system: ANALYTICS_SYSTEM_PROMPT,
-            tools: anthropicTools,
-            messages,
-            stream: true,
-          });
+          let currentMessages = [...messages];
+          let conversationTurns = 0;
+          let hasToolUse = true;
 
-          let stopReason: string | null = null;
-          const toolUseBlocks: Array<{
-            id: string;
-            name: string;
-            input: Record<string, unknown>;
-          }> = [];
+          // Allow multiple turns for the LLM to fix tool errors
+          while (hasToolUse && conversationTurns < MAX_CONVERSATION_TURNS) {
+            conversationTurns++;
 
-          // Process streaming response
-          for await (const event of response) {
-            if (event.type === "content_block_start") {
-              if (event.content_block.type === "tool_use") {
-                currentToolUse = {
-                  id: event.content_block.id,
-                  name: event.content_block.name,
-                  input: {},
-                };
-                inputJson = "";
-              }
-            } else if (event.type === "content_block_delta") {
-              if (event.delta.type === "text_delta") {
-                fullResponse += event.delta.text;
-                sendEvent({ text: event.delta.text });
-              } else if (event.delta.type === "input_json_delta") {
-                inputJson += event.delta.partial_json;
-              }
-            } else if (event.type === "content_block_stop") {
-              if (currentToolUse) {
-                try {
-                  currentToolUse.input = JSON.parse(inputJson || "{}");
-                } catch {
-                  currentToolUse.input = {};
-                }
-                toolUseBlocks.push(currentToolUse);
-                currentToolUse = null;
-                inputJson = "";
-              }
-            } else if (event.type === "message_delta") {
-              stopReason = event.delta.stop_reason;
-            }
-          }
-
-          // Handle tool calls if any
-          if (stopReason === "tool_use" && toolUseBlocks.length > 0) {
-            const toolResults: Anthropic.ToolResultBlockParam[] = [];
-
-            for (const toolUse of toolUseBlocks) {
-              sendEvent({
-                toolCall: {
-                  tool: toolUse.name,
-                  args: toolUse.input,
-                },
-              });
-
-              // Execute tool with retry logic
-              let result: Awaited<ReturnType<typeof callTinybirdTool>>;
-              let lastError: string | undefined;
-
-              for (let attempt = 0; attempt <= MAX_TOOL_RETRIES; attempt++) {
-                try {
-                  result = await callTinybirdTool(toolUse.name, toolUse.input);
-
-                  if (result.isError) {
-                    lastError = result.content[0]?.text || "Unknown error";
-                    if (attempt < MAX_TOOL_RETRIES) {
-                      continue;
-                    }
-                  } else {
-                    break;
-                  }
-                } catch (err) {
-                  lastError = err instanceof Error ? err.message : "Tool call failed";
-                  if (attempt === MAX_TOOL_RETRIES) {
-                    result = {
-                      content: [{ type: "text", text: `Error: ${lastError}` }],
-                      isError: true,
-                    };
-                  }
-                }
-              }
-
-              const parsed = parseToolResult(result!);
-              toolCalls.push({
-                tool: toolUse.name,
-                args: toolUse.input,
-                result: parsed.error ? undefined : JSON.stringify(parsed.data.slice(0, 10)),
-                error: parsed.error,
-              });
-
-              toolResults.push({
-                type: "tool_result",
-                tool_use_id: toolUse.id,
-                content: result!.content[0]?.text || "",
-                is_error: result!.isError,
-              });
-            }
-
-            // Continue conversation with tool results
-            const continueMessages: Anthropic.MessageParam[] = [
-              ...messages,
-              {
-                role: "assistant",
-                content: toolUseBlocks.map((t) => ({
-                  type: "tool_use" as const,
-                  id: t.id,
-                  name: t.name,
-                  input: t.input,
-                })),
-              },
-              {
-                role: "user",
-                content: toolResults,
-              },
-            ];
-
-            // Get final response with analysis
-            const finalResponse = await anthropic.messages.create({
+            // Call LLM with tools
+            const response = await anthropic.messages.create({
               model: "claude-sonnet-4-20250514",
               max_tokens: 4096,
               system: ANALYTICS_SYSTEM_PROMPT,
               tools: anthropicTools,
-              messages: continueMessages,
+              messages: currentMessages,
               stream: true,
             });
 
-            for await (const event of finalResponse) {
-              if (
-                event.type === "content_block_delta" &&
-                event.delta.type === "text_delta"
-              ) {
-                fullResponse += event.delta.text;
-                sendEvent({ text: event.delta.text });
+            let stopReason: string | null = null;
+            const toolUseBlocks: Array<{
+              id: string;
+              name: string;
+              input: Record<string, unknown>;
+            }> = [];
+            const textBlocks: string[] = [];
+
+            // Process streaming response
+            for await (const event of response) {
+              if (event.type === "content_block_start") {
+                if (event.content_block.type === "tool_use") {
+                  currentToolUse = {
+                    id: event.content_block.id,
+                    name: event.content_block.name,
+                    input: {},
+                  };
+                  inputJson = "";
+                }
+              } else if (event.type === "content_block_delta") {
+                if (event.delta.type === "text_delta") {
+                  fullResponse += event.delta.text;
+                  sendEvent({ text: event.delta.text });
+                  textBlocks.push(event.delta.text);
+                } else if (event.delta.type === "input_json_delta") {
+                  inputJson += event.delta.partial_json;
+                }
+              } else if (event.type === "content_block_stop") {
+                if (currentToolUse) {
+                  try {
+                    currentToolUse.input = JSON.parse(inputJson || "{}");
+                  } catch {
+                    currentToolUse.input = {};
+                  }
+                  toolUseBlocks.push(currentToolUse);
+                  currentToolUse = null;
+                  inputJson = "";
+                }
+              } else if (event.type === "message_delta") {
+                stopReason = event.delta.stop_reason;
               }
+            }
+
+            // Handle tool calls if any
+            if (stopReason === "tool_use" && toolUseBlocks.length > 0) {
+              const toolResults: Anthropic.ToolResultBlockParam[] = [];
+              let hasErrors = false;
+
+              for (const toolUse of toolUseBlocks) {
+                sendEvent({
+                  toolCall: {
+                    tool: toolUse.name,
+                    args: toolUse.input,
+                  },
+                });
+
+                // Execute tool (no blind retries - let LLM fix errors)
+                try {
+                  const result = await callTinybirdTool(toolUse.name, toolUse.input);
+
+                  const parsed = parseToolResult(result);
+                  const hasError = result.isError || !!parsed.error;
+
+                  if (hasError) {
+                    hasErrors = true;
+                  }
+
+                  toolCalls.push({
+                    tool: toolUse.name,
+                    args: toolUse.input,
+                    result: parsed.error ? undefined : JSON.stringify(parsed.data.slice(0, 10)),
+                    error: parsed.error,
+                  });
+
+                  // Pass result back to LLM (with error if present)
+                  toolResults.push({
+                    type: "tool_result",
+                    tool_use_id: toolUse.id,
+                    content: hasError
+                      ? `Error: ${parsed.error || result.content[0]?.text}\n\nPlease fix the parameters and try again. Consider: checking parameter names, date formats, required vs optional parameters, and valid parameter values.`
+                      : result.content[0]?.text || "",
+                    is_error: hasError,
+                  });
+                } catch (err) {
+                  const errorMsg = err instanceof Error ? err.message : "Tool call failed";
+                  hasErrors = true;
+
+                  toolCalls.push({
+                    tool: toolUse.name,
+                    args: toolUse.input,
+                    error: errorMsg,
+                  });
+
+                  toolResults.push({
+                    type: "tool_result",
+                    tool_use_id: toolUse.id,
+                    content: `Error: ${errorMsg}\n\nPlease fix the parameters and try again.`,
+                    is_error: true,
+                  });
+                }
+              }
+
+              // Build next message with tool results
+              currentMessages = [
+                ...currentMessages,
+                {
+                  role: "assistant",
+                  content: [
+                    ...textBlocks.filter(t => t.trim()).map(text => ({
+                      type: "text" as const,
+                      text,
+                    })),
+                    ...toolUseBlocks.map((t) => ({
+                      type: "tool_use" as const,
+                      id: t.id,
+                      name: t.name,
+                      input: t.input,
+                    })),
+                  ],
+                },
+                {
+                  role: "user",
+                  content: toolResults,
+                },
+              ];
+
+              // If we have errors and haven't hit max turns, continue loop
+              // Otherwise, get final response
+              if (!hasErrors || conversationTurns >= MAX_CONVERSATION_TURNS) {
+                hasToolUse = false;
+              }
+
+              // If max turns reached with errors, add a note
+              if (hasErrors && conversationTurns >= MAX_CONVERSATION_TURNS) {
+                const errorNote = "\n\nI've reached the maximum number of attempts to fix the Tinybird query. Please check the error messages above for details.";
+                fullResponse += errorNote;
+                sendEvent({ text: errorNote });
+                hasToolUse = false;
+              }
+            } else {
+              // No tool use, we're done
+              hasToolUse = false;
             }
           }
 
