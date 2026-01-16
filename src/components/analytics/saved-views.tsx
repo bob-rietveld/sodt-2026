@@ -339,12 +339,14 @@ export function SavedViews({ onLoadView }: SavedViewsProps) {
         onConfirm={handleCreateFolder}
       />
 
-      <AddToDashboardModal
-        isOpen={!!addingToDashboardViewId}
-        onClose={() => setAddingToDashboardViewId(null)}
-        onConfirm={handleConfirmAddToDashboard}
-        viewId={addingToDashboardViewId!}
-      />
+      {addingToDashboardViewId && (
+        <AddToDashboardModal
+          isOpen={true}
+          onClose={() => setAddingToDashboardViewId(null)}
+          onConfirm={handleConfirmAddToDashboard}
+          viewId={addingToDashboardViewId}
+        />
+      )}
     </div>
   );
 }
