@@ -58,11 +58,18 @@ export function SavedViews({ onLoadView }: SavedViewsProps) {
   const addChartToDashboard = useMutation(
     api.analyticsDashboards.addChartToDashboard
   );
+  const removeChartFromDashboard = useMutation(
+    api.analyticsDashboards.removeChartFromDashboard
+  );
 
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [addingToDashboardViewId, setAddingToDashboardViewId] = useState<
     Id<"savedAnalyticsViews"> | null
   >(null);
+  const existingDashboardIds = useQuery(
+    api.analyticsDashboards.getDashboardsForView,
+    addingToDashboardViewId ? { viewId: addingToDashboardViewId } : "skip"
+  );
 
   if (!viewsData || !foldersData) {
     return (
@@ -210,11 +217,25 @@ export function SavedViews({ onLoadView }: SavedViewsProps) {
   };
 
   const handleConfirmAddToDashboard = async (
-    dashboardIds: Id<"analyticsDashboards">[]
+    selectedDashboardIds: Id<"analyticsDashboards">[]
   ) => {
-    if (!addingToDashboardViewId) return;
+    if (!addingToDashboardViewId || !existingDashboardIds) return;
 
-    for (const dashboardId of dashboardIds) {
+    const selectedSet = new Set(selectedDashboardIds);
+    const existingSet = new Set(existingDashboardIds);
+
+    // Determine which dashboards to add to (selected but not existing)
+    const dashboardsToAdd = selectedDashboardIds.filter(
+      (id) => !existingSet.has(id)
+    );
+
+    // Determine which dashboards to remove from (existing but not selected)
+    const dashboardsToRemove = existingDashboardIds.filter(
+      (id) => !selectedSet.has(id)
+    );
+
+    // Add to new dashboards
+    for (const dashboardId of dashboardsToAdd) {
       try {
         await addChartToDashboard({
           dashboardId,
@@ -222,6 +243,19 @@ export function SavedViews({ onLoadView }: SavedViewsProps) {
         });
       } catch (error) {
         console.error("Failed to add chart to dashboard:", error);
+        // Continue with other dashboards even if one fails
+      }
+    }
+
+    // Remove from deselected dashboards
+    for (const dashboardId of dashboardsToRemove) {
+      try {
+        await removeChartFromDashboard({
+          dashboardId,
+          viewId: addingToDashboardViewId,
+        });
+      } catch (error) {
+        console.error("Failed to remove chart from dashboard:", error);
         // Continue with other dashboards even if one fails
       }
     }

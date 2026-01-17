@@ -245,4 +245,13 @@ export default defineSchema({
     .index("by_dashboard", ["dashboardId"])
     .index("by_view", ["viewId"])
     .index("by_dashboard_and_position", ["dashboardId", "position"]),
+
+  // User preferences for analytics
+  userPreferences: defineTable({
+    userId: v.string(),  // Clerk user ID
+    defaultDashboardId: v.optional(v.id("analyticsDashboards")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"]),
 });

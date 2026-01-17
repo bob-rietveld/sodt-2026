@@ -24,9 +24,11 @@ export function DashboardsList({
   const [activeMenuId, setActiveMenuId] = useState<Id<"analyticsDashboards"> | null>(null);
 
   const dashboardsData = useQuery(api.analyticsDashboards.listDashboards);
+  const defaultDashboardId = useQuery(api.analyticsDashboards.getDefaultDashboard);
   const createDashboard = useMutation(api.analyticsDashboards.createDashboard);
   const updateDashboard = useMutation(api.analyticsDashboards.updateDashboard);
   const deleteDashboard = useMutation(api.analyticsDashboards.deleteDashboard);
+  const setDefaultDashboard = useMutation(api.analyticsDashboards.setDefaultDashboard);
 
   const handleCreateDashboard = async (
     name: string,
@@ -77,6 +79,11 @@ export function DashboardsList({
     setActiveMenuId(null);
   };
 
+  const handleSetAsDefault = async (dashboardId: Id<"analyticsDashboards">) => {
+    await setDefaultDashboard({ dashboardId });
+    setActiveMenuId(null);
+  };
+
   const userDashboards = dashboardsData?.userDashboards || [];
   const sharedDashboards = dashboardsData?.sharedDashboards || [];
 
@@ -102,20 +109,26 @@ export function DashboardsList({
 
       {/* User's Dashboards */}
       <div className="space-y-0.5">
-        {userDashboards.map((dashboard) => (
-          <div key={dashboard._id} className="relative group">
-            <button
-              onClick={() => onSelectDashboard(dashboard._id)}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                selectedDashboardId === dashboard._id
-                  ? "bg-primary/10 text-primary"
-                  : "text-foreground/80 hover:bg-foreground/5"
-              }`}
-            >
+        {userDashboards.map((dashboard) => {
+          return (
+            <div key={dashboard._id} className="relative group">
+              <button
+                onClick={() => onSelectDashboard(dashboard._id)}
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  selectedDashboardId === dashboard._id
+                    ? "bg-primary/10 text-primary"
+                    : "text-foreground/80 hover:bg-foreground/5"
+                }`}
+              >
               <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
               <span className="flex-1 text-left truncate">{dashboard.name}</span>
+              {defaultDashboardId === dashboard._id && (
+                <svg className="h-4 w-4 text-yellow-500 fill-current" viewBox="0 0 24 24">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                </svg>
+              )}
               {dashboard.isShared && (
                 <svg className="h-3 w-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -140,7 +153,7 @@ export function DashboardsList({
               </button>
 
               {activeMenuId === dashboard._id && (
-                <div className="absolute right-0 top-full mt-1 bg-white border border-foreground/10 rounded-lg shadow-lg py-1 z-10 min-w-[160px]">
+                <div className="absolute right-0 top-full mt-1 bg-white border border-foreground/10 rounded-lg shadow-lg py-1 z-10 min-w-[180px]">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -157,6 +170,18 @@ export function DashboardsList({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                     Edit
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSetAsDefault(dashboard._id);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-foreground/5 transition-colors"
+                  >
+                    <svg className={`h-4 w-4 ${defaultDashboardId === dashboard._id ? 'text-yellow-500 fill-current' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                    </svg>
+                    {defaultDashboardId === dashboard._id ? "Unset Default" : "Set as Default"}
                   </button>
                   <button
                     onClick={(e) => {
@@ -186,7 +211,8 @@ export function DashboardsList({
               )}
             </div>
           </div>
-        ))}
+        );
+        })}
 
         {userDashboards.length === 0 && (
           <div className="px-3 py-2 text-sm text-foreground/40 italic">
@@ -202,16 +228,17 @@ export function DashboardsList({
             Shared with you
           </div>
           <div className="space-y-0.5">
-            {sharedDashboards.map((dashboard) => (
-              <button
-                key={dashboard._id}
-                onClick={() => onSelectDashboard(dashboard._id)}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  selectedDashboardId === dashboard._id
-                    ? "bg-primary/10 text-primary"
-                    : "text-foreground/80 hover:bg-foreground/5"
-                }`}
-              >
+            {sharedDashboards.map((dashboard) => {
+              return (
+                <button
+                  key={dashboard._id}
+                  onClick={() => onSelectDashboard(dashboard._id)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    selectedDashboardId === dashboard._id
+                      ? "bg-primary/10 text-primary"
+                      : "text-foreground/80 hover:bg-foreground/5"
+                  }`}
+                >
                 <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
@@ -222,7 +249,8 @@ export function DashboardsList({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
               </button>
-            ))}
+            );
+            })}
           </div>
         </>
       )}

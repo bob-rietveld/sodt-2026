@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useMutation } from "convex/react";
+import { useState, useCallback, useEffect } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { AnalyticsChat } from "@/components/analytics/analytics-chat";
@@ -29,9 +29,22 @@ export default function AnalyticsContent() {
   > | null>(null);
   const [isSelectChartsModalOpen, setIsSelectChartsModalOpen] = useState(false);
 
+  const defaultDashboardId = useQuery(api.analyticsDashboards.getDefaultDashboard);
   const addChartToDashboard = useMutation(
     api.analyticsDashboards.addChartToDashboard
   );
+
+  // Automatically select default dashboard when switching to consume tab
+  useEffect(() => {
+    if (
+      activeTab === "consume" &&
+      defaultDashboardId &&
+      !selectedDashboardId &&
+      !loadedView
+    ) {
+      setSelectedDashboardId(defaultDashboardId);
+    }
+  }, [activeTab, defaultDashboardId, selectedDashboardId, loadedView]);
 
   const handleLoadView = useCallback(
     (view: {

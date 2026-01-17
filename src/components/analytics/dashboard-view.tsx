@@ -214,19 +214,24 @@ export function DashboardView({
               const isRefreshing = refreshingCharts.has(chart.view._id);
               const canRefresh = chart.view.toolName && chart.view.toolArgs;
 
+              // Remove title from chart spec to avoid duplication
+              const chartSpecWithoutTitle = { ...chartSpec, title: undefined };
+
               return (
                 <div
                   key={chart.associationId}
-                  className="bg-white border border-foreground/10 rounded-xl p-4 hover:shadow-md transition-shadow"
+                  className="bg-white border border-foreground/10 rounded-xl hover:shadow-md transition-shadow group"
                 >
-                  {/* Chart Title */}
-                  <h3 className="font-medium text-sm mb-3 line-clamp-2">
-                    {chartSpec.title}
-                  </h3>
+                  <div className="p-4">
+                    {/* Chart Title */}
+                    <h3 className="font-medium text-base mb-3 line-clamp-2">
+                      {chartSpec.title}
+                    </h3>
 
-                  {/* Chart Visualization */}
-                  <div className="h-[400px]">
-                    <DynamicChart spec={chartSpec} />
+                    {/* Chart Visualization */}
+                    <div className="h-[400px]">
+                      <DynamicChart spec={chartSpecWithoutTitle} />
+                    </div>
                   </div>
                 </div>
               );

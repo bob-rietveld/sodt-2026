@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -24,6 +24,17 @@ export function AddToDashboardModal({
   const [isAdding, setIsAdding] = useState(false);
 
   const dashboardsData = useQuery(api.analyticsDashboards.listDashboards);
+  const existingDashboardIds = useQuery(
+    api.analyticsDashboards.getDashboardsForView,
+    { viewId }
+  );
+
+  // Initialize selected dashboards with existing ones when modal opens
+  useEffect(() => {
+    if (isOpen && existingDashboardIds) {
+      setSelectedDashboardIds(new Set(existingDashboardIds));
+    }
+  }, [isOpen, existingDashboardIds]);
 
   const handleToggleDashboard = (dashboardId: Id<"analyticsDashboards">) => {
     setSelectedDashboardIds((prev) => {
@@ -65,14 +76,15 @@ export function AddToDashboardModal({
   const userDashboards = dashboardsData?.userDashboards || [];
   const sharedDashboards = dashboardsData?.sharedDashboards || [];
   const allDashboards = [...userDashboards, ...sharedDashboards];
+  const existingDashboardIdsSet = new Set(existingDashboardIds || []);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl w-full max-w-md max-h-[80vh] shadow-lg flex flex-col">
         <div className="p-6 border-b border-foreground/10">
-          <h2 className="text-xl font-semibold">Add to Dashboard</h2>
+          <h2 className="text-xl font-semibold">Manage Dashboards</h2>
           <p className="text-sm text-foreground/60 mt-1">
-            Select which dashboards to add this chart to
+            Select which dashboards should contain this chart
           </p>
         </div>
 
@@ -99,6 +111,7 @@ export function AddToDashboardModal({
                   </div>
                   {userDashboards.map((dashboard) => {
                     const isSelected = selectedDashboardIds.has(dashboard._id);
+                    const alreadyAdded = existingDashboardIdsSet.has(dashboard._id);
                     return (
                       <button
                         key={dashboard._id}
@@ -134,7 +147,7 @@ export function AddToDashboardModal({
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium text-sm">
                               {dashboard.name}
                             </span>
@@ -142,6 +155,11 @@ export function AddToDashboardModal({
                               <svg className="h-3 w-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                               </svg>
+                            )}
+                            {alreadyAdded && (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                Already added
+                              </span>
                             )}
                           </div>
                           {dashboard.description && (
@@ -163,6 +181,7 @@ export function AddToDashboardModal({
                   </div>
                   {sharedDashboards.map((dashboard) => {
                     const isSelected = selectedDashboardIds.has(dashboard._id);
+                    const alreadyAdded = existingDashboardIdsSet.has(dashboard._id);
                     return (
                       <button
                         key={dashboard._id}
@@ -198,13 +217,18 @@ export function AddToDashboardModal({
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium text-sm">
                               {dashboard.name}
                             </span>
                             <svg className="h-3 w-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                             </svg>
+                            {alreadyAdded && (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                Already added
+                              </span>
+                            )}
                           </div>
                           {dashboard.description && (
                             <div className="text-xs text-foreground/60 mt-1 line-clamp-2">
@@ -251,7 +275,7 @@ export function AddToDashboardModal({
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
               )}
-              {isAdding ? "Adding..." : "Add to Dashboard"}
+              {isAdding ? "Saving..." : "Save"}
             </button>
           </div>
         </div>

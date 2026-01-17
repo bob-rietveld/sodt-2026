@@ -437,3 +437,114 @@ export const getDashboardChartCount = query({
     return charts.length;
   },
 });
+
+/**
+ * Get all dashboards that contain a specific view
+ */
+export const getDashboardsForView = query({
+  args: {
+    viewId: v.id("savedAnalyticsViews"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    // Get all chart associations for this view
+    const associations = await ctx.db
+      .query("dashboardCharts")
+      .collect();
+
+    // Filter for this specific viewId
+    const viewAssociations = associations.filter(
+      (assoc) => assoc.viewId === args.viewId
+    );
+
+    // Get dashboard IDs
+    const dashboardIds = viewAssociations.map((assoc) => assoc.dashboardId);
+
+    return dashboardIds;
+  },
+});
+
+/**
+ * Set a dashboard as the default for the current user
+ */
+export const setDefaultDashboard = mutation({
+  args: {
+    dashboardId: v.id("analyticsDashboards"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Verify the dashboard exists and user has access
+    const dashboard = await ctx.db.get(args.dashboardId);
+    if (!dashboard) {
+      throw new Error("Dashboard not found");
+    }
+    if (dashboard.createdBy !== identity.subject && !dashboard.isShared) {
+      throw new Error("Not authorized to access this dashboard");
+    }
+
+    // Find existing preference
+    const existing = await ctx.db
+      .query("userPreferences")
+      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .first();
+
+    if (existing) {
+      // Update existing preference
+      await ctx.db.patch(existing._id, {
+        defaultDashboardId: args.dashboardId,
+        updatedAt: Date.now(),
+      });
+    } else {
+      // Create new preference
+      await ctx.db.insert("userPreferences", {
+        userId: identity.subject,
+        defaultDashboardId: args.dashboardId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+
+    return true;
+  },
+});
+
+/**
+ * Get the default dashboard for the current user
+ */
+export const getDefaultDashboard = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    const preference = await ctx.db
+      .query("userPreferences")
+      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .first();
+
+    if (!preference || !preference.defaultDashboardId) {
+      return null;
+    }
+
+    // Verify the dashboard still exists and user has access
+    const dashboard = await ctx.db.get(preference.defaultDashboardId);
+    if (!dashboard) {
+      return null;
+    }
+    if (dashboard.createdBy !== identity.subject && !dashboard.isShared) {
+      return null;
+    }
+
+    return preference.defaultDashboardId;
+  },
+});

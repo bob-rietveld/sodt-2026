@@ -62,9 +62,6 @@ export function FolderTree({
   const [editingViewId, setEditingViewId] = useState<Id<"savedAnalyticsViews"> | null>(null);
   const [editingFolderId, setEditingFolderId] = useState<Id<"savedAnalyticsFolders"> | null>(null);
   const [editName, setEditName] = useState("");
-  const [draggedViewId, setDraggedViewId] = useState<Id<"savedAnalyticsViews"> | null>(null);
-  const [dragOverFolderId, setDragOverFolderId] = useState<Id<"savedAnalyticsFolders"> | null>(null);
-  const [dragOverRoot, setDragOverRoot] = useState(false);
 
   const toggleFolder = (folderId: Id<"savedAnalyticsFolders">) => {
     setExpandedFolders((prev) => {
@@ -82,53 +79,6 @@ export function FolderTree({
     return views.filter((v) =>
       folderId ? v.folderId === folderId : !v.folderId
     );
-  };
-
-  const handleViewDragStart = (e: React.DragEvent, viewId: Id<"savedAnalyticsViews">) => {
-    setDraggedViewId(viewId);
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleViewDragEnd = () => {
-    setDraggedViewId(null);
-    setDragOverFolderId(null);
-    setDragOverRoot(false);
-  };
-
-  const handleFolderDragOver = (e: React.DragEvent, folderId: Id<"savedAnalyticsFolders">) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverFolderId(folderId);
-    setDragOverRoot(false);
-  };
-
-  const handleFolderDragLeave = () => {
-    setDragOverFolderId(null);
-  };
-
-  const handleFolderDrop = (e: React.DragEvent, folderId: Id<"savedAnalyticsFolders">) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (draggedViewId) {
-      onMoveView(draggedViewId, folderId);
-    }
-    setDraggedViewId(null);
-    setDragOverFolderId(null);
-  };
-
-  const handleRootDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOverRoot(true);
-    setDragOverFolderId(null);
-  };
-
-  const handleRootDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (draggedViewId) {
-      onMoveView(draggedViewId, undefined);
-    }
-    setDraggedViewId(null);
-    setDragOverRoot(false);
   };
 
   const handleStartEditView = (view: SavedView) => {
@@ -165,41 +115,34 @@ export function FolderTree({
 
   const ViewItem = ({ view }: { view: SavedView }) => {
     const isEditing = editingViewId === view._id;
-    const isDragging = draggedViewId === view._id;
 
     return (
-      <div
-        draggable={isOwned && !isEditing}
-        onDragStart={(e) => handleViewDragStart(e, view._id)}
-        onDragEnd={handleViewDragEnd}
-        className={`group p-3 rounded-lg hover:bg-foreground/5 transition-colors ${
-          isDragging ? "opacity-50" : ""
-        }`}
-      >
-        <div className="flex items-start justify-between gap-2">
-          {isEditing ? (
-            <input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSaveViewEdit();
-                if (e.key === "Escape") handleCancelEdit();
-              }}
-              className="flex-1 px-2 py-1 text-sm border border-foreground/20 rounded focus:outline-none focus:border-primary"
-              autoFocus
-            />
-          ) : (
-            <button
-              onClick={() => onLoadView(view)}
-              className="flex-1 text-left"
-            >
-              <div className="font-medium text-sm truncate">{view.name}</div>
-              <div className="text-xs text-foreground/50 truncate mt-1">
-                {view.question}
-              </div>
-            </button>
-          )}
+      <div className="group p-3 rounded-lg hover:bg-foreground/5 transition-colors">
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+            {isEditing ? (
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveViewEdit();
+                  if (e.key === "Escape") handleCancelEdit();
+                }}
+                className="flex-1 px-2 py-1 text-sm border border-foreground/20 rounded focus:outline-none focus:border-primary"
+                autoFocus
+              />
+            ) : (
+              <button
+                onClick={() => onLoadView(view)}
+                className="flex-1 text-left min-w-0"
+              >
+                <div className="font-medium text-sm truncate">{view.name}</div>
+                <div className="text-xs text-foreground/50 truncate mt-1">
+                  {view.question}
+                </div>
+              </button>
+            )}
 
           {isOwned && (
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -272,6 +215,7 @@ export function FolderTree({
               )}
             </div>
           )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2 mt-2">
@@ -292,18 +236,10 @@ export function FolderTree({
     const isExpanded = expandedFolders.has(folder._id);
     const folderViews = getViewsInFolder(folder._id);
     const isEditing = editingFolderId === folder._id;
-    const isDragOver = dragOverFolderId === folder._id;
 
     return (
       <div className="mb-2">
-        <div
-          onDragOver={(e) => handleFolderDragOver(e, folder._id)}
-          onDragLeave={handleFolderDragLeave}
-          onDrop={(e) => handleFolderDrop(e, folder._id)}
-          className={`group p-2 rounded-lg hover:bg-foreground/5 transition-colors ${
-            isDragOver ? "bg-primary/10 border-2 border-primary border-dashed" : ""
-          }`}
-        >
+        <div className="group p-2 rounded-lg hover:bg-foreground/5 transition-colors">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <button
@@ -453,14 +389,7 @@ export function FolderTree({
 
       {/* Unfiled views (root level) */}
       {rootViews.length > 0 && (
-        <div
-          onDragOver={handleRootDragOver}
-          onDragLeave={() => setDragOverRoot(false)}
-          onDrop={handleRootDrop}
-          className={`mt-3 ${
-            dragOverRoot ? "bg-primary/5 border-2 border-primary border-dashed rounded-lg p-2" : ""
-          }`}
-        >
+        <div className="mt-3">
           <div className="text-xs font-medium text-foreground/50 px-3 py-2">
             Unfiled ({rootViews.length})
           </div>

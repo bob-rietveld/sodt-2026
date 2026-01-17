@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface CreateDashboardModalProps {
   isOpen: boolean;
@@ -18,9 +18,17 @@ export function CreateDashboardModal({
   onConfirm,
   editMode,
 }: CreateDashboardModalProps) {
-  const [name, setName] = useState(editMode?.name || "");
-  const [description, setDescription] = useState(editMode?.description || "");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+
+  // Update form fields when modal opens or editMode changes
+  useEffect(() => {
+    if (isOpen) {
+      setName(editMode?.name || "");
+      setDescription(editMode?.description || "");
+    }
+  }, [isOpen, editMode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
