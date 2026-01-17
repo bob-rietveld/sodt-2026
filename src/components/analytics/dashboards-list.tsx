@@ -81,20 +81,20 @@ export function DashboardsList({
   const sharedDashboards = dashboardsData?.sharedDashboards || [];
 
   return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between px-2 py-1.5">
-        <h3 className="text-sm font-medium text-foreground/60 flex items-center gap-2">
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          Dashboards
-        </h3>
+    <div className="space-y-4">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <h2 className="text-lg font-semibold mb-1">Dashboards</h2>
+          <p className="text-sm text-foreground/60">
+            Organize your charts into dashboards
+          </p>
+        </div>
         <button
           onClick={() => setIsCreateModalOpen(true)}
-          className="p-1 hover:bg-foreground/5 rounded transition-colors"
+          className="p-1.5 hover:bg-foreground/5 rounded-lg transition-colors flex-shrink-0"
           title="Create dashboard"
         >
-          <svg className="h-4 w-4 text-foreground/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="h-5 w-5 text-foreground/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
         </button>
@@ -198,8 +198,8 @@ export function DashboardsList({
       {/* Shared Dashboards */}
       {sharedDashboards.length > 0 && (
         <>
-          <div className="px-3 py-2 text-xs font-medium text-foreground/40 uppercase tracking-wide mt-4">
-            Shared Dashboards
+          <div className="pt-4 pb-2 text-xs font-medium text-foreground/40 uppercase tracking-wide">
+            Shared with you
           </div>
           <div className="space-y-0.5">
             {sharedDashboards.map((dashboard) => (
