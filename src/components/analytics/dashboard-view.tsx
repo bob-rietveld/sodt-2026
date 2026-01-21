@@ -20,6 +20,11 @@ export function DashboardView({
   const [refreshingCharts, setRefreshingCharts] = useState<Set<string>>(
     new Set()
   );
+  const [fullScreenChart, setFullScreenChart] = useState<{
+    viewId: Id<"savedAnalyticsViews">;
+    title: string;
+    chartSpec: any;
+  } | null>(null);
 
   const dashboardData = useQuery(api.analyticsDashboards.getDashboard, {
     dashboardId,
@@ -222,12 +227,17 @@ export function DashboardView({
                   key={chart.associationId}
                   className="bg-white border border-foreground/10 rounded-xl hover:shadow-md transition-shadow group relative"
                 >
-                  {/* Remove button */}
-                  {isOwner && (
+                  {/* Action buttons */}
+                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
+                    {/* Full screen button */}
                     <button
-                      onClick={() => handleRemoveChart(chart.view._id)}
-                      className="absolute top-2 right-2 p-1.5 rounded-lg bg-white border border-foreground/10 text-foreground/40 hover:text-red-600 hover:border-red-200 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all z-10"
-                      title="Remove from dashboard"
+                      onClick={() => setFullScreenChart({
+                        viewId: chart.view._id,
+                        title: chartSpec.title,
+                        chartSpec: chartSpecWithoutTitle
+                      })}
+                      className="p-1.5 rounded-lg bg-white border border-foreground/10 text-foreground/40 hover:text-primary hover:border-primary/20 hover:bg-primary/5 transition-all"
+                      title="View full screen"
                     >
                       <svg
                         className="w-4 h-4"
@@ -239,11 +249,33 @@ export function DashboardView({
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
+                          d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
                         />
                       </svg>
                     </button>
-                  )}
+                    {/* Remove button */}
+                    {isOwner && (
+                      <button
+                        onClick={() => handleRemoveChart(chart.view._id)}
+                        className="p-1.5 rounded-lg bg-white border border-foreground/10 text-foreground/40 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all"
+                        title="Remove from dashboard"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
 
                   <div className="p-4">
                     {/* Chart Title */}
@@ -273,6 +305,60 @@ export function DashboardView({
           description: dashboardData.description,
         }}
       />
+
+      {/* Full Screen Chart Modal */}
+      {fullScreenChart && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+          onClick={() => setFullScreenChart(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[95vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-foreground/10">
+              <h2 className="text-2xl font-semibold">{fullScreenChart.title}</h2>
+              <button
+                onClick={() => setFullScreenChart(null)}
+                className="p-2 rounded-lg hover:bg-foreground/5 text-foreground/60 hover:text-foreground transition-colors"
+                title="Close"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Chart Content */}
+            <div className="flex-1 p-6 overflow-auto">
+              <div className="h-full min-h-[600px]">
+                <DynamicChart spec={fullScreenChart.chartSpec} />
+              </div>
+            </div>
+
+            {/* Footer with close button */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-foreground/10">
+              <button
+                onClick={() => setFullScreenChart(null)}
+                className="px-4 py-2 text-sm border border-foreground/20 rounded-lg hover:bg-foreground/5 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
