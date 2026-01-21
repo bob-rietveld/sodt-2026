@@ -26,7 +26,7 @@ export function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps) {
             : "text-foreground/60 hover:text-foreground/80"
         }`}
       >
-        Consume
+        Dashboard
       </button>
     </div>
   );

@@ -62,6 +62,7 @@ export function FolderTree({
   const [editingViewId, setEditingViewId] = useState<Id<"savedAnalyticsViews"> | null>(null);
   const [editingFolderId, setEditingFolderId] = useState<Id<"savedAnalyticsFolders"> | null>(null);
   const [editName, setEditName] = useState("");
+  const [movingViewId, setMovingViewId] = useState<Id<"savedAnalyticsViews"> | null>(null);
 
   const toggleFolder = (folderId: Id<"savedAnalyticsFolders">) => {
     setExpandedFolders((prev) => {
@@ -191,6 +192,50 @@ export function FolderTree({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
                   </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setMovingViewId(movingViewId === view._id ? null : view._id)}
+                      className="p-1 text-foreground/50 hover:text-foreground hover:bg-foreground/10 rounded"
+                      title="Move to Folder"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                    </button>
+                    {movingViewId === view._id && (
+                      <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-foreground/10 rounded-lg shadow-lg z-50">
+                        <div className="py-1">
+                          <button
+                            onClick={() => {
+                              onMoveView(view._id, undefined);
+                              setMovingViewId(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-foreground/5 flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                            </svg>
+                            Root (No Folder)
+                          </button>
+                          {folders.map((folder) => (
+                            <button
+                              key={folder._id}
+                              onClick={() => {
+                                onMoveView(view._id, folder._id);
+                                setMovingViewId(null);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-foreground/5 flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                              </svg>
+                              {folder.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   {onAddToDashboard && (
                     <button
                       onClick={() => onAddToDashboard(view._id)}
