@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
 
             // Call LLM with tools
             const response = await anthropic.messages.create({
-              model: "claude-sonnet-4-20250514",
+              model: "claude-opus-4-5-20251101",
               max_tokens: 4096,
               system: ANALYTICS_SYSTEM_PROMPT,
               tools: anthropicTools,
@@ -252,19 +252,18 @@ export async function POST(request: NextRequest) {
                 },
               ];
 
-              // If we have errors and haven't hit max turns, continue loop
-              // Otherwise, get final response
-              if (!hasErrors || conversationTurns >= MAX_CONVERSATION_TURNS) {
+              // Continue loop to let LLM generate final response
+              // Only stop if we've hit max turns
+              if (conversationTurns >= MAX_CONVERSATION_TURNS) {
                 hasToolUse = false;
+                // If there are still errors, add a note
+                if (hasErrors) {
+                  const errorNote = "\n\nI've reached the maximum number of attempts to fix the Tinybird query. Please check the error messages above for details.";
+                  fullResponse += errorNote;
+                  sendEvent({ text: errorNote });
+                }
               }
-
-              // If max turns reached with errors, add a note
-              if (hasErrors && conversationTurns >= MAX_CONVERSATION_TURNS) {
-                const errorNote = "\n\nI've reached the maximum number of attempts to fix the Tinybird query. Please check the error messages above for details.";
-                fullResponse += errorNote;
-                sendEvent({ text: errorNote });
-                hasToolUse = false;
-              }
+              // Otherwise, continue loop to get LLM's final response with chart
             } else {
               // No tool use, we're done
               hasToolUse = false;

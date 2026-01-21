@@ -220,11 +220,34 @@ export function DashboardView({
               return (
                 <div
                   key={chart.associationId}
-                  className="bg-white border border-foreground/10 rounded-xl hover:shadow-md transition-shadow group"
+                  className="bg-white border border-foreground/10 rounded-xl hover:shadow-md transition-shadow group relative"
                 >
+                  {/* Remove button */}
+                  {isOwner && (
+                    <button
+                      onClick={() => handleRemoveChart(chart.view._id)}
+                      className="absolute top-2 right-2 p-1.5 rounded-lg bg-white border border-foreground/10 text-foreground/40 hover:text-red-600 hover:border-red-200 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all z-10"
+                      title="Remove from dashboard"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  )}
+
                   <div className="p-4">
                     {/* Chart Title */}
-                    <h3 className="font-medium text-base mb-3 line-clamp-2">
+                    <h3 className="font-medium text-base mb-3 line-clamp-2 pr-8">
                       {chartSpec.title}
                     </h3>
 

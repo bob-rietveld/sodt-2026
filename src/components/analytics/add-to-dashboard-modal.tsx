@@ -49,16 +49,14 @@ export function AddToDashboardModal({
   };
 
   const handleConfirm = async () => {
-    if (selectedDashboardIds.size === 0) return;
-
     setIsAdding(true);
     try {
       await onConfirm(Array.from(selectedDashboardIds));
       setSelectedDashboardIds(new Set());
       onClose();
     } catch (error) {
-      console.error("Failed to add to dashboards:", error);
-      alert("Failed to add to dashboards. Please try again.");
+      console.error("Failed to update dashboards:", error);
+      alert("Failed to update dashboards. Please try again.");
     } finally {
       setIsAdding(false);
     }
@@ -248,10 +246,14 @@ export function AddToDashboardModal({
         {/* Footer */}
         <div className="p-6 border-t border-foreground/10 flex items-center justify-between">
           <div className="text-sm text-foreground/60">
-            {selectedDashboardIds.size > 0 && (
+            {selectedDashboardIds.size > 0 ? (
               <span>
                 {selectedDashboardIds.size} dashboard
                 {selectedDashboardIds.size !== 1 ? "s" : ""} selected
+              </span>
+            ) : (
+              <span className="text-orange-600">
+                Will remove from all dashboards
               </span>
             )}
           </div>
@@ -266,7 +268,7 @@ export function AddToDashboardModal({
             </button>
             <button
               onClick={handleConfirm}
-              disabled={selectedDashboardIds.size === 0 || isAdding}
+              disabled={isAdding}
               className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               {isAdding && (

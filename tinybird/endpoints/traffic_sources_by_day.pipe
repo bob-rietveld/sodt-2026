@@ -1,0 +1,28 @@
+DESCRIPTION >
+    Daily traffic source trends showing how different sources perform over time. Perfect for time series charts showing traffic source evolution.
+
+NODE daily_traffic_trends
+SQL >
+    %
+    SELECT 
+      toDate(timestamp) as date,
+      CASE 
+        WHEN referrer = '' OR referrer IS NULL THEN 'Direct'
+        WHEN referrer LIKE '%google%' THEN 'Google'
+        WHEN referrer LIKE '%facebook%' THEN 'Facebook'
+        WHEN referrer LIKE '%twitter%' OR referrer LIKE '%t.co%' THEN 'Twitter'
+        WHEN referrer LIKE '%linkedin%' THEN 'LinkedIn'
+        ELSE 'Other'
+      END as traffic_source,
+      count(DISTINCT session_id) as sessions,
+      countIf(event_type = 'page_view') as page_views,
+      count(*) as total_events
+    FROM web_events
+    WHERE 
+      timestamp >= now() - INTERVAL {{Int32(days_back, 30)}} DAY
+    GROUP BY date, traffic_source
+    ORDER BY date DESC, sessions DESC
+
+TYPE endpoint
+
+TOKEN analytics READ

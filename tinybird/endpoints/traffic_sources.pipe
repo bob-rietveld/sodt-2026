@@ -1,0 +1,39 @@
+DESCRIPTION >
+    Traffic source analysis endpoint showing where visitors come from with engagement and performance metrics
+
+NODE traffic_analysis
+SQL >
+    %
+    SELECT 
+      CASE 
+        WHEN referrer = '' OR referrer IS NULL THEN 'Direct'
+        WHEN referrer LIKE '%google%' THEN 'Google'
+        WHEN referrer LIKE '%facebook%' THEN 'Facebook'
+        WHEN referrer LIKE '%twitter%' OR referrer LIKE '%t.co%' THEN 'Twitter'
+        WHEN referrer LIKE '%linkedin%' THEN 'LinkedIn'
+        ELSE 'Other'
+      END as traffic_source,
+      count(DISTINCT session_id) as sessions,
+      countIf(event_type = 'page_view') as page_views,
+      count(*) as total_events,
+      round(avg(load_time), 0) as avg_load_time_ms,
+      round(page_views * 100.0 / total_events, 1) as page_view_rate,
+      round(sessions * 100.0 / sum(sessions) OVER (), 1) as percent_of_traffic
+    FROM web_events
+    WHERE 
+      {% if defined(start_date) %}
+        timestamp >= {{DateTime(start_date)}}
+      {% else %}
+        timestamp >= now() - interval 30 day
+      {% end %}
+      {% if defined(end_date) %}
+        AND timestamp <= {{DateTime(end_date)}}
+      {% else %}
+        AND timestamp <= now()
+      {% end %}
+    GROUP BY traffic_source
+    ORDER BY sessions DESC
+
+TYPE endpoint
+
+TOKEN analytics READ

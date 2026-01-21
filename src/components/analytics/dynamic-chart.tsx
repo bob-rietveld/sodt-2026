@@ -53,7 +53,7 @@ export function DynamicChart({ spec, className = "" }: DynamicChartProps) {
         {type === "area" && <AreaChartRenderer data={data} config={config} />}
         {type === "pie" && <PieChartRenderer data={data} config={config} />}
         {type === "table" && <TableRenderer data={data} config={config} />}
-        {type === "metric" && <MetricRenderer config={config} />}
+        {type === "metric" && <MetricRenderer data={data} config={config} />}
       </div>
     </div>
   );
@@ -312,8 +312,46 @@ function TableRenderer({
   );
 }
 
-function MetricRenderer({ config }: { config: ChartSpec["config"] }) {
-  const { value, previousValue, unit, trend } = config;
+function MetricRenderer({
+  data,
+  config
+}: {
+  data: Record<string, unknown>[];
+  config: ChartSpec["config"];
+}) {
+  const { value: configValue, previousValue, unit, trend } = config;
+
+  // Extract value from data array if not directly in config
+  let value: number | string | undefined;
+
+  // If configValue is a string, it might be a field reference
+  if (typeof configValue === 'string' && data.length > 0) {
+    const firstRow = data[0];
+    // Check if it's a field name in the data
+    if (configValue in firstRow && typeof firstRow[configValue] === 'number') {
+      value = firstRow[configValue] as number;
+    } else {
+      // Otherwise, try to find any numeric value
+      const numericKeys = Object.keys(firstRow).filter(key =>
+        typeof firstRow[key] === 'number'
+      );
+      if (numericKeys.length > 0) {
+        value = firstRow[numericKeys[0]] as number;
+      }
+    }
+  } else if (typeof configValue === 'number') {
+    // It's already a number, use it directly
+    value = configValue;
+  } else if (configValue === undefined && data.length > 0) {
+    // No config value, try to find a numeric value in data
+    const firstRow = data[0];
+    const numericKeys = Object.keys(firstRow).filter(key =>
+      typeof firstRow[key] === 'number'
+    );
+    if (numericKeys.length > 0) {
+      value = firstRow[numericKeys[0]] as number;
+    }
+  }
 
   if (value === undefined) {
     return <EmptyState message="No metric value" />;

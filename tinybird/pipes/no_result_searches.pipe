@@ -1,5 +1,5 @@
 DESCRIPTION >
-    Get search queries that returned zero results. Useful for identifying content gaps and improving document coverage. Returns query text and timestamp, ordered by most recent.
+    Get search queries that returned zero results. Useful for identifying content gaps and improving document coverage. Returns query text and timestamp, ordered by most recent. Use limit parameter (default 20) to control result count.
 
 NODE no_results
 SQL >

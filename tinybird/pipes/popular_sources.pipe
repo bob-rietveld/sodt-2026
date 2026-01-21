@@ -1,20 +1,33 @@
+DESCRIPTION >
+    Returns the most popular documents that appear in search results. Shows which content is most frequently cited/returned based on actual search analytics.
+
 NODE popular_sources_data
 SQL >
     %
-    WITH sample_sources AS (
-        SELECT 'doc_123' as convexId, 'Machine Learning Guide' as title, 'ml_guide.pdf' as filename, 15 as count
-        UNION ALL
-        SELECT 'doc_456' as convexId, 'Python Tutorial' as title, 'python.md' as filename, 12 as count
-        UNION ALL  
-        SELECT 'doc_789' as convexId, 'Data Science Basics' as title, 'datascience.pdf' as filename, 8 as count
-        UNION ALL
-        SELECT 'doc_321' as convexId, 'Neural Networks' as title, 'nn.pdf' as filename, 6 as count
-        UNION ALL
-        SELECT 'doc_654' as convexId, 'API Documentation' as title, 'api.md' as filename, 4 as count
+    WITH parsed_sources AS (
+        SELECT 
+            JSONExtractString(arrayJoin(JSONExtractArrayRaw(sources)), 'convexId') as convexId,
+            JSONExtractString(arrayJoin(JSONExtractArrayRaw(sources)), 'title') as title,
+            JSONExtractString(arrayJoin(JSONExtractArrayRaw(sources)), 'filename') as filename,
+            session_id
+        FROM events
+        WHERE 
+            sources != '' 
+            AND sources != '[]'
+            AND timestamp >= now() - INTERVAL {{Int32(days_back, 30)}} DAY
     )
-    SELECT convexId, title, filename, count
-    FROM sample_sources
-    ORDER BY count DESC
+    SELECT 
+        convexId,
+        any(title) as title,
+        any(filename) as filename,
+        count() as appearances,
+        countDistinct(session_id) as unique_sessions
+    FROM parsed_sources
+    WHERE convexId != ''
+    GROUP BY convexId
+    ORDER BY appearances DESC
     LIMIT {{Int32(limit, 20)}}
 
 TYPE endpoint
+
+TOKEN analytics READ
